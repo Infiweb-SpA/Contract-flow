@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Validación de Informe - Split View{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full space-y-4">
+    <!-- Encabezado de la Vista -->
+    <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800">Módulo de Validación de Informes</h1>
+            <p class="text-sm text-gray-500">Contrato N° <span class="font-bold text-blue-700">{{ contract.contract_number }}</span> — Prestador: {{ contract.provider.full_name }}</p>
+        </div>
+        <a href="{{ url_for('dashboard.index') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Volver al Dashboard</a>
+    </div>
+
+    <!-- Contenedor Split-View (Grid de 2 columnas) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-grow min-h-[70vh]">
+        
+        <!-- PANEL IZQUIERDO: Subida de Archivo y Visor PDF -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Documento Original (PDF)</h2>
+                
+                {% if not pdf_url %}
+                <form method="POST" enctype="multipart/form-data" class="flex items-center space-x-2">
+                    <input type="file" name="report_file" accept=".pdf" required class="text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer">
+                    <button type="submit" class="bg-blue-800 text-white text-xs px-4 py-1.5 rounded font-bold shadow hover:bg-blue-900 transition">
+                        Subir y Extraer
+                    </button>
+                </form>
+                {% else %}
+                <span class="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold shadow-sm">Archivo Cargado</span>
+                {% endif %}
+            </div>
+            
+            <div class="flex-grow bg-gray-300 relative h-full min-h-[500px]">
+                {% if pdf_url %}
+                    <!-- Visor Nativo del Navegador -->
+                    <embed src="{{ pdf_url }}" type="application/pdf" width="100%" height="100%" class="border-none">
+                {% else %}
+                    <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
+                        <svg class="w-12 h-12 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        <p class="text-sm font-semibold">Esperando documento...</p>
+                        <p class="text-xs mt-1">Seleccione un archivo PDF en la barra superior.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- PANEL DERECHO: Análisis OCR y Auditoría de Funciones -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Análisis IA y Validación de Contrato</h2>
+            </div>
+            
+            <div class="p-5 overflow-y-auto space-y-6 flex-grow">
+                
+                <!-- Sección 1: Resultado OCR -->
+                <div>
+                    <h3 class="text-xs font-bold text-blue-800 uppercase mb-2 border-b pb-1">Texto Extraído (Lectura / OCR)</h3>
+                    <div class="bg-gray-900 rounded-md p-4 text-gray-100 h-64 overflow-y-auto font-mono text-xs whitespace-pre-wrap shadow-inner">{% if extracted_text %}{{ extracted_text }}{% else %}<span class="text-gray-500 italic">El texto detectado en el PDF aparecerá en esta terminal una vez procesado el archivo. Útil para validar palabras clave de las funciones exigidas.</span>{% endif %}</div>
+                </div>
+
+                <!-- Sección 2: Checklist del Contrato -->
+                <div>
+                    <h3 class="text-xs font-bold text-blue-800 uppercase mb-3 border-b pb-1">Checklist: Funciones del Contrato</h3>
+                    <form action="#" method="POST" class="space-y-2">
+                        {% for func in contract.functions %}
+                        <label class="flex items-start space-x-3 p-3 border border-gray-200 rounded-md hover:bg-blue-50 cursor-pointer transition-colors duration-200">
+                            <div class="flex-shrink-0 pt-0.5">
+                                <input type="checkbox" name="functions_met[]" value="{{ func.id }}" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer">
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-800 font-medium">{{ func.function_description }}</p>
+                            </div>
+                        </label>
+                        {% else %}
+                        <div class="p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded text-sm">
+                            Este contrato no tiene funciones específicas registradas.
+                        </div>
+                        {% endfor %}
+
+                        <!-- Botón de Aprobación Final (Deshabilitado si no hay PDF) -->
+                        <div class="pt-6 mt-4 flex justify-end">
+                            <button type="button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-md text-sm transition shadow-md flex items-center space-x-2 {% if not pdf_url %}opacity-50 cursor-not-allowed{% endif %}" {% if not pdf_url %}disabled title="Debe subir un informe primero"{% endif %}>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Aprobar Pago de Honorarios</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+        
+    </div>
+</div>
+{% endblock %}

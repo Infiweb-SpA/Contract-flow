@@ -1,0 +1,11 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-WTF
+WTForms
+Werkzeug
+gunicorn
+python-dotenv
+pdfplumber
+paddleocr
+paddlepaddle

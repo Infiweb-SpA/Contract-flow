@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Contrato N° {{ contract.contract_number }}</title>
+    <style>
+        body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 40px; color: #000; }
+        .header { text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 30px; }
+        .title { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 20px; text-decoration: underline; }
+        .section { margin-bottom: 15px; text-align: justify; }
+        .functions-list { margin-left: 20px; }
+        .signatures { margin-top: 80px; display: flex; justify-content: space-between; }
+        .signature-box { text-align: center; width: 45%; border-top: 1px solid #000; pt-2; }
+        @media print { body { margin: 0; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        República de Chile<br>
+        Municipalidad de Temuco<br>
+        {{ contract.department.name }}
+    </div>
+
+    <div class="title">CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS</div>
+
+    <div class="section">
+        En Temuco, a {{ contract.created_at.strftime('%d de %m de %Y') }}, entre la I. MUNICIPALIDAD DE TEMUCO y Don(a) <strong>{{ contract.provider.full_name }}</strong>, RUT <strong>{{ contract.provider.rut }}</strong>, se conviene el siguiente contrato:
+    </div>
+
+    <div class="section">
+        <strong>PRIMERO:</strong> El prestador desempeñará el cargo de <strong>{{ contract.position_title }}</strong> en el marco del programa <em>{{ contract.program_name or 'Gestión Municipal' }}</em>.
+    </div>
+
+    <div class="section">
+        <strong>SEGUNDO:</strong> Serán funciones específicas del prestador las siguientes:
+        <ol class="functions-list">
+            {% for f in contract.functions %}
+            <li>{{ f.function_description }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+
+    <div class="section">
+        <strong>TERCERO:</strong> Los servicios regirán desde el <strong>{{ contract.start_date.strftime('%d/%m/%Y') }}</strong> hasta el <strong>{{ contract.end_date.strftime('%d/%m/%Y') }}</strong>. La renta bruta mensual acordada es de <strong>${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</strong> CLP.
+    </div>
+
+    <div class="signatures">
+        <div class="signature-box">I. MUNICIPALIDAD DE TEMUCO</div>
+        <div class="signature-box">{{ contract.provider.full_name }}<br>RUT: {{ contract.provider.rut }}</div>
+    </div>
+</body>
+</html>

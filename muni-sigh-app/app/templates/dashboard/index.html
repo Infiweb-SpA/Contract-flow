@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Encabezado -->
+    <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Panel de Control</h1>
+            <p class="text-sm text-gray-500">Gestión Integrada de Honorarios Municipales (SIGH-MUNI)</p>
+        </div>
+        <div>
+            <a href="{{ url_for('contract_builder.create') }}" class="bg-blue-800 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-md shadow text-sm transition">
+                + Armar Nuevo Contrato
+            </a>
+        </div>
+    </div>
+
+    <!-- Indicadores -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-800">
+            <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Contratos Registrados</h3>
+            <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_contracts }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-green-600">
+            <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Prestadores de Servicio</h3>
+            <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_providers }}</p>
+        </div>
+    </div>
+
+    <!-- Tabla Últimos Contratos -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 font-bold text-gray-700 text-sm">
+            Últimos Contratos Registrados
+        </div>
+        <table class="w-full text-left text-sm text-gray-600">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-semibold border-b">
+                <tr>
+                    <th class="px-6 py-3">Correlativo</th>
+                    <th class="px-6 py-3">Prestador</th>
+                    <th class="px-6 py-3">Cargo</th>
+                    <th class="px-6 py-3">Origen</th>
+                    <th class="px-6 py-3">Estado</th>
+                    <th class="px-6 py-3">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for contract in recent_contracts %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 font-semibold text-gray-800">{{ contract.contract_number }}</td>
+                    <td class="px-6 py-4">{{ contract.provider.full_name }}</td>
+                    <td class="px-6 py-4">{{ contract.position_title }}</td>
+                    <td class="px-6 py-4"><span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-mono">{{ contract.creation_type }}</span></td>
+                    <td class="px-6 py-4"><span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded font-semibold">{{ contract.status }}</span></td>
+                    <td class="px-6 py-4 flex space-x-3">
+                        <a href="{{ url_for('contract_builder.preview', contract_id=contract.id) }}" target="_blank" class="text-blue-600 hover:underline font-semibold text-xs">
+                            📄 Ver Borrador
+                        </a>
+                        <a href="{{ url_for('payments.validate_report', contract_id=contract.id) }}" class="text-green-600 hover:underline font-semibold text-xs">
+                            ✅ Validar Informe
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos registrados aún.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center py-12">
+    <div class="w-full max-w-md bg-white p-8 rounded-lg shadow-lg border border-gray-200">
+        <div class="text-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">Acceso al Sistema</h2>
+            <p class="text-sm text-gray-500 mt-1">Gestión y Control de Contratos a Honorarios</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+            {{ form.hidden_tag() }}
+
+            <div>
+                <label for="rut_or_email" class="block text-xs font-semibold text-gray-700 uppercase mb-1">RUT o Correo Electrónico</label>
+                {{ form.rut_or_email(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm", placeholder="Ej: 12345678-9 o usuario@munisigh.cl") }}
+                {% for error in form.rut_or_email.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div>
+                <label for="password" class="block text-xs font-semibold text-gray-700 uppercase mb-1">Contraseña</label>
+                {{ form.password(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm", placeholder="••••••••") }}
+                {% for error in form.password.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="flex items-center justify-between text-sm">
+                <label class="flex items-center text-gray-600 text-xs">
+                    {{ form.remember(class="mr-2 text-blue-600 rounded") }} Recordar sesión
+                </label>
+            </div>
+
+            <div>
+                {{ form.submit(class="w-full bg-blue-800 hover:bg-blue-900 text-white font-semibold py-2 px-4 rounded-md shadow transition duration-200 cursor-pointer text-sm") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
