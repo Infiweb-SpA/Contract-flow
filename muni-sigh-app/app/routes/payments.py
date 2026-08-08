@@ -29,22 +29,24 @@ def bandeja():
 
     query = MonthlyPayment.query.join(Contract).join(Contract.provider)
 
-    # Filtrar según rol
-    if user.role == 'JEFE_DEPTO':
-        query = query.filter(Contract.department_id == user.department_id)
-        query = query.filter(MonthlyPayment.approval_status.in_(['PENDIENTE_REVISION', 'OBSERVADO']))
-    elif user.role == 'ADMIN_RRHH':
-        query = query.filter(MonthlyPayment.approval_status.in_(['VISADO_JEFE_DEPTO', 'OBSERVADO']))
-    elif user.role == 'FINANZAS_CONTROL':
-        query = query.filter(MonthlyPayment.approval_status.in_(['APROBADO_RRHH', 'OBSERVADO']))
-    # SUPERADMIN ve todo
-
-    if status_filter:
+    # Si NO hay filtro de estado: mostrar bandeja de trabajo del rol (pendientes)
+    if not status_filter:
+        if user.role == 'JEFE_DEPTO':
+            query = query.filter(Contract.department_id == user.department_id)
+            query = query.filter(MonthlyPayment.approval_status.in_(['PENDIENTE_REVISION', 'OBSERVADO']))
+        elif user.role == 'ADMIN_RRHH':
+            query = query.filter(MonthlyPayment.approval_status.in_(['VISADO_JEFE_DEPTO', 'OBSERVADO']))
+        elif user.role == 'FINANZAS_CONTROL':
+            query = query.filter(MonthlyPayment.approval_status.in_(['APROBADO_RRHH', 'OBSERVADO']))
+        # SUPERADMIN: ve todo sin filtrar
+    else:
+        # Si hay filtro de estado: mostrar TODOS los pagos con ese estado (historial)
         query = query.filter(MonthlyPayment.approval_status == status_filter)
 
     payments = query.order_by(MonthlyPayment.payment_year.desc(), MonthlyPayment.payment_month.desc()).all()
-    return render_template('payments/bandejas.html', payments=payments, status_filter=status_filter)
-
+    
+    # ← AQUÍ ESTABA EL ERROR: faltaba pasar 'user'
+    return render_template('payments/bandejas.html', payments=payments, status_filter=status_filter, user=user)
 
 # =============================================================================
 # CREAR PAGO MENSUAL DESDE CONTRATO
@@ -55,8 +57,6 @@ def bandeja():
 def create_payment(contract_id):
     try:
         contract = Contract.query.get_or_404(contract_id)
-        
-        # Si vienen del formulario, usarlos; si no, usar mes/año actual
         year = int(request.form.get('payment_year')) if request.form.get('payment_year') else datetime.now().year
         month = int(request.form.get('payment_month')) if request.form.get('payment_month') else datetime.now().month
 
@@ -77,7 +77,6 @@ def create_payment(contract_id):
         db.session.add(payment)
         db.session.flush()
 
-        # Crear checklist automático con las funciones del contrato
         for func in contract.functions:
             db.session.add(PaymentFunctionChecklist(
                 monthly_payment_id=payment.id,
@@ -109,7 +108,6 @@ def review(payment_id):
 
     if request.method == 'POST':
         try:
-            # Actualizar checklist
             checklist_ids = request.form.getlist('checklist_id[]')
             statuses = request.form.getlist('checklist_status[]')
             comments = request.form.getlist('checklist_comments[]')
@@ -120,7 +118,6 @@ def review(payment_id):
                     item.status = st
                     item.comments = co.strip()
 
-            # Subir informe si existe
             if 'report_file' in request.files:
                 file = request.files['report_file']
                 if file and file.filename != '' and allowed_file(file.filename):
@@ -139,7 +136,6 @@ def review(payment_id):
             db.session.rollback()
             flash(f'Error al guardar revisión: {str(e)}', 'danger')
 
-    # Construir lista de funciones con su checklist
     checklist_items = PaymentFunctionChecklist.query.filter_by(monthly_payment_id=payment.id).all()
     functions_map = {cf.id: cf for cf in contract.functions}
 
@@ -167,7 +163,7 @@ def review(payment_id):
 def approve_payment(payment_id):
     payment = MonthlyPayment.query.get_or_404(payment_id)
     user = get_current_user()
-    action = request.form.get('action')  # approve, reject, observe
+    action = request.form.get('action')
     obs = request.form.get('observations', '').strip()
 
     try:
@@ -214,7 +210,7 @@ def approve_payment(payment_id):
 
 
 # =============================================================================
-# VALIDACIÓN DE INFORME (existente, para subir PDF de informe)
+# VALIDACIÓN DE INFORME (subir PDF de informe)
 # =============================================================================
 @payments_bp.route('/contract/<int:contract_id>/validate', methods=['GET', 'POST'])
 @login_required

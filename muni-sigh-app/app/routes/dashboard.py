@@ -15,26 +15,26 @@ def index():
     total_providers = ServiceProvider.query.count()
     recent_contracts = Contract.query.order_by(Contract.id.desc()).limit(5).all()
 
-    # Conteo de pagos pendientes según rol
-    pending_payments = 0
+    # Conteo de pagos según rol
     if user.role == 'JEFE_DEPTO':
+        # Solo los de SU departamento que debe revisar
         pending_payments = MonthlyPayment.query.join(Contract).filter(
             Contract.department_id == user.department_id,
             MonthlyPayment.approval_status.in_(['PENDIENTE_REVISION', 'OBSERVADO'])
         ).count()
-    elif user.role == 'ADMIN_RRHH':
-        pending_payments = MonthlyPayment.query.filter(
-            MonthlyPayment.approval_status.in_(['VISADO_JEFE_DEPTO', 'OBSERVADO'])
-        ).count()
     elif user.role == 'FINANZAS_CONTROL':
+        # Solo los que RRHH ya aprobó y él debe liberar
         pending_payments = MonthlyPayment.query.filter(
             MonthlyPayment.approval_status.in_(['APROBADO_RRHH', 'OBSERVADO'])
         ).count()
-    else:
-        # SUPERADMIN ve todo lo no finalizado
+    elif user.role in ('ADMIN_RRHH', 'SUPERADMIN'):
+        # ADMIN Y SUPERADMIN: visibilidad total de todo el pipeline activo
+        # (todos los que no están finalizados por finanzas)
         pending_payments = MonthlyPayment.query.filter(
             MonthlyPayment.approval_status != 'APROBADO_FINANZAS'
         ).count()
+    else:
+        pending_payments = 0
 
     return render_template(
         'dashboard/index.html',

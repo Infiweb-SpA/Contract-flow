@@ -4,10 +4,21 @@
 
 {% block content %}
 <div class="space-y-6">
+    <div class="space-y-6">
     <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Bandeja de Pagos Mensuales</h1>
-            <p class="text-sm text-gray-500">Circuito de aprobación: Jefe Depto → RRHH → Finanzas</p>
+            {% if not status_filter and user %}
+            <p class="text-sm text-gray-500">
+                {% if user.role == 'JEFE_DEPTO' %}Mostrando pagos pendientes de su departamento
+                {% elif user.role == 'ADMIN_RRHH' %}Mostrando pagos visados por Jefes de Depto
+                {% elif user.role == 'FINANZAS_CONTROL' %}Mostrando pagos aprobados por RRHH
+                {% else %}Mostrando todos los pagos activos{% endif %}
+                — Use los filtros para ver historial.
+            </p>
+            {% elif status_filter %}
+            <p class="text-sm text-gray-500">Filtrando por estado: <span class="font-bold">{{ status_filter }}</span></p>
+            {% endif %}
         </div>
         <div class="flex space-x-2">
             <a href="{{ url_for('dashboard.index') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Dashboard</a>
@@ -16,7 +27,9 @@
 
     <!-- Filtros rápidos -->
     <div class="flex flex-wrap gap-2">
-        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if not status_filter %}bg-blue-800 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Todos</a>
+        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if not status_filter %}bg-blue-800 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">
+            {% if user.role == 'SUPERADMIN' %}Todos{% else %}Mi Bandeja{% endif %}
+        </a>
         <a href="{{ url_for('payments.bandeja', status='PENDIENTE_REVISION') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'PENDIENTE_REVISION' %}bg-yellow-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Pendientes</a>
         <a href="{{ url_for('payments.bandeja', status='VISADO_JEFE_DEPTO') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'VISADO_JEFE_DEPTO' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Visados Depto</a>
         <a href="{{ url_for('payments.bandeja', status='APROBADO_RRHH') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'APROBADO_RRHH' %}bg-indigo-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Aprobados RRHH</a>
@@ -65,7 +78,14 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="px-6 py-8 text-center text-gray-400 text-sm">No hay pagos en esta bandeja.</td>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-400 text-sm">
+                        {% if not status_filter %}
+                            No hay pagos pendientes en su bandeja de trabajo.<br>
+                            <span class="text-xs">Use los filtros de arriba para ver el historial.</span>
+                        {% else %}
+                            No hay pagos con estado "{{ status_filter }}".
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
