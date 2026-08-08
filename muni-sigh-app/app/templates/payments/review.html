@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Revisión Pago {{ payment.payment_month }}/{{ payment.payment_year }}{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Encabezado -->
+    <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div>
+            <h1 class="text-xl font-bold text-gray-800">Revisión de Pago Mensual</h1>
+            <p class="text-sm text-gray-500">
+                Contrato <span class="font-bold text-blue-700">{{ contract.contract_number }}</span> — 
+                Período: <span class="font-bold">{{ "%02d"|format(payment.payment_month) }}/{{ payment.payment_year }}</span> — 
+                Prestador: {{ contract.provider.full_name }}
+            </p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{{ url_for('payments.bandeja') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Bandeja</a>
+            <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">Ver Contrato</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Panel izquierdo: Checklist -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider border-b pb-2 mb-4">Checklist de Cumplimiento de Funciones</h2>
+            
+            <form method="POST" action="{{ url_for('payments.review', payment_id=payment.id) }}" enctype="multipart/form-data" class="space-y-4">
+                {% for item in checklist_items %}
+                {% set func = functions_map.get(item.contract_function_id) %}
+                <div class="border border-gray-200 rounded-lg p-4 
+                    {% if item.status == 'NO_CUMPLIDO' %}bg-red-50
+                    {% elif item.status == 'PARCIAL' %}bg-yellow-50
+                    {% else %}bg-green-50{% endif %}">
+                    <div class="flex justify-between items-start mb-2">
+                        <p class="text-sm font-semibold text-gray-800">{{ func.function_order }}. {{ func.function_description }}</p>
+                        <select name="checklist_status[]" class="text-xs border rounded px-2 py-1 font-semibold">
+                            <option value="CUMPLIDO" {% if item.status == 'CUMPLIDO' %}selected{% endif %}>✅ Cumplido</option>
+                            <option value="PARCIAL" {% if item.status == 'PARCIAL' %}selected{% endif %}>⚠️ Parcial</option>
+                            <option value="NO_CUMPLIDO" {% if item.status == 'NO_CUMPLIDO' %}selected{% endif %}>❌ No Cumplido</option>
+                        </select>
+                    </div>
+                    <input type="hidden" name="checklist_id[]" value="{{ item.id }}">
+                    <textarea name="checklist_comments[]" placeholder="Observaciones sobre esta función..." class="w-full text-xs px-3 py-2 border border-gray-300 rounded mt-1" rows="2">{{ item.comments or '' }}</textarea>
+                </div>
+                {% else %}
+                <div class="p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded text-sm">
+                    Este contrato no tiene funciones registradas para evaluar.
+                </div>
+                {% endfor %}
+
+                <div class="border-t pt-4 mt-4">
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-2">Adjuntar Informe de Actividades (PDF)</label>
+                    {% if pdf_url %}
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-bold">📎 Informe adjunto</span>
+                        <a href="{{ pdf_url }}" target="_blank" class="text-xs text-blue-700 hover:underline">Ver PDF</a>
+                    </div>
+                    {% endif %}
+                    <input type="file" name="report_file" accept=".pdf" class="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer">
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-6 py-2 rounded font-semibold shadow transition">
+                        💾 Guardar Checklist
+                    </button>
+                </div>
+            </form>
+
+            <!-- Acciones de Aprobación -->
+            <div class="border-t mt-6 pt-6">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3">Acciones de Aprobación</h3>
+                <form method="POST" action="{{ url_for('payments.approve_payment', payment_id=payment.id) }}" class="flex flex-wrap gap-3">
+                    
+                    {% if user.role == 'JEFE_DEPTO' and payment.approval_status in ['PENDIENTE_REVISION', 'OBSERVADO'] %}
+                    <button type="submit" name="action" value="approve" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded text-sm shadow transition">
+                        ✅ Visar como Jefe de Depto
+                    </button>
+                    {% endif %}
+
+                    {% if user.role == 'ADMIN_RRHH' and payment.approval_status in ['VISADO_JEFE_DEPTO', 'OBSERVADO'] %}
+                    <button type="submit" name="action" value="approve" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded text-sm shadow transition">
+                        ✅ Aprobar como RRHH
+                    </button>
+                    {% endif %}
+
+                    {% if user.role == 'FINANZAS_CONTROL' and payment.approval_status in ['APROBADO_RRHH', 'OBSERVADO'] %}
+                    <button type="submit" name="action" value="approve" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded text-sm shadow transition">
+                        ✅ Aprobar como Finanzas
+                    </button>
+                    {% endif %}
+
+                    {% if user.role in ['JEFE_DEPTO', 'ADMIN_RRHH', 'FINANZAS_CONTROL', 'SUPERADMIN'] %}
+                    <button type="submit" name="action" value="observe" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-5 rounded text-sm shadow transition">
+                        📝 Observar
+                    </button>
+                    <button type="submit" name="action" value="reject" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded text-sm shadow transition">
+                        ❌ Rechazar
+                    </button>
+                    {% endif %}
+                </form>
+
+                {% if payment.rejection_observations %}
+                <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+                    <strong>Observaciones previas:</strong> {{ payment.rejection_observations }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Panel derecho: Resumen -->
+        <div class="space-y-4">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3">Resumen del Pago</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-gray-500">Monto:</span> <span class="font-bold text-green-700">${{ "{:,.0f}".format(payment.amount_to_pay) }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Estado:</span> <span class="font-bold">{{ payment.approval_status }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Creado:</span> <span>{{ payment.created_at.strftime('%d/%m/%Y') }}</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3">Circuito de Aprobación</h3>
+                <div class="space-y-3 text-xs">
+                    <div class="flex items-center space-x-2 {% if payment.approval_status in ['VISADO_JEFE_DEPTO', 'APROBADO_RRHH', 'APROBADO_FINANZAS'] %}text-green-700{% else %}text-gray-400{% endif %}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold {% if payment.approval_status in ['VISADO_JEFE_DEPTO', 'APROBADO_RRHH', 'APROBADO_FINANZAS'] %}bg-green-100{% else %}bg-gray-100{% endif %}">1</span>
+                        <span>Jefe de Departamento</span>
+                        {% if payment.reviewed_by_depto %}<span class="text-gray-400">— {{ payment.reviewed_by_depto.full_name }}</span>{% endif %}
+                    </div>
+                    <div class="flex items-center space-x-2 {% if payment.approval_status in ['APROBADO_RRHH', 'APROBADO_FINANZAS'] %}text-green-700{% else %}text-gray-400{% endif %}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold {% if payment.approval_status in ['APROBADO_RRHH', 'APROBADO_FINANZAS'] %}bg-green-100{% else %}bg-gray-100{% endif %}">2</span>
+                        <span>RRHH</span>
+                        {% if payment.approved_by_rrhh %}<span class="text-gray-400">— {{ payment.approved_by_rrhh.full_name }}</span>{% endif %}
+                    </div>
+                    <div class="flex items-center space-x-2 {% if payment.approval_status == 'APROBADO_FINANZAS' %}text-green-700{% else %}text-gray-400{% endif %}">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold {% if payment.approval_status == 'APROBADO_FINANZAS' %}bg-green-100{% else %}bg-gray-100{% endif %}">3</span>
+                        <span>Finanzas / Control</span>
+                        {% if payment.approved_by_finanzas %}<span class="text-gray-400">— {{ payment.approved_by_finanzas.full_name }}</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

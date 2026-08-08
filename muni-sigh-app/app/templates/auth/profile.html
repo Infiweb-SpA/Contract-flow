@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Mi Perfil{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Mi Perfil</h1>
+    <div class="space-y-4 text-sm">
+        <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-500">Nombre completo</span>
+            <span class="font-semibold">{{ user.full_name }}</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-500">RUT</span>
+            <span class="font-semibold">{{ user.rut }}</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-500">Correo electrónico</span>
+            <span class="font-semibold">{{ user.email }}</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-500">Rol</span>
+            <span class="font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{{ user.role }}</span>
+        </div>
+        <div class="flex justify-between border-b pb-2">
+            <span class="text-gray-500">Departamento</span>
+            <span class="font-semibold">{{ user.department.name if user.department else '—' }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="text-gray-500">Miembro desde</span>
+            <span class="font-semibold">{{ user.created_at.strftime('%d/%m/%Y') }}</span>
+        </div>
+    </div>
+    <div class="mt-6 text-center">
+        <a href="{{ url_for('dashboard.index') }}" class="text-blue-700 hover:underline text-sm font-semibold">← Volver al Dashboard</a>
+    </div>
+</div>
+{% endblock %}

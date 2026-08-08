@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SIGH-MUNI{% endblock %} - Gestión de Honorarios</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 flex flex-col font-sans">
@@ -13,16 +12,25 @@
     <nav class="bg-blue-900 text-white shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <div class="flex items-center space-x-3">
-                    <span class="font-bold text-xl tracking-wide">SIGH-MUNI</span>
-                    <span class="text-xs bg-blue-700 px-2 py-1 rounded text-blue-100 font-mono">SaaS Municipal</span>
+                <div class="flex items-center space-x-6">
+                    <a href="{{ url_for('dashboard.index') }}" class="flex items-center space-x-3">
+                        <span class="font-bold text-xl tracking-wide">SIGH-MUNI</span>
+                        <span class="text-xs bg-blue-700 px-2 py-1 rounded text-blue-100 font-mono">SaaS Municipal</span>
+                    </a>
+                    {% if session.get('user_id') %}
+                    <div class="hidden md:flex items-center space-x-1 text-sm">
+                        <a href="{{ url_for('dashboard.index') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">Dashboard</a>
+                        <a href="{{ url_for('contract_builder.create') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">+ Contrato</a>
+                        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">💰 Pagos</a>
+                    </div>
+                    {% endif %}
                 </div>
                 {% if session.get('user_id') %}
                 <div class="flex items-center space-x-4">
-                    <span class="text-sm font-medium">
-                        {{ session.get('user_name') }} 
+                    <a href="{{ url_for('auth.profile') }}" class="text-sm font-medium hover:text-blue-200 transition">
+                        {{ session.get('user_name') }}
                         <span class="text-xs text-blue-200">({{ session.get('user_role') }})</span>
-                    </span>
+                    </a>
                     <a href="{{ url_for('auth.logout') }}" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded transition">
                         Cerrar Sesión
                     </a>
@@ -32,7 +40,7 @@
         </div>
     </nav>
 
-    <!-- Alertas y Mensajes Flash -->
+    <!-- Alertas -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 w-full">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -49,7 +57,6 @@
         {% endwith %}
     </div>
 
-    <!-- Contenido Principal -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {% block content %}{% endblock %}
     </main>
@@ -57,6 +64,5 @@
     <footer class="bg-gray-200 text-center py-4 text-xs text-gray-600 border-t border-gray-300">
         SIGH-MUNI &copy; 2026 - Sistema Integrado de Gestión, Creación y Revisión de Honorarios Municipales
     </footer>
-
 </body>
 </html>

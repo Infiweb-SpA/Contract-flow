@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Bandeja de Pagos Mensuales{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Bandeja de Pagos Mensuales</h1>
+            <p class="text-sm text-gray-500">Circuito de aprobación: Jefe Depto → RRHH → Finanzas</p>
+        </div>
+        <div class="flex space-x-2">
+            <a href="{{ url_for('dashboard.index') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Filtros rápidos -->
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if not status_filter %}bg-blue-800 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Todos</a>
+        <a href="{{ url_for('payments.bandeja', status='PENDIENTE_REVISION') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'PENDIENTE_REVISION' %}bg-yellow-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Pendientes</a>
+        <a href="{{ url_for('payments.bandeja', status='VISADO_JEFE_DEPTO') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'VISADO_JEFE_DEPTO' %}bg-blue-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Visados Depto</a>
+        <a href="{{ url_for('payments.bandeja', status='APROBADO_RRHH') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'APROBADO_RRHH' %}bg-indigo-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Aprobados RRHH</a>
+        <a href="{{ url_for('payments.bandeja', status='APROBADO_FINANZAS') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'APROBADO_FINANZAS' %}bg-green-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Aprobados Finanzas</a>
+        <a href="{{ url_for('payments.bandeja', status='OBSERVADO') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'OBSERVADO' %}bg-orange-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Observados</a>
+        <a href="{{ url_for('payments.bandeja', status='RECHAZADO') }}" class="px-3 py-1.5 rounded text-xs font-semibold {% if status_filter == 'RECHAZADO' %}bg-red-600 text-white{% else %}bg-gray-200 text-gray-700 hover:bg-gray-300{% endif %}">Rechazados</a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <table class="w-full text-left text-sm text-gray-600">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-semibold border-b">
+                <tr>
+                    <th class="px-6 py-3">Período</th>
+                    <th class="px-6 py-3">Prestador</th>
+                    <th class="px-6 py-3">Contrato</th>
+                    <th class="px-6 py-3">Monto</th>
+                    <th class="px-6 py-3">Estado</th>
+                    <th class="px-6 py-3">Revisores</th>
+                    <th class="px-6 py-3">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for p in payments %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 font-semibold">{{ "%02d"|format(p.payment_month) }}/{{ p.payment_year }}</td>
+                    <td class="px-6 py-4">{{ p.contract.provider.full_name }}</td>
+                    <td class="px-6 py-4 font-mono text-xs">{{ p.contract.contract_number }}</td>
+                    <td class="px-6 py-4 font-semibold text-green-700">${{ "{:,.0f}".format(p.amount_to_pay) }}</td>
+                    <td class="px-6 py-4">
+                        <span class="text-xs px-2.5 py-0.5 rounded font-bold
+                            {% if p.approval_status == 'APROBADO_FINANZAS' %}bg-green-100 text-green-800
+                            {% elif p.approval_status == 'RECHAZADO' %}bg-red-100 text-red-800
+                            {% elif p.approval_status == 'OBSERVADO' %}bg-orange-100 text-orange-800
+                            {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                            {{ p.approval_status }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-xs text-gray-500">
+                        {% if p.reviewed_by_depto %}👤 {{ p.reviewed_by_depto.full_name }}<br>{% endif %}
+                        {% if p.approved_by_rrhh %}👤 {{ p.approved_by_rrhh.full_name }}<br>{% endif %}
+                        {% if p.approved_by_finanzas %}👤 {{ p.approved_by_finanzas.full_name }}{% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <a href="{{ url_for('payments.review', payment_id=p.id) }}" class="text-blue-700 hover:underline font-semibold text-xs">Revisar →</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-400 text-sm">No hay pagos en esta bandeja.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -9,3 +9,6 @@ python-dotenv
 pdfplumber
 paddleocr
 paddlepaddle
+pdf2image
+Pillow
+xhtml2pdf

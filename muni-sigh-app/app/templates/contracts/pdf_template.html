@@ -4,31 +4,108 @@
     <meta charset="UTF-8">
     <title>Contrato N° {{ contract.contract_number }}</title>
     <style>
-        body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 40px; color: #000; }
-        .header { text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 30px; }
-        .title { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 20px; text-decoration: underline; }
-        .section { margin-bottom: 15px; text-align: justify; }
-        .functions-list { margin-left: 20px; }
-        .signatures { margin-top: 80px; display: flex; justify-content: space-between; }
-        .signature-box { text-align: center; width: 45%; border-top: 1px solid #000; pt-2; }
-        @media print { body { margin: 0; } }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Times New Roman', Times, serif; 
+            font-size: 12pt; 
+            line-height: 1.6; 
+            margin: 40px; 
+            color: #000; 
+        }
+        .header { 
+            text-align: center; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+        }
+        .title { 
+            text-align: center; 
+            font-size: 14pt; 
+            font-weight: bold; 
+            margin-bottom: 25px; 
+            text-decoration: underline; 
+        }
+        .section { 
+            margin-bottom: 18px; 
+            text-align: justify; 
+        }
+        .functions-list { 
+            margin-left: 25px; 
+            margin-top: 8px;
+        }
+        .functions-list li {
+            margin-bottom: 6px;
+        }
+        .signatures { 
+            margin-top: 100px; 
+            display: flex; 
+            justify-content: space-between; 
+        }
+        .signature-box { 
+            text-align: center; 
+            width: 45%; 
+            border-top: 1px solid #000; 
+            padding-top: 8px;
+        }
+        .print-bar {
+            background: #1e3a8a;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: -40px -40px 30px -40px;
+        }
+        .print-bar button {
+            background: white;
+            color: #1e3a8a;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11pt;
+        }
+        .print-bar button:hover {
+            background: #e5e7eb;
+        }
+        
+        @media print {
+            .print-bar { display: none !important; }
+            body { margin: 0; }
+        }
     </style>
 </head>
 <body>
+    <!-- Barra de acciones (solo visible en pantalla) -->
+    <div class="print-bar">
+        <div>
+            <strong>SIGH-MUNI</strong> — Vista previa del contrato
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+            <button onclick="window.close()">✕ Cerrar</button>
+        </div>
+    </div>
+
     <div class="header">
         República de Chile<br>
         Municipalidad de Temuco<br>
-        {{ contract.department.name }}
+        <span style="font-size: 11pt; font-weight: normal; text-transform: none; margin-top: 5px; display: block;">
+            {{ contract.department.name }}
+        </span>
     </div>
 
     <div class="title">CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS</div>
 
     <div class="section">
-        En Temuco, a {{ contract.created_at.strftime('%d de %m de %Y') }}, entre la I. MUNICIPALIDAD DE TEMUCO y Don(a) <strong>{{ contract.provider.full_name }}</strong>, RUT <strong>{{ contract.provider.rut }}</strong>, se conviene el siguiente contrato:
+        En Temuco, a {{ contract.created_at.strftime('%d de %B de %Y') }}, entre la I. MUNICIPALIDAD DE TEMUCO, representada por su Alcalde según las facultades que le confiere la Ley Orgánica Constitucional de Municipalidades, y Don(a) <strong>{{ contract.provider.full_name }}</strong>, cédula de identidad N° <strong>{{ contract.provider.rut }}</strong>, se conviene el siguiente contrato de prestación de servicios a honorarios:
     </div>
 
     <div class="section">
-        <strong>PRIMERO:</strong> El prestador desempeñará el cargo de <strong>{{ contract.position_title }}</strong> en el marco del programa <em>{{ contract.program_name or 'Gestión Municipal' }}</em>.
+        <strong>PRIMERO:</strong> El prestador desempeñará el cargo de <strong>{{ contract.position_title }}</strong> en el departamento de <strong>{{ contract.department.name }}</strong>, en el marco del programa municipal <em>{{ contract.program_name or 'Gestión Municipal' }}</em>.
     </div>
 
     <div class="section">
@@ -41,12 +118,28 @@
     </div>
 
     <div class="section">
-        <strong>TERCERO:</strong> Los servicios regirán desde el <strong>{{ contract.start_date.strftime('%d/%m/%Y') }}</strong> hasta el <strong>{{ contract.end_date.strftime('%d/%m/%Y') }}</strong>. La renta bruta mensual acordada es de <strong>${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</strong> CLP.
+        <strong>TERCERO:</strong> Los servicios regirán desde el <strong>{{ contract.start_date.strftime('%d de %B de %Y') }}</strong> hasta el <strong>{{ contract.end_date.strftime('%d de %B de %Y') }}</strong>. La renta bruta mensual acordada es de <strong>${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</strong> pesos chilenos ($CLP), pagaderos mensualmente previa presentación del informe de actividades.
+    </div>
+
+    {% if contract.decline_number %}
+    <div class="section">
+        <strong>CUARTO:</strong> El presente contrato se otorga en conformidad al Decreto Alcaldicio N° <strong>{{ contract.decline_number }}</strong>{% if contract.decline_date %} de fecha {{ contract.decline_date.strftime('%d de %B de %Y') }}{% endif %}.
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <strong>{% if contract.decline_number %}QUINTO{% else %}CUARTO{% endif %}:</strong> En todo lo no previsto en el presente contrato, se estará a lo dispuesto en la Ley N° 19.880 sobre Bases de Procedimiento Administrativo y demás normativa aplicable.
     </div>
 
     <div class="signatures">
-        <div class="signature-box">I. MUNICIPALIDAD DE TEMUCO</div>
-        <div class="signature-box">{{ contract.provider.full_name }}<br>RUT: {{ contract.provider.rut }}</div>
+        <div class="signature-box">
+            <strong>I. MUNICIPALIDAD DE TEMUCO</strong><br>
+            <span style="font-size: 10pt;">Alcalde o Delegado</span>
+        </div>
+        <div class="signature-box">
+            <strong>{{ contract.provider.full_name }}</strong><br>
+            <span style="font-size: 10pt;">RUT: {{ contract.provider.rut }}</span>
+        </div>
     </div>
 </body>
 </html>

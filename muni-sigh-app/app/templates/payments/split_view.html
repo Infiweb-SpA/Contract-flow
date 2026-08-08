@@ -35,7 +35,6 @@
             
             <div class="flex-grow bg-gray-300 relative h-full min-h-[500px]">
                 {% if pdf_url %}
-                    <!-- Visor Nativo del Navegador -->
                     <embed src="{{ pdf_url }}" type="application/pdf" width="100%" height="100%" class="border-none">
                 {% else %}
                     <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
@@ -64,30 +63,44 @@
                 <!-- Sección 2: Checklist del Contrato -->
                 <div>
                     <h3 class="text-xs font-bold text-blue-800 uppercase mb-3 border-b pb-1">Checklist: Funciones del Contrato</h3>
-                    <form action="#" method="POST" class="space-y-2">
+                    
+                    {% if contract.functions %}
+                    <div class="space-y-2 mb-4">
                         {% for func in contract.functions %}
                         <label class="flex items-start space-x-3 p-3 border border-gray-200 rounded-md hover:bg-blue-50 cursor-pointer transition-colors duration-200">
                             <div class="flex-shrink-0 pt-0.5">
-                                <input type="checkbox" name="functions_met[]" value="{{ func.id }}" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer">
+                                <input type="checkbox" checked disabled class="h-4 w-4 text-blue-600 border-gray-300 rounded cursor-not-allowed opacity-60">
                             </div>
                             <div>
                                 <p class="text-sm text-gray-800 font-medium">{{ func.function_description }}</p>
                             </div>
                         </label>
-                        {% else %}
-                        <div class="p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded text-sm">
-                            Este contrato no tiene funciones específicas registradas.
-                        </div>
                         {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded text-sm mb-4">
+                        Este contrato no tiene funciones específicas registradas.
+                    </div>
+                    {% endif %}
 
-                        <!-- Botón de Aprobación Final (Deshabilitado si no hay PDF) -->
-                        <div class="pt-6 mt-4 flex justify-end">
-                            <button type="button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-md text-sm transition shadow-md flex items-center space-x-2 {% if not pdf_url %}opacity-50 cursor-not-allowed{% endif %}" {% if not pdf_url %}disabled title="Debe subir un informe primero"{% endif %}>
+                    <!-- Botón de Aprobar Pago (ahora funciona) -->
+                    <div class="pt-4 flex justify-end">
+                        {% if pdf_url %}
+                        <form method="POST" action="{{ url_for('payments.create_payment', contract_id=contract.id) }}" class="inline">
+                            <input type="hidden" name="payment_year" value="2026">
+                            <input type="hidden" name="payment_month" value="8">
+                            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-md text-sm transition shadow-md flex items-center space-x-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                <span>Aprobar Pago de Honorarios</span>
+                                <span>✅ Aprobar Pago de Honorarios</span>
                             </button>
-                        </div>
-                    </form>
+                        </form>
+                        {% else %}
+                        <button type="button" disabled class="bg-green-600 text-white font-bold py-2.5 px-6 rounded-md text-sm shadow-md flex items-center space-x-2 opacity-50 cursor-not-allowed" title="Debe subir un informe primero">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <span>Aprobar Pago de Honorarios</span>
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
 
             </div>
