@@ -16,19 +16,19 @@ def generate_contract_pdf(contract):
     """
     Genera un PDF real a partir del HTML del contrato usando xhtml2pdf.
     Es 100% Python, no requiere instalar programas externos al sistema.
-    
+
     Requiere instalar la librería:
         pip install xhtml2pdf
     """
     html_string = render_template('contracts/pdf_template.html', contract=contract)
     pdf_buffer = io.BytesIO()
-    
+
     # Generar PDF en memoria
     pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
-    
+
     if pisa_status.err:
         raise Exception(f"Error al generar PDF: {pisa_status.err}")
-    
+
     pdf_buffer.seek(0)
     filename = f"Contrato_{contract.contract_number}.pdf"
     return pdf_buffer, filename
@@ -44,3 +44,12 @@ def make_pdf_response(contract):
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+def generate_contract_preview(data_dict):
+    """
+    Renderiza la plantilla de previsualización con datos planos (dict).
+    Se usa para la vista en vivo del armador de contratos (Split-View).
+    No requiere que el contrato exista en la base de datos.
+    """
+    return render_template('contracts/preview_template.html', contract=data_dict)

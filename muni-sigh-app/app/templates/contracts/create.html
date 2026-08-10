@@ -3,136 +3,201 @@
 {% block title %}Armar Nuevo Contrato{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
-    <div class="border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">Armador de Contratos a Honorarios</h1>
-            <p class="text-sm text-gray-500">Confección guiada y renovación a partir de plantillas tipo municipales</p>
+<!-- Layout Split-View: Formulario (izq) + Preview (der) -->
+<div class="flex h-[calc(100vh-64px)]" id="split_view_container">
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- PANEL IZQUIERDO: FORMULARIO                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="w-3/5 overflow-y-auto bg-gray-50 border-r border-gray-300" id="left_panel">
+        <div class="p-6 max-w-3xl mx-auto">
+
+            <!-- Header -->
+            <div class="border-b border-gray-200 pb-4 mb-6 flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Armador de Contratos a Honorarios</h1>
+                    <p class="text-sm text-gray-500">Confección guiada y renovación a partir de plantillas tipo municipales</p>
+                </div>
+                <a href="{{ url_for('dashboard.index') }}" class="text-xs text-gray-600 hover:text-gray-900 underline">← Volver al Dashboard</a>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- ZONA DRAG & DROP OCR (Paso 1 → 2 → 3)                    -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div id="ocr_dropzone" class="mb-6 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 p-6 text-center cursor-pointer hover:bg-blue-100 hover:border-blue-500 transition group relative">
+                <input type="file" id="ocr_file_input" accept=".pdf" class="hidden">
+                <div id="ocr_idle_state">
+                    <div class="text-4xl mb-2">📄</div>
+                    <p class="text-sm font-semibold text-blue-900">Arrastre aquí un contrato digital (PDF) para autocompletar</p>
+                    <p class="text-xs text-blue-600 mt-1">o haga clic para seleccionar el archivo</p>
+                    <p class="text-xs text-blue-400 mt-1">El sistema extraerá automáticamente los datos vía OCR</p>
+                </div>
+                <div id="ocr_loading_state" class="hidden">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-800 mx-auto mb-2"></div>
+                    <p class="text-sm font-semibold text-blue-900">Leyendo documento y extrayendo texto...</p>
+                    <p class="text-xs text-blue-600 mt-1">Paso 1: OCR en progreso</p>
+                </div>
+                <div id="ocr_success_state" class="hidden">
+                    <div class="text-3xl mb-1">✅</div>
+                    <p class="text-sm font-semibold text-green-800">Documento procesado correctamente</p>
+                    <p class="text-xs text-green-600 mt-1">Los campos han sido autocompletados. Revise y ajuste.</p>
+                    <button type="button" onclick="resetOcrZone()" class="mt-2 text-xs text-blue-700 underline hover:text-blue-900">Procesar otro archivo</button>
+                </div>
+                <div id="ocr_error_state" class="hidden">
+                    <div class="text-3xl mb-1">⚠️</div>
+                    <p class="text-sm font-semibold text-red-800" id="ocr_error_msg">Error al procesar</p>
+                    <button type="button" onclick="resetOcrZone()" class="mt-2 text-xs text-blue-700 underline hover:text-blue-900">Reintentar</button>
+                </div>
+            </div>
+
+            <!-- Texto extraído (colapsable, para depuración/verificación) -->
+            <div id="ocr_raw_text_container" class="mb-4 hidden">
+                <details class="bg-gray-100 rounded border border-gray-200">
+                    <summary class="px-3 py-2 text-xs font-semibold text-gray-600 cursor-pointer hover:bg-gray-200 rounded">
+                        📋 Texto extraído (Lectura / OCR) — clic para ver
+                    </summary>
+                    <pre id="ocr_raw_text" class="p-3 text-xs text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto bg-gray-800 text-green-400 rounded-b font-mono"></pre>
+                </details>
+            </div>
+
+            <form method="POST" action="{{ url_for('contract_builder.create') }}" class="space-y-6" id="contract_form">
+
+                <!-- SECCIÓN 1: PRESTADOR Y DEPARTAMENTO -->
+                <div class="bg-white p-4 rounded-md border border-gray-200 shadow-sm space-y-4">
+                    <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100 pb-2">1. Asignación de Prestador y Departamento</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Prestador -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-xs font-semibold text-gray-700 uppercase">Prestador de Servicios *</label>
+                                <button type="button" onclick="toggleProviderModal(true)" class="text-xs text-blue-700 hover:underline font-semibold">+ Nuevo Prestador</button>
+                            </div>
+                            <select name="provider_id" id="provider_select" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                                <option value="">-- Seleccione Prestador --</option>
+                                {% for p in providers %}
+                                <option value="{{ p.id }}" data-rut="{{ p.rut }}" data-name="{{ p.full_name }}">{{ p.full_name }} ({{ p.rut }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Departamento -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-xs font-semibold text-gray-700 uppercase">Departamento Solicitante *</label>
+                                <button type="button" onclick="toggleDeptModal(true)" class="text-xs text-blue-700 hover:underline font-semibold">+ Nuevo Departamento</button>
+                            </div>
+                            <select name="department_id" id="department_select" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                                <option value="">-- Seleccione Dirección --</option>
+                                {% for d in departments %}
+                                <option value="{{ d.id }}" data-name="{{ d.name }}">{{ d.code }} - {{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 2: DATOS DEL CONTRATO Y DECRETO -->
+                <div class="bg-white p-4 rounded-md border border-gray-200 shadow-sm space-y-4">
+                    <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100 pb-2">2. Datos del Contrato y Decreto</h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">N° Correlativo Contrato *</label>
+                            <input type="text" name="contract_number" id="contract_number" required placeholder="Ej: CT-2026-089" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">N° Decreto Alcaldicio</label>
+                            <input type="text" name="decline_number" id="decline_number" placeholder="Ej: DEC-1042" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Decreto</label>
+                            <input type="date" name="decline_date" id="decline_date" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Cargo / Nombre Servicio *</label>
+                            <input type="text" name="position_title" id="position_title" required placeholder="Ej: Apoyo Técnico en Informática" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Programa Municipal</label>
+                            <input type="text" name="program_name" id="program_name" placeholder="Ej: Programa de Modernización Digital" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Monto Mensual Bruto ($) *</label>
+                            <input type="number" step="0.01" name="monthly_amount_gross" id="monthly_amount_gross" required placeholder="550000" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Monto Total Contrato ($)</label>
+                            <input type="number" step="0.01" name="total_contract_amount" id="total_contract_amount" placeholder="Opcional" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Inicio *</label>
+                            <input type="date" name="start_date" id="start_date" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Término *</label>
+                            <input type="date" name="end_date" id="end_date" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: CLÁUSULA DINÁMICA DE FUNCIONES -->
+                <div class="bg-white p-4 rounded-md border border-gray-200 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                        <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">3. Cláusula de Funciones y Cometidos</h2>
+                        <button type="button" id="add_function_btn" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-3 py-1.5 rounded transition font-semibold">
+                            + Agregar Función
+                        </button>
+                    </div>
+
+                    <div id="functions_container" class="space-y-3">
+                        <div class="flex items-center space-x-2 function-row">
+                            <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">1.</span>
+                            <input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">
+                            <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200 pb-8">
+                    <a href="{{ url_for('dashboard.index') }}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Cancelar</a>
+                    <button type="submit" class="px-6 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-md text-sm font-semibold shadow transition">
+                        Generar y Guardar Contrato
+                    </button>
+                </div>
+            </form>
         </div>
-        <a href="{{ url_for('dashboard.index') }}" class="text-xs text-gray-600 hover:text-gray-900 underline">← Volver al Dashboard</a>
     </div>
 
-    <!-- BUSCADOR INTELIGENTE PARA RENOVACIÓN -->
-    <div class="bg-blue-50 p-4 rounded-md border border-blue-200 mb-6 relative">
-        <label class="block text-xs font-bold text-blue-900 uppercase mb-1">🔍 Buscar Prestador Existente (Renovación Rápida por RUT o Nombre)</label>
-        <div class="relative">
-            <input type="text" id="provider_search_input" placeholder="Escriba el RUT o Nombre del prestador para autocompletar..." class="w-full px-3 py-2 border border-blue-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500">
-            <div id="search_results_dropdown" class="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg hidden z-50 max-h-48 overflow-y-auto"></div>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- PANEL DERECHO: PREVISUALIZACIÓN EN VIVO                       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="w-2/5 bg-gray-100 flex flex-col border-l border-gray-300" id="right_panel">
+        <div class="bg-blue-900 text-white px-4 py-3 flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">👁️</span>
+                <div>
+                    <span class="font-semibold text-sm block leading-tight">Previsualización en vivo</span>
+                    <span class="text-xs text-blue-200 leading-tight">Se actualiza automáticamente al modificar el formulario</span>
+                </div>
+            </div>
+            <div id="preview_spinner" class="hidden">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            </div>
+        </div>
+        <div class="flex-grow relative bg-gray-200">
+            <iframe id="preview_iframe" class="w-full h-full border-0" 
+                srcdoc="<html><head><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;background:#f3f4f6;color:#9ca3af;}</style><base target="_blank">
+</head><body><div style='text-align:center;'><div style='font-size:48px;margin-bottom:12px;'>&#128196;</div><div style='font-size:14px;font-weight:600;'>Complete el formulario</div><div style='font-size:12px;margin-top:4px;'>La previsualización aparecerá aquí</div></div></body></html>">
+            </iframe>
         </div>
     </div>
-
-    <form method="POST" action="{{ url_for('contract_builder.create') }}" class="space-y-6">
-        
-        <!-- SECCIÓN 1: PRESTADOR Y DEPARTAMENTO -->
-        <div class="bg-gray-50 p-4 rounded-md border border-gray-200 space-y-4">
-            <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">1. Asignación de Prestador y Departamento</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Prestador -->
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="block text-xs font-semibold text-gray-700 uppercase">Prestador de Servicios *</label>
-                        <button type="button" onclick="toggleProviderModal(true)" class="text-xs text-blue-700 hover:underline font-semibold">+ Nuevo Prestador</button>
-                    </div>
-                    <select name="provider_id" id="provider_select" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                        <option value="">-- Seleccione Prestador --</option>
-                        {% for p in providers %}
-                        <option value="{{ p.id }}">{{ p.full_name }} ({{ p.rut }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- Departamento -->
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="block text-xs font-semibold text-gray-700 uppercase">Departamento Solicitante *</label>
-                        <button type="button" onclick="toggleDeptModal(true)" class="text-xs text-blue-700 hover:underline font-semibold">+ Nuevo Departamento</button>
-                    </div>
-                    <select name="department_id" id="department_select" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                        <option value="">-- Seleccione Dirección --</option>
-                        {% for d in departments %}
-                        <option value="{{ d.id }}">{{ d.code }} - {{ d.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <!-- SECCIÓN 2: DATOS DEL CONTRATO Y DECRETO -->
-        <div class="bg-gray-50 p-4 rounded-md border border-gray-200 space-y-4">
-            <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">2. Datos del Contrato y Decreto</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">N° Correlativo Contrato *</label>
-                    <input type="text" name="contract_number" required placeholder="Ej: CT-2026-089" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">N° Decreto Alcaldicio</label>
-                    <input type="text" name="decline_number" placeholder="Ej: DEC-1042" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Decreto</label>
-                    <input type="date" name="decline_date" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Cargo / Nombre Servicio *</label>
-                    <input type="text" name="position_title" required placeholder="Ej: Apoyo Técnico en Informática" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Programa Municipal</label>
-                    <input type="text" name="program_name" placeholder="Ej: Programa de Modernización Digital" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Monto Mensual Bruto ($) *</label>
-                    <input type="number" step="0.01" name="monthly_amount_gross" required placeholder="550000" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Monto Total Contrato ($)</label>
-                    <input type="number" step="0.01" name="total_contract_amount" placeholder="Opcional" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Inicio *</label>
-                    <input type="date" name="start_date" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha Término *</label>
-                    <input type="date" name="end_date" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-        </div>
-
-        <!-- SECCIÓN 3: CLÁUSULA DINÁMICA DE FUNCIONES -->
-        <div class="bg-gray-50 p-4 rounded-md border border-gray-200 space-y-4">
-            <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider">3. Cláusula de Funciones y Cometidos</h2>
-                <button type="button" id="add_function_btn" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-3 py-1.5 rounded transition font-semibold">
-                    + Agregar Función
-                </button>
-            </div>
-
-            <div id="functions_container" class="space-y-3">
-                <div class="flex items-center space-x-2 function-row">
-                    <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">1.</span>
-                    <input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-                    <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
-            <a href="{{ url_for('dashboard.index') }}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancelar</a>
-            <button type="submit" class="px-6 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-md text-sm font-semibold shadow transition">
-                Generar y Guardar Contrato
-            </button>
-        </div>
-    </form>
 </div>
 
 <!-- ==================== MODAL: NUEVO PRESTADOR ==================== -->
@@ -200,155 +265,409 @@
 </div>
 
 <script>
-    // ============ PRESTADOR ============
-    function toggleProviderModal(show) {
-        document.getElementById('provider_modal').classList.toggle('hidden', !show);
+// ═══════════════════════════════════════════════════════════════════════════
+// PREVISUALIZACIÓN EN VIVO (Split-View)
+// ═══════════════════════════════════════════════════════════════════════════
+let previewTimeout = null;
+const PREVIEW_DEBOUNCE_MS = 600;
+
+function schedulePreview() {
+    clearTimeout(previewTimeout);
+    document.getElementById('preview_spinner').classList.remove('hidden');
+    previewTimeout = setTimeout(updatePreview, PREVIEW_DEBOUNCE_MS);
+}
+
+function updatePreview() {
+    const form = document.getElementById('contract_form');
+    const formData = new FormData(form);
+
+    const payload = {
+        provider_id: formData.get('provider_id'),
+        department_id: formData.get('department_id'),
+        contract_number: formData.get('contract_number'),
+        decline_number: formData.get('decline_number'),
+        decline_date: formData.get('decline_date'),
+        position_title: formData.get('position_title'),
+        program_name: formData.get('program_name'),
+        monthly_amount_gross: formData.get('monthly_amount_gross'),
+        start_date: formData.get('start_date'),
+        end_date: formData.get('end_date'),
+        functions: formData.getAll('functions[]')
+    };
+
+    const providerSelect = document.getElementById('provider_select');
+    const deptSelect = document.getElementById('department_select');
+    if (providerSelect.selectedIndex > 0) {
+        const opt = providerSelect.options[providerSelect.selectedIndex];
+        payload.provider_name = opt.getAttribute('data-name');
+        payload.provider_rut = opt.getAttribute('data-rut');
+    }
+    if (deptSelect.selectedIndex > 0) {
+        payload.department_name = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name');
     }
 
-    const searchInput = document.getElementById('provider_search_input');
-    const dropdown = document.getElementById('search_results_dropdown');
-
-    searchInput.addEventListener('input', function() {
-        const query = this.value.trim();
-        if (query.length < 2) {
-            dropdown.classList.add('hidden');
-            dropdown.innerHTML = '';
-            return;
-        }
-
-        fetch(`{{ url_for('contract_builder.search_provider') }}?q=${encodeURIComponent(query)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.providers.length > 0) {
-                    let html = '';
-                    data.providers.forEach(p => {
-                        html += `<div class="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 text-xs" onclick="selectProvider(${p.id}, '${p.full_name} (${p.rut})')">
-                            <span class="font-bold text-gray-800">${p.full_name}</span> - <span class="text-blue-700 font-mono">${p.rut}</span>
-                        </div>`;
-                    });
-                    dropdown.innerHTML = html;
-                    dropdown.classList.remove('hidden');
-                } else {
-                    dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-500">No se encontraron prestadores.</div>';
-                    dropdown.classList.remove('hidden');
-                }
-            });
+    fetch("{{ url_for('contract_builder.api_preview') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.text())
+    .then(html => {
+        document.getElementById('preview_iframe').srcdoc = html;
+    })
+    .catch(err => {
+        console.error('Preview error:', err);
+    })
+    .finally(() => {
+        document.getElementById('preview_spinner').classList.add('hidden');
     });
+}
 
-    function selectProvider(id, label) {
+function attachPreviewListeners() {
+    document.querySelectorAll('.preview-trigger').forEach(el => {
+        el.addEventListener('input', schedulePreview);
+        el.addEventListener('change', schedulePreview);
+    });
+}
+attachPreviewListeners();
+
+document.getElementById('functions_container').addEventListener('input', function(e) {
+    if (e.target.classList.contains('preview-trigger-function')) {
+        schedulePreview();
+    }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAG & DROP OCR (Paso 1 → 2 → 3)
+// ═══════════════════════════════════════════════════════════════════════════
+const dropzone = document.getElementById('ocr_dropzone');
+const fileInput = document.getElementById('ocr_file_input');
+
+dropzone.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        processOcrFile(e.target.files[0]);
+    }
+});
+
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('bg-blue-200', 'border-blue-600');
+});
+
+dropzone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('bg-blue-200', 'border-blue-600');
+});
+
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('bg-blue-200', 'border-blue-600');
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type === 'application/pdf') {
+        processOcrFile(files[0]);
+    } else {
+        showOcrError('Solo se permiten archivos PDF.');
+    }
+});
+
+function setOcrState(state) {
+    ['ocr_idle_state', 'ocr_loading_state', 'ocr_success_state', 'ocr_error_state'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    document.getElementById('ocr_' + state + '_state').classList.remove('hidden');
+}
+
+function showOcrError(msg) {
+    document.getElementById('ocr_error_msg').textContent = msg;
+    setOcrState('error');
+}
+
+function resetOcrZone() {
+    fileInput.value = '';
+    document.getElementById('ocr_raw_text_container').classList.add('hidden');
+    document.getElementById('ocr_raw_text').textContent = '';
+    setOcrState('idle');
+}
+
+function processOcrFile(file) {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showOcrError('El archivo debe ser un PDF.');
+        return;
+    }
+
+    setOcrState('loading');
+
+    const formData = new FormData();
+    formData.append('contract_pdf', file);
+
+    fetch("{{ url_for('contract_builder.api_ocr_extract') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('ocr_raw_text').textContent = data.extracted_text;
+            document.getElementById('ocr_raw_text_container').classList.remove('hidden');
+            autofillForm(data.parsed, data.provider_match, data.department_match);
+            setOcrState('success');
+            updatePreview();
+        } else {
+            showOcrError(data.message || 'Error desconocido en el procesamiento.');
+        }
+    })
+    .catch(err => {
+        console.error('OCR Error:', err);
+        showOcrError('Error de conexión al procesar el archivo.');
+    });
+}
+
+function autofillForm(parsed, providerMatch, deptMatch) {
+    if (providerMatch && providerMatch.id) {
         const select = document.getElementById('provider_select');
-        select.value = id;
-        searchInput.value = label;
+        let found = false;
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value == providerMatch.id) {
+                select.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            const opt = new Option(providerMatch.name + ' (' + providerMatch.rut + ')', providerMatch.id, true, true);
+            opt.setAttribute('data-rut', providerMatch.rut);
+            opt.setAttribute('data-name', providerMatch.name);
+            select.add(opt);
+        }
+    }
+
+    if (deptMatch && deptMatch.id) {
+        const select = document.getElementById('department_select');
+        let found = false;
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value == deptMatch.id) {
+                select.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            const opt = new Option(deptMatch.code + ' - ' + deptMatch.name, deptMatch.id, true, true);
+            opt.setAttribute('data-name', deptMatch.name);
+            select.add(opt);
+        }
+    }
+
+    if (parsed.contract_number) document.getElementById('contract_number').value = parsed.contract_number;
+    if (parsed.decline_number) document.getElementById('decline_number').value = parsed.decline_number;
+    if (parsed.position_title) document.getElementById('position_title').value = parsed.position_title;
+    if (parsed.program_name) document.getElementById('program_name').value = parsed.program_name;
+    if (parsed.monthly_amount_gross) document.getElementById('monthly_amount_gross').value = parsed.monthly_amount_gross;
+    if (parsed.start_date) document.getElementById('start_date').value = parsed.start_date;
+    if (parsed.end_date) document.getElementById('end_date').value = parsed.end_date;
+    if (parsed.decline_date) document.getElementById('decline_date').value = parsed.decline_date;
+
+    if (parsed.functions && parsed.functions.length > 0) {
+        const container = document.getElementById('functions_container');
+        container.innerHTML = '';
+
+        parsed.functions.forEach((func, idx) => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center space-x-2 function-row';
+            row.innerHTML = `
+                <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">${idx + 1}.</span>
+                <input type="text" name="functions[]" required value="${escapeHtml(func)}" class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">
+                <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
+            `;
+            container.appendChild(row);
+        });
+
+        reindexFunctions();
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUSCADOR DE PRESTADOR
+// ═══════════════════════════════════════════════════════════════════════════
+const searchInput = document.getElementById('provider_search_input');
+const dropdown = document.getElementById('search_results_dropdown');
+
+searchInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    if (query.length < 2) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+    }
+
+    fetch(`{{ url_for('contract_builder.search_provider') }}?q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.providers.length > 0) {
+                let html = '';
+                data.providers.forEach(p => {
+                    html += `<div class="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 text-xs" onclick="selectProvider(${p.id}, '${p.full_name}', '${p.rut}')">
+                        <span class="font-bold text-gray-800">${p.full_name}</span> - <span class="text-blue-700 font-mono">${p.rut}</span>
+                    </div>`;
+                });
+                dropdown.innerHTML = html;
+                dropdown.classList.remove('hidden');
+            } else {
+                dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-500">No se encontraron prestadores.</div>';
+                dropdown.classList.remove('hidden');
+            }
+        });
+});
+
+function selectProvider(id, name, rut) {
+    const select = document.getElementById('provider_select');
+    let found = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value == id) {
+            select.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        const opt = new Option(name + ' (' + rut + ')', id, true, true);
+        opt.setAttribute('data-rut', rut);
+        opt.setAttribute('data-name', name);
+        select.add(opt);
+    }
+    searchInput.value = name + ' (' + rut + ')';
+    dropdown.classList.add('hidden');
+    schedulePreview();
+}
+
+document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.classList.add('hidden');
     }
+});
 
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.classList.add('hidden');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODALES Y FUNCIONES DINÁMICAS
+// ═══════════════════════════════════════════════════════════════════════════
+function toggleProviderModal(show) {
+    document.getElementById('provider_modal').classList.toggle('hidden', !show);
+}
+
+function saveQuickProvider() {
+    const data = {
+        rut: document.getElementById('m_rut').value,
+        first_name: document.getElementById('m_first_name').value,
+        paternal_last_name: document.getElementById('m_paternal_last_name').value,
+        maternal_last_name: document.getElementById('m_maternal_last_name').value,
+        email: document.getElementById('m_email').value,
+        phone: document.getElementById('m_phone').value
+    };
+
+    fetch("{{ url_for('contract_builder.quick_add_provider') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            const select = document.getElementById('provider_select');
+            const opt = new Option(res.name, res.id, true, true);
+            select.add(opt);
+            toggleProviderModal(false);
+            document.getElementById('m_rut').value = '';
+            document.getElementById('m_first_name').value = '';
+            document.getElementById('m_paternal_last_name').value = '';
+            document.getElementById('m_maternal_last_name').value = '';
+            document.getElementById('m_email').value = '';
+            document.getElementById('m_phone').value = '';
+            schedulePreview();
+        } else {
+            alert(res.message);
         }
     });
+}
 
-    function saveQuickProvider() {
-        const data = {
-            rut: document.getElementById('m_rut').value,
-            first_name: document.getElementById('m_first_name').value,
-            paternal_last_name: document.getElementById('m_paternal_last_name').value,
-            maternal_last_name: document.getElementById('m_maternal_last_name').value,
-            email: document.getElementById('m_email').value,
-            phone: document.getElementById('m_phone').value
-        };
+function toggleDeptModal(show) {
+    document.getElementById('dept_modal').classList.toggle('hidden', !show);
+}
 
-        fetch("{{ url_for('contract_builder.quick_add_provider') }}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(res => {
-            if (res.success) {
-                const select = document.getElementById('provider_select');
-                const opt = new Option(res.name, res.id, true, true);
-                select.add(opt);
-                toggleProviderModal(false);
-                // Limpiar modal
-                document.getElementById('m_rut').value = '';
-                document.getElementById('m_first_name').value = '';
-                document.getElementById('m_paternal_last_name').value = '';
-                document.getElementById('m_maternal_last_name').value = '';
-                document.getElementById('m_email').value = '';
-                document.getElementById('m_phone').value = '';
-            } else {
-                alert(res.message);
-            }
-        });
+function saveQuickDepartment() {
+    const data = {
+        code: document.getElementById('d_code').value.trim().toUpperCase(),
+        name: document.getElementById('d_name').value.trim(),
+        cost_center: document.getElementById('d_cost_center').value.trim()
+    };
+
+    if (!data.code || !data.name) {
+        alert('El código y nombre del departamento son obligatorios.');
+        return;
     }
 
-    // ============ DEPARTAMENTO ============
-    function toggleDeptModal(show) {
-        document.getElementById('dept_modal').classList.toggle('hidden', !show);
-    }
-
-    function saveQuickDepartment() {
-        const data = {
-            code: document.getElementById('d_code').value.trim().toUpperCase(),
-            name: document.getElementById('d_name').value.trim(),
-            cost_center: document.getElementById('d_cost_center').value.trim()
-        };
-
-        if (!data.code || !data.name) {
-            alert('El código y nombre del departamento son obligatorios.');
-            return;
+    fetch("{{ url_for('contract_builder.quick_add_department') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            const select = document.getElementById('department_select');
+            const opt = new Option(res.label, res.id, true, true);
+            opt.setAttribute('data-name', data.name);
+            select.add(opt);
+            toggleDeptModal(false);
+            document.getElementById('d_code').value = '';
+            document.getElementById('d_name').value = '';
+            document.getElementById('d_cost_center').value = '';
+            schedulePreview();
+        } else {
+            alert(res.message);
         }
-
-        fetch("{{ url_for('contract_builder.quick_add_department') }}", {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(res => {
-            if (res.success) {
-                const select = document.getElementById('department_select');
-                const opt = new Option(res.label, res.id, true, true);
-                select.add(opt);
-                toggleDeptModal(false);
-                // Limpiar modal
-                document.getElementById('d_code').value = '';
-                document.getElementById('d_name').value = '';
-                document.getElementById('d_cost_center').value = '';
-            } else {
-                alert(res.message);
-            }
-        });
-    }
-
-    // ============ FUNCIONES DINÁMICAS ============
-    document.getElementById('add_function_btn').addEventListener('click', function() {
-        const container = document.getElementById('functions_container');
-        const count = container.querySelectorAll('.function-row').length + 1;
-        
-        const row = document.createElement('div');
-        row.className = 'flex items-center space-x-2 function-row';
-        row.innerHTML = `
-            <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">${count}.</span>
-            <input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500">
-            <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
-        `;
-        container.appendChild(row);
     });
+}
 
-    function removeFunctionRow(btn) {
-        const container = document.getElementById('functions_container');
-        if (container.querySelectorAll('.function-row').length > 1) {
-            btn.closest('.function-row').remove();
-            reindexFunctions();
-        }
-    }
+document.getElementById('add_function_btn').addEventListener('click', function() {
+    const container = document.getElementById('functions_container');
+    const count = container.querySelectorAll('.function-row').length + 1;
 
-    function reindexFunctions() {
-        document.querySelectorAll('.function-row').forEach((row, index) => {
-            row.querySelector('.index-label').textContent = `${index + 1}.`;
-        });
+    const row = document.createElement('div');
+    row.className = 'flex items-center space-x-2 function-row';
+    row.innerHTML = `
+        <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">${count}.</span>
+        <input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">
+        <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
+    `;
+    container.appendChild(row);
+});
+
+function removeFunctionRow(btn) {
+    const container = document.getElementById('functions_container');
+    if (container.querySelectorAll('.function-row').length > 1) {
+        btn.closest('.function-row').remove();
+        reindexFunctions();
+        schedulePreview();
     }
+}
+
+function reindexFunctions() {
+    document.querySelectorAll('.function-row').forEach((row, index) => {
+        row.querySelector('.index-label').textContent = `${index + 1}.`;
+    });
+}
 </script>
 {% endblock %}

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Vista Previa — Contrato {{ contract.contract_number }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Times New Roman', Times, serif; 
+            font-size: 11pt; 
+            line-height: 1.5; 
+            margin: 30px; 
+            color: #000; 
+        }
+        .header { 
+            text-align: center; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        .title { 
+            text-align: center; 
+            font-size: 13pt; 
+            font-weight: bold; 
+            margin-bottom: 18px; 
+            text-decoration: underline; 
+        }
+        .section { 
+            margin-bottom: 12px; 
+            text-align: justify; 
+        }
+        .functions-list { 
+            margin-left: 20px; 
+            margin-top: 6px;
+        }
+        .functions-list li {
+            margin-bottom: 4px;
+        }
+        .signatures { 
+            margin-top: 50px; 
+            display: flex; 
+            justify-content: space-between; 
+        }
+        .signature-box { 
+            text-align: center; 
+            width: 45%; 
+            border-top: 1px solid #000; 
+            padding-top: 6px;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 44pt;
+            color: rgba(200, 0, 0, 0.06);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1000;
+            letter-spacing: 8px;
+        }
+        .placeholder {
+            color: #999;
+            font-style: italic;
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div class="watermark">VISTA PREVIA</div>
+
+    <div class="header">
+        República de Chile<br>
+        Municipalidad de Temuco<br>
+        <span style="font-size: 10pt; font-weight: normal; text-transform: none; margin-top: 4px; display: block;">
+            {{ contract.department_name or 'Departamento' }}
+        </span>
+    </div>
+
+    <div class="title">CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS</div>
+
+    <div class="section">
+        En Temuco, a {{ contract.created_at.strftime('%d de %B de %Y') if contract.created_at is defined and contract.created_at else '___ de ________ de ____' }}, entre la I. MUNICIPALIDAD DE TEMUCO, representada por su Alcalde según las facultades que le confiere la Ley Orgánica Constitucional de Municipalidades, y Don(a) <strong>{{ contract.provider_name or '____________________' }}</strong>, cédula de identidad N° <strong>{{ contract.provider_rut or '____________________' }}</strong>, se conviene el siguiente contrato de prestación de servicios a honorarios:
+    </div>
+
+    <div class="section">
+        <strong>PRIMERO:</strong> El prestador desempeñará el cargo de <strong>{{ contract.position_title or '____________________' }}</strong> en el departamento de <strong>{{ contract.department_name or '____________________' }}</strong>, en el marco del programa municipal <em>{{ contract.program_name or 'Gestión Municipal' }}</em>.
+    </div>
+
+    <div class="section">
+        <strong>SEGUNDO:</strong> Serán funciones específicas del prestador las siguientes:
+        <ol class="functions-list">
+            {% for f in contract.functions %}
+            <li>{{ f }}</li>
+            {% else %}
+            <li class="placeholder">______________________________________________</li>
+            {% endfor %}
+        </ol>
+    </div>
+
+    <div class="section">
+        <strong>TERCERO:</strong> Los servicios regirán desde el <strong>{{ contract.start_date or '___ de ________ de ____' }}</strong> hasta el <strong>{{ contract.end_date or '___ de ________ de ____' }}</strong>. La renta bruta mensual acordada es de <strong>${{ contract.monthly_amount_gross or '__________' }}</strong> pesos chilenos ($CLP), pagaderos mensualmente previa presentación del informe de actividades.
+    </div>
+
+    {% if contract.decline_number %}
+    <div class="section">
+        <strong>CUARTO:</strong> El presente contrato se otorga en conformidad al Decreto Alcaldicio N° <strong>{{ contract.decline_number }}</strong>{% if contract.decline_date and contract.decline_date != '___ de ________ de ____' %} de fecha {{ contract.decline_date }}{% endif %}.
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <strong>{% if contract.decline_number %}QUINTO{% else %}CUARTO{% endif %}:</strong> En todo lo no previsto en el presente contrato, se estará a lo dispuesto en la Ley N° 19.880 sobre Bases de Procedimiento Administrativo y demás normativa aplicable.
+    </div>
+
+    <div class="signatures">
+        <div class="signature-box">
+            <strong>I. MUNICIPALIDAD DE TEMUCO</strong><br>
+            <span style="font-size: 9pt;">Alcalde o Delegado</span>
+        </div>
+        <div class="signature-box">
+            <strong>{{ contract.provider_name or '____________________' }}</strong><br>
+            <span style="font-size: 9pt;">RUT: {{ contract.provider_rut or '____________________' }}</span>
+        </div>
+    </div>
+</body>
+</html>

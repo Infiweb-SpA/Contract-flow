@@ -8,9 +8,11 @@ from app.models.user import Department
 from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction
 from app.services.audit_service import log_action
-from app.services.pdf_generator import generate_contract_html, make_pdf_response
-from app.services.ocr_service import extract_text_from_pdf
+from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
+from app.services.ocr_service import extract_text_from_pdf, parse_contract_data
 import os
+import tempfile
+import uuid
 
 contract_builder_bp = Blueprint('contract_builder', __name__, url_prefix='/contracts')
 
@@ -108,7 +110,7 @@ def detail(contract_id):
 @role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO')
 def edit(contract_id):
     contract = Contract.query.get_or_404(contract_id)
-    
+
     if request.method == 'POST':
         try:
             contract.contract_number = request.form.get('contract_number', '').strip()
@@ -122,7 +124,7 @@ def edit(contract_id):
             contract.start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
             contract.end_date = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
             contract.status = request.form.get('status', 'BORRADOR')
-            
+
             ContractFunction.query.filter_by(contract_id=contract.id).delete()
             functions = request.form.getlist('functions[]')
             for index, func_desc in enumerate(functions, start=1):
@@ -134,23 +136,23 @@ def edit(contract_id):
                         function_description=clean_desc,
                         is_mandatory_for_payment=1
                     ))
-            
+
             db.session.commit()
             log_action('CONTRACT_UPDATE', 'contract', contract.id, {'contract_number': contract.contract_number})
             flash('Contrato actualizado exitosamente.', 'success')
             return redirect(url_for('contract_builder.detail', contract_id=contract.id))
-            
+
         except Exception as e:
             db.session.rollback()
             flash(f'Error al actualizar: {str(e)}', 'danger')
-    
+
     providers = ServiceProvider.query.order_by(ServiceProvider.paternal_last_name).all()
     departments = Department.query.filter_by(is_active=1).all()
     return render_template('contracts/edit.html', contract=contract, providers=providers, departments=departments)
 
 
 # =============================================================================
-# VISTA PREVIA / BORRADOR
+# VISTA PREVIA / BORRADOR (para contratos ya guardados)
 # =============================================================================
 @contract_builder_bp.route('/<int:contract_id>/preview')
 @login_required
@@ -182,17 +184,17 @@ def download_pdf(contract_id):
 def change_status(contract_id):
     contract = Contract.query.get_or_404(contract_id)
     new_status = request.form.get('new_status')
-    
+
     valid_transitions = {
         'BORRADOR': ['CREADO_PARA_FIRMA'],
         'CREADO_PARA_FIRMA': ['INGRESADO'],
         'INGRESADO': ['EN_EJECUCION'],
         'EN_EJECUCION': ['FINALIZADO']
     }
-    
+
     current = contract.status
     allowed = valid_transitions.get(current, [])
-    
+
     if new_status in allowed:
         contract.status = new_status
         db.session.commit()
@@ -201,12 +203,12 @@ def change_status(contract_id):
         flash(f'Estado actualizado a: {contract.status_label}', 'success')
     else:
         flash(f'Transición no permitida: {current} → {new_status}', 'danger')
-    
+
     return redirect(url_for('contract_builder.detail', contract_id=contract.id))
 
 
 # =============================================================================
-# CARGAR CONTRATO EXTERNO (OCR)
+# CARGAR CONTRATO EXTERNO (OCR) — Flujo clásico
 # =============================================================================
 @contract_builder_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -288,7 +290,163 @@ def upload_external():
 
 
 # =============================================================================
-# APIs
+# API: PREVISUALIZACIÓN EN VIVO (Split-View)
+# =============================================================================
+@contract_builder_bp.route('/api/preview', methods=['POST'])
+@login_required
+def api_preview():
+    """
+    Recibe los datos actuales del formulario vía JSON y devuelve el HTML
+    renderizado del contrato para mostrarlo en el iframe de previsualización.
+    No guarda nada en la base de datos.
+    """
+    try:
+        data = request.get_json() or {}
+
+        # Buscar nombres reales si tenemos IDs
+        provider_name = data.get('provider_name', '____________________')
+        provider_rut = data.get('provider_rut', '____________________')
+        department_name = data.get('department_name', '____________________')
+
+        if data.get('provider_id'):
+            provider = ServiceProvider.query.get(data['provider_id'])
+            if provider:
+                provider_name = provider.full_name
+                provider_rut = provider.rut
+
+        if data.get('department_id'):
+            dept = Department.query.get(data['department_id'])
+            if dept:
+                department_name = dept.name
+
+        # Formatear fechas
+        def _fmt_date(d):
+            if not d:
+                return '___ de ________ de ____'
+            try:
+                if isinstance(d, str):
+                    d = datetime.strptime(d, '%Y-%m-%d').date()
+                return d.strftime('%d de %B de %Y')
+            except:
+                return str(d)
+
+        # Formatear monto
+        monto = data.get('monthly_amount_gross')
+        monto_str = "{:,.0f}".format(float(monto)) if monto else '__________'
+
+        # Construir objeto de preview
+        preview_data = {
+            'contract_number': data.get('contract_number', 'CT-XXXX-XXX') or 'CT-XXXX-XXX',
+            'position_title': data.get('position_title', '____________________'),
+            'program_name': data.get('program_name', 'Gestión Municipal'),
+            'monthly_amount_gross': monto_str,
+            'start_date': _fmt_date(data.get('start_date')),
+            'end_date': _fmt_date(data.get('end_date')),
+            'decline_number': data.get('decline_number', ''),
+            'decline_date': _fmt_date(data.get('decline_date')),
+            'created_at': datetime.now(),
+            'provider_name': provider_name,
+            'provider_rut': provider_rut,
+            'department_name': department_name,
+            'functions': [f.strip() for f in data.get('functions', []) if f.strip()]
+        }
+
+        html = render_template('contracts/preview_template.html', contract=preview_data)
+        return html
+
+    except Exception as e:
+        current_app.logger.error(f"Error en preview: {e}")
+        return f"<html><body style='color:red;padding:20px;font-family:sans-serif;'><h3>Error al generar preview</h3><p>{str(e)}</p></body></html>", 500
+
+
+# =============================================================================
+# API: EXTRACCIÓN OCR PARA AUTOCOMPLETADO (Drag & Drop)
+# =============================================================================
+@contract_builder_bp.route('/api/ocr-extract', methods=['POST'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO')
+def api_ocr_extract():
+    """
+    Recibe un PDF vía AJAX (drag & drop), ejecuta OCR, parsea los datos
+    y devuelve un JSON con los campos detectados para autocompletar el formulario.
+    No crea ningún registro en la base de datos.
+    """
+    if 'contract_pdf' not in request.files:
+        return jsonify({'success': False, 'message': 'No se envió ningún archivo.'}), 400
+
+    file = request.files['contract_pdf']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'Archivo vacío.'}), 400
+
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({'success': False, 'message': 'Solo se permiten archivos PDF.'}), 400
+
+    temp_path = None
+    try:
+        # Guardar temporalmente
+        temp_dir = tempfile.gettempdir()
+        temp_filename = f"ocr_{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+        temp_path = os.path.join(temp_dir, temp_filename)
+        file.save(temp_path)
+
+        # Extraer texto con OCR
+        extracted_text = extract_text_from_pdf(temp_path)
+
+        # Parsear datos estructurados
+        parsed = parse_contract_data(extracted_text)
+
+        # Buscar prestador por RUT si existe
+        provider_match = None
+        if parsed.get('rut'):
+            provider = ServiceProvider.query.filter(
+                ServiceProvider.rut.ilike(f"%{parsed['rut']}%")
+            ).first()
+            if provider:
+                provider_match = {
+                    'id': provider.id,
+                    'name': provider.full_name,
+                    'rut': provider.rut
+                }
+
+        # Buscar departamento por nombre si existe
+        dept_match = None
+        if parsed.get('department_name'):
+            dept = Department.query.filter(
+                Department.name.ilike(f"%{parsed['department_name']}%")
+            ).first()
+            if not dept:
+                # Intentar por código
+                dept = Department.query.filter(
+                    Department.code.ilike(f"%{parsed['department_name'][:6]}%")
+                ).first()
+            if dept:
+                dept_match = {
+                    'id': dept.id,
+                    'name': dept.name,
+                    'code': dept.code
+                }
+
+        return jsonify({
+            'success': True,
+            'extracted_text': extracted_text,
+            'parsed': parsed,
+            'provider_match': provider_match,
+            'department_match': dept_match
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error OCR extract: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+
+
+# =============================================================================
+# APIs AUXILIARES
 # =============================================================================
 @contract_builder_bp.route('/api/search-provider', methods=['GET'])
 @login_required
@@ -296,7 +454,7 @@ def search_provider():
     query = request.args.get('q', '').strip()
     if not query:
         return jsonify({'success': False, 'providers': []})
-    
+
     providers = ServiceProvider.query.filter(
         db.or_(
             ServiceProvider.rut.ilike(f'%{query}%'),
@@ -305,7 +463,7 @@ def search_provider():
             ServiceProvider.maternal_last_name.ilike(f'%{query}%')
         )
     ).limit(10).all()
-    
+
     results = []
     for p in providers:
         results.append({
@@ -316,7 +474,7 @@ def search_provider():
             'phone': p.phone or '',
             'address': p.address or ''
         })
-        
+
     return jsonify({'success': True, 'providers': results})
 
 
