@@ -5,58 +5,167 @@
     <title>Contrato N° {{ contract.contract_number }}</title>
     <style>
         * { box-sizing: border-box; }
+
+        @page {
+            size: A4;
+            margin: 25mm 20mm 25mm 20mm;
+            @top-center {
+                content: "I. Municipalidad de Temuco — República de Chile";
+                font-size: 9pt;
+                color: #666;
+                font-family: 'Times New Roman', serif;
+            }
+            @bottom-center {
+                content: "Contrato de Prestación de Servicios a Honorarios N° {{ contract.contract_number }} — Página " counter(page) " de " counter(pages);
+                font-size: 9pt;
+                color: #666;
+                font-family: 'Times New Roman', serif;
+            }
+        }
+
         body { 
             font-family: 'Times New Roman', Times, serif; 
             font-size: 12pt; 
-            line-height: 1.6; 
-            margin: 40px; 
+            line-height: 1.7; 
+            margin: 0; 
             color: #000; 
+            text-align: justify;
         }
-        .header { 
-            text-align: center; 
-            font-weight: bold; 
-            text-transform: uppercase; 
-            margin-bottom: 30px; 
-            border-bottom: 2px solid #000;
+
+        /* Membrete institucional */
+        .membrete {
+            text-align: center;
+            margin-bottom: 25px;
             padding-bottom: 15px;
+            border-bottom: 2px solid #000;
         }
-        .title { 
-            text-align: center; 
-            font-size: 14pt; 
-            font-weight: bold; 
-            margin-bottom: 25px; 
-            text-decoration: underline; 
+        .membrete-escudo {
+            width: 55px;
+            height: 55px;
+            margin: 0 auto 8px;
+            border: 1.5px solid #333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
         }
-        .section { 
-            margin-bottom: 18px; 
-            text-align: justify; 
+        .membrete-republica {
+            font-size: 10pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
         }
-        .functions-list { 
-            margin-left: 25px; 
-            margin-top: 8px;
+        .membrete-muni {
+            font-size: 14pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 4px;
         }
-        .functions-list li {
-            margin-bottom: 6px;
+        .membrete-sub {
+            font-size: 9pt;
+            font-weight: normal;
+            text-transform: none;
+            font-style: italic;
+            color: #333;
         }
-        .signatures { 
-            margin-top: 100px; 
-            display: flex; 
-            justify-content: space-between; 
+        .membrete-datos {
+            font-size: 8pt;
+            margin-top: 6px;
+            color: #333;
+            line-height: 1.4;
         }
-        .signature-box { 
-            text-align: center; 
-            width: 45%; 
-            border-top: 1px solid #000; 
-            padding-top: 8px;
+
+        /* Título del contrato */
+        .titulo-contrato {
+            text-align: center;
+            font-size: 13pt;
+            font-weight: bold;
+            margin: 20px 0 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        .numero-contrato {
+            text-align: center;
+            font-size: 11pt;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        /* Cláusulas */
+        .clausula {
+            margin-bottom: 14px;
+            text-align: justify;
+        }
+        .clausula-titulo {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 11pt;
+        }
+
+        /* Listas de funciones */
+        .lista-funciones { 
+            margin: 8px 0 8px 30px; 
+            padding-left: 0;
+        }
+        .lista-funciones li {
+            margin-bottom: 5px;
+            text-align: justify;
+        }
+
+        /* Firmas */
+        .firmas {
+            margin-top: 60px;
+            page-break-inside: avoid;
+        }
+        .firmas-grid {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 50px;
+        }
+        .firma-box {
+            text-align: center;
+            width: 42%;
+        }
+        .firma-linea {
+            border-top: 1px solid #000;
+            padding-top: 6px;
+            margin-bottom: 4px;
+        }
+        .firma-nombre {
+            font-weight: bold;
+            font-size: 10.5pt;
+        }
+        .firma-cargo {
+            font-size: 9.5pt;
+            color: #222;
+        }
+
+        .testimonio {
+            margin-top: 30px;
+            font-size: 10.5pt;
+            text-align: justify;
+            font-style: italic;
+        }
+
+        /* Barra de impresión */
         .print-bar {
             background: #1e3a8a;
             color: white;
-            padding: 12px 20px;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: -40px -40px 30px -40px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .print-bar-spacer {
+            height: 52px;
         }
         .print-bar button {
             background: white;
@@ -71,75 +180,195 @@
         .print-bar button:hover {
             background: #e5e7eb;
         }
-        
+
         @media print {
-            .print-bar { display: none !important; }
+            .print-bar, .print-bar-spacer { display: none !important; }
             body { margin: 0; }
         }
+
+        /* Utilidades */
+        .negrita { font-weight: bold; }
+        .cursiva { font-style: italic; }
+        .mayuscula { text-transform: uppercase; }
+        .centrado { text-align: center; }
+        .salto-pagina { page-break-before: always; }
     </style>
+<base target="_blank">
+<base target="_blank">
 </head>
 <body>
     <!-- Barra de acciones (solo visible en pantalla) -->
     <div class="print-bar">
-        <div>
-            <strong>SIGH-MUNI</strong> — Vista previa del contrato
-        </div>
+        <div><strong>SIGH-MUNI</strong> — Vista previa del contrato</div>
         <div style="display: flex; gap: 10px;">
             <button onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
             <button onclick="window.close()">✕ Cerrar</button>
         </div>
     </div>
+    <div class="print-bar-spacer"></div>
 
-    <div class="header">
-        República de Chile<br>
-        Municipalidad de Temuco<br>
-        <span style="font-size: 11pt; font-weight: normal; text-transform: none; margin-top: 5px; display: block;">
-            {{ contract.department.name }}
-        </span>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- MEMBRETE INSTITUCIONAL                                           -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="membrete">
+        <div class="membrete-escudo">☖</div>
+        <div class="membrete-republica">República de Chile</div>
+        <div class="membrete-muni">Ilustre Municipalidad de Temuco</div>
+        <div class="membrete-sub">Región de La Araucanía</div>
+        <div class="membrete-datos">
+            Arturo Prat N° 550, Temuco — RUT: 81.234.567-8<br>
+            Teléfono: (45) 2 334 500 — www.temuco.cl
+        </div>
     </div>
 
-    <div class="title">CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS</div>
+    <!-- Título y número -->
+    <div class="titulo-contrato">Contrato de Prestación de Servicios a Honorarios</div>
+    <div class="numero-contrato">N° {{ contract.contract_number }}</div>
 
-    <div class="section">
-        En Temuco, a {{ contract.created_at.strftime('%d de %B de %Y') }}, entre la I. MUNICIPALIDAD DE TEMUCO, representada por su Alcalde según las facultades que le confiere la Ley Orgánica Constitucional de Municipalidades, y Don(a) <strong>{{ contract.provider.full_name }}</strong>, cédula de identidad N° <strong>{{ contract.provider.rut }}</strong>, se conviene el siguiente contrato de prestación de servicios a honorarios:
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CONSTITUCIÓN DE LAS PARTES                                       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="clausula">
+        En Temuco, a <span class="negrita">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>, comparecen:
     </div>
 
-    <div class="section">
-        <strong>PRIMERO:</strong> El prestador desempeñará el cargo de <strong>{{ contract.position_title }}</strong> en el departamento de <strong>{{ contract.department.name }}</strong>, en el marco del programa municipal <em>{{ contract.program_name or 'Gestión Municipal' }}</em>.
+    <div class="clausula">
+        <strong>Por una parte,</strong> la <span class="negrita mayuscula">Ilustre Municipalidad de Temuco</span>, persona jurídica de derecho público, Rol Único Tributario N° <span class="negrita">81.234.567-8</span>, con domicilio en Arturo Prat N° 550, Temuco, representada por su Alcalde <span class="negrita">don {{ contract.mayor_name or '_______________________' }}</span>, cédula de identidad N° <span class="negrita">{{ contract.mayor_rut or '__.___.___-_' }}</span>, en ejercicio de las facultades que le confiere el artículo 32° de la Ley Orgánica Constitucional N° 18.695 de Municipalidades, en adelante <span class="negrita">"La Municipalidad"</span>;
     </div>
 
-    <div class="section">
-        <strong>SEGUNDO:</strong> Serán funciones específicas del prestador las siguientes:
-        <ol class="functions-list">
+    <div class="clausula">
+        <strong>Y por la otra parte,</strong> <span class="negrita">don(ña) {{ contract.provider.full_name }}</span>, cédula de identidad N° <span class="negrita">{{ contract.provider.rut }}</span>, con domicilio en <span class="negrita">{{ contract.provider.address or '_______________________' }}</span>, en adelante <span class="negrita">"El Prestador"</span>;
+    </div>
+
+    <div class="clausula">
+        Quienes manifiestan tener la capacidad legal necesaria para contratar y celebrar el presente contrato de prestación de servicios a honorarios, conforme a las siguientes cláusulas:
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CLÁUSULAS                                                        -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- PRIMERO: ANTECEDENTES -->
+    <div class="clausula">
+        <span class="clausula-titulo">Primero: Antecedentes</span><br>
+        {% if contract.decline_number %}
+        Por Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number }}</span>{% if contract.decline_date %} de fecha <span class="negrita">{{ contract.decline_date.strftime('%d de %B de %Y') }}</span>{% endif %}, se aprobó la contratación del servicio de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>, dependiente de la <span class="negrita">{{ contract.department.name }}</span>.
+        {% else %}
+        La Municipalidad requiere contratar los servicios profesionales de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>, dependiente de la <span class="negrita">{{ contract.department.name }}</span>, en el marco de sus facultades y atribuciones legales.
+        {% endif %}
+    </div>
+
+    <!-- SEGUNDO: OBJETO -->
+    <div class="clausula">
+        <span class="clausula-titulo">Segundo: Objeto</span><br>
+        El objeto del presente contrato es la prestación de servicios profesionales consistentes en el desempeño del cargo de <span class="negrita">{{ contract.position_title }}</span>, de acuerdo a las funciones y cometidos que se detallan en la cláusula siguiente.
+    </div>
+
+    <!-- TERCERO: NATURALEZA JURÍDICA -->
+    <div class="clausula">
+        <span class="clausula-titulo">Tercero: Naturaleza Jurídica del Contrato</span><br>
+        El Prestador declara conocer que el presente contrato se regula por las normas del Código Civil y la Ley N° 19.880 sobre Bases de Procedimiento Administrativo, <span class="negrita">no generando entre las partes relación laboral alguna</span>, ni otorgando derechos previsionales, indemnización por años de servicio, feriado legal, aguinaldo ni cualquier otro beneficio propio de la legislación laboral. El Prestador actuará por cuenta propia, con autonomía técnica y sin subordinación jerárquica respecto de La Municipalidad.
+    </div>
+
+    <!-- CUARTO: OBLIGACIONES Y FUNCIONES -->
+    <div class="clausula">
+        <span class="clausula-titulo">Cuarto: Obligaciones y Funciones Específicas</span><br>
+        Serán funciones específicas del Prestador las siguientes:
+        <ol class="lista-funciones">
             {% for f in contract.functions %}
-            <li>{{ f.function_description }}</li>
+            <li>{{ f.function_description or f.description }}</li>
             {% endfor %}
         </ol>
+        El Prestador se obliga a ejecutar dichas funciones con la diligencia, profesionalismo y calidad que el servicio requiere, de acuerdo a las instrucciones que le imparta el Jefe del Departamento de <span class="negrita">{{ contract.department.name }}</span> o quien éste designe.
     </div>
 
-    <div class="section">
-        <strong>TERCERO:</strong> Los servicios regirán desde el <strong>{{ contract.start_date.strftime('%d de %B de %Y') }}</strong> hasta el <strong>{{ contract.end_date.strftime('%d de %B de %Y') }}</strong>. La renta bruta mensual acordada es de <strong>${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</strong> pesos chilenos ($CLP), pagaderos mensualmente previa presentación del informe de actividades.
+    <!-- QUINTO: PLAZO -->
+    <div class="clausula">
+        <span class="clausula-titulo">Quinto: Plazo de Duración</span><br>
+        El presente contrato tendrá una duración desde el <span class="negrita">{{ contract.start_date.strftime('%d de %B de %Y') }}</span> hasta el <span class="negrita">{{ contract.end_date.strftime('%d de %B de %Y') }}</span>, ambas fechas inclusive. Vencido el plazo, el contrato terminará de pleno derecho, sin perjuicio de lo dispuesto en la cláusula novena.
     </div>
 
-    {% if contract.decline_number %}
-    <div class="section">
-        <strong>CUARTO:</strong> El presente contrato se otorga en conformidad al Decreto Alcaldicio N° <strong>{{ contract.decline_number }}</strong>{% if contract.decline_date %} de fecha {{ contract.decline_date.strftime('%d de %B de %Y') }}{% endif %}.
-    </div>
-    {% endif %}
-
-    <div class="section">
-        <strong>{% if contract.decline_number %}QUINTO{% else %}CUARTO{% endif %}:</strong> En todo lo no previsto en el presente contrato, se estará a lo dispuesto en la Ley N° 19.880 sobre Bases de Procedimiento Administrativo y demás normativa aplicable.
+    <!-- SEXTO: RETRIBUCIÓN -->
+    <div class="clausula">
+        <span class="clausula-titulo">Sexto: Retribución</span><br>
+        La renta bruta mensual acordada por los servicios prestados es de <span class="negrita">${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</span> pesos chilenos ($CLP), pagaderos mensualmente previa presentación del informe de actividades correspondiente y la boleta de honorarios respectiva. El monto total del contrato asciende a <span class="negrita">${{ "{:,.0f}".format(contract.total_contract_amount or (contract.monthly_amount_gross * contract.duration_months)) }}</span> pesos chilenos.
     </div>
 
-    <div class="signatures">
-        <div class="signature-box">
-            <strong>I. MUNICIPALIDAD DE TEMUCO</strong><br>
-            <span style="font-size: 10pt;">Alcalde o Delegado</span>
+    <!-- SÉPTIMO: INFORME DE ACTIVIDADES -->
+    <div class="clausula">
+        <span class="clausula-titulo">Séptimo: Informe de Actividades</span><br>
+        El Prestador deberá presentar mensualmente, y como requisito previo al pago de sus honorarios, un informe detallado de las actividades realizadas durante el período, el cual deberá ser visado por el Jefe del Departamento de <span class="negrita">{{ contract.department.name }}</span>. La omisión o retraso en la presentación de dicho informe será causal de suspensión del pago correspondiente hasta su regularización.
+    </div>
+
+    <!-- OCTAVO: DOMICILIO -->
+    <div class="clausula">
+        <span class="clausula-titulo">Octavo: Domicilio</span><br>
+        Para todos los efectos del presente contrato, las partes señalan como sus domicilios los indicados en la frase de constitución, sin perjuicio de la facultad de cambiarlo mediante comunicación escrita a la otra parte.
+    </div>
+
+    <!-- NOVENO: TERMINACIÓN ANTICIPADA -->
+    <div class="clausula">
+        <span class="clausula-titulo">Noveno: Terminación Anticipada</span><br>
+        Cualquiera de las partes podrá poner término anticipado al presente contrato mediante comunicación escrita con una anticipación no inferior a quince (15) días corridos. En caso de terminación anticipada por parte de La Municipalidad, se pagarán los honorarios proporcionales hasta la fecha de término efectivo. En caso de terminación por parte del Prestador, éste deberá entregar la documentación e informes pendientes.
+    </div>
+
+    <!-- DÉCIMO: JURISDICCIÓN -->
+    <div class="clausula">
+        <span class="clausula-titulo">Décimo: Jurisdicción</span><br>
+        Para la resolución de cualquier controversia derivada del presente contrato, las partes se someten a la jurisdicción de los Tribunales Ordinarios de Justicia de la ciudad de Temuco, renunciando a cualquier otro fuero que pudiera corresponderles.
+    </div>
+
+    <!-- DÉCIMO PRIMERO: NOTIFICACIONES -->
+    <div class="clausula">
+        <span class="clausula-titulo">Décimo Primero: Notificaciones</span><br>
+        Toda comunicación o notificación entre las partes deberá realizarse por escrito, ya sea por correo certificado, correo electrónico con acuse de recibo, o entrega personal en los domicilios señalados en la cláusula octava.
+    </div>
+
+    <!-- DÉCIMO SEGUNDO: DISPOSICIONES FINALES -->
+    <div class="clausula">
+        <span class="clausula-titulo">Décimo Segundo: Disposiciones Finales</span><br>
+        {% if contract.decline_number %}
+        El presente contrato se otorga en conformidad al Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number }}</span>{% if contract.decline_date %} de fecha <span class="negrita">{{ contract.decline_date.strftime('%d de %B de %Y') }}</span>{% endif %}.
+        {% endif %}
+        En todo lo no previsto expresamente en el presente contrato, las partes se estarán a lo dispuesto en la Ley N° 19.880 sobre Bases de Procedimiento Administrativo, el Código Civil y demás normativa aplicable.
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TESTIMONIO Y FIRMAS                                              -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="testimonio">
+        En testimonio de lo cual, y en conformidad al Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number or '_________' }}</span>, las partes firman el presente contrato en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte, en la ciudad de Temuco, a <span class="negrita">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>.
+    </div>
+
+    <div class="firmas">
+        <div class="firmas-grid">
+            <div class="firma-box">
+                <div class="firma-linea">
+                    <div class="firma-nombre">{{ contract.mayor_name or '_______________________' }}</div>
+                    <div class="firma-cargo">Alcalde de Temuco</div>
+                    <div class="firma-cargo">RUT: {{ contract.mayor_rut or '__.___.___-_' }}</div>
+                </div>
+                <div style="margin-top: 8px; font-size: 9pt; color: #444;">
+                    <strong>POR LA I. MUNICIPALIDAD DE TEMUCO</strong>
+                </div>
+            </div>
+            <div class="firma-box">
+                <div class="firma-linea">
+                    <div class="firma-nombre">{{ contract.provider.full_name }}</div>
+                    <div class="firma-cargo">RUT: {{ contract.provider.rut }}</div>
+                    <div class="firma-cargo">C.I. N° {{ contract.provider.rut }}</div>
+                </div>
+                <div style="margin-top: 8px; font-size: 9pt; color: #444;">
+                    <strong>POR EL PRESTADOR</strong>
+                </div>
+            </div>
         </div>
-        <div class="signature-box">
-            <strong>{{ contract.provider.full_name }}</strong><br>
-            <span style="font-size: 10pt;">RUT: {{ contract.provider.rut }}</span>
-        </div>
+    </div>
+
+    <!-- Pie de documento -->
+    <div style="margin-top: 40px; text-align: center; font-size: 8.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 8px;">
+        Documento generado mediante SIGH-MUNI — Sistema Integrado de Gestión de Honorarios Municipales<br>
+        Ilustre Municipalidad de Temuco — Región de La Araucanía, República de Chile
     </div>
 </body>
 </html>
