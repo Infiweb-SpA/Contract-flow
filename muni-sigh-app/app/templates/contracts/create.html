@@ -6,9 +6,7 @@
 <!-- Layout Split-View: Formulario (izq) + Preview (der) -->
 <div class="flex h-[calc(100vh-64px)]" id="split_view_container">
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- PANEL IZQUIERDO: FORMULARIO                                   -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- PANEL IZQUIERDO: FORMULARIO -->
     <div class="w-3/5 overflow-y-auto bg-gray-50 border-r border-gray-300" id="left_panel">
         <div class="p-6 max-w-3xl mx-auto">
 
@@ -21,9 +19,7 @@
                 <a href="{{ url_for('dashboard.index') }}" class="text-xs text-gray-600 hover:text-gray-900 underline">← Volver al Dashboard</a>
             </div>
 
-            <!-- ═══════════════════════════════════════════════════════ -->
-            <!-- ZONA DRAG & DROP OCR (Paso 1 → 2 → 3)                    -->
-            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- ZONA DRAG & DROP OCR -->
             <div id="ocr_dropzone" class="mb-6 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 p-6 text-center cursor-pointer hover:bg-blue-100 hover:border-blue-500 transition group relative">
                 <input type="file" id="ocr_file_input" accept=".pdf" class="hidden">
                 <div id="ocr_idle_state">
@@ -50,7 +46,10 @@
                 </div>
             </div>
 
-            <!-- Texto extraído (colapsable, para depuración/verificación) -->
+            <!-- Contenedor de alertas OCR -->
+            <div id="ocr_alert_container" class="mb-4 hidden"></div>
+
+            <!-- Texto extraído (colapsable) -->
             <div id="ocr_raw_text_container" class="mb-4 hidden">
                 <details class="bg-gray-100 rounded border border-gray-200">
                     <summary class="px-3 py-2 text-xs font-semibold text-gray-600 cursor-pointer hover:bg-gray-200 rounded">
@@ -73,12 +72,26 @@
                                 <label class="block text-xs font-semibold text-gray-700 uppercase">Prestador de Servicios *</label>
                                 <button type="button" onclick="toggleProviderModal(true)" class="text-xs text-blue-700 hover:underline font-semibold">+ Nuevo Prestador</button>
                             </div>
+
+                            <!-- BUSCADOR DINÁMICO DE PRESTADOR -->
+                            <div class="relative mb-2">
+                                <input type="text" id="provider_search_input"
+                                    placeholder="Buscar por nombre o RUT..."
+                                    autocomplete="off"
+                                    class="w-full px-3 py-2 pr-8 border border-blue-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-blue-50">
+                                <button type="button" id="provider_search_clear" onclick="clearProviderSearch()"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden text-sm font-bold">✕</button>
+                            </div>
+                            <!-- Dropdown de resultados -->
+                            <div id="provider_search_dropdown" class="hidden absolute z-40 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto mt-1"></div>
+
                             <select name="provider_id" id="provider_select" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger">
                                 <option value="">-- Seleccione Prestador --</option>
                                 {% for p in providers %}
                                 <option value="{{ p.id }}" data-rut="{{ p.rut }}" data-name="{{ p.full_name }}">{{ p.full_name }} ({{ p.rut }})</option>
                                 {% endfor %}
                             </select>
+                            <div id="ocr_provider_hint" class="hidden mt-1 text-xs px-2 py-1 rounded border"></div>
                         </div>
 
                         <!-- Departamento -->
@@ -93,6 +106,7 @@
                                 <option value="{{ d.id }}" data-name="{{ d.name }}">{{ d.code }} - {{ d.name }}</option>
                                 {% endfor %}
                             </select>
+                            <div id="ocr_dept_hint" class="hidden mt-1 text-xs px-2 py-1 rounded border"></div>
                         </div>
                     </div>
                 </div>
@@ -175,9 +189,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- PANEL DERECHO: PREVISUALIZACIÓN EN VIVO                       -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- PANEL DERECHO: PREVISUALIZACIÓN EN VIVO -->
     <div class="w-2/5 bg-gray-100 flex flex-col border-l border-gray-300" id="right_panel">
         <div class="bg-blue-900 text-white px-4 py-3 flex justify-between items-center shadow-sm">
             <div class="flex items-center gap-2">
@@ -192,15 +204,14 @@
             </div>
         </div>
         <div class="flex-grow relative bg-gray-200">
-            <iframe id="preview_iframe" class="w-full h-full border-0" 
-                srcdoc="<html><head><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;background:#f3f4f6;color:#9ca3af;}</style><base target="_blank">
-</head><body><div style='text-align:center;'><div style='font-size:48px;margin-bottom:12px;'>&#128196;</div><div style='font-size:14px;font-weight:600;'>Complete el formulario</div><div style='font-size:12px;margin-top:4px;'>La previsualización aparecerá aquí</div></div></body></html>">
+            <iframe id="preview_iframe" class="w-full h-full border-0"
+                srcdoc="<html><head><style>body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;background:#f3f4f6;color:#9ca3af;}</style></head><body><div style='text-align:center;'><div style='font-size:48px;margin-bottom:12px;'>&#128196;</div><div style='font-size:14px;font-weight:600;'>Complete el formulario</div><div style='font-size:12px;margin-top:4px;'>La previsualización aparecerá aquí</div></div></body></html>">
             </iframe>
         </div>
     </div>
 </div>
 
-<!-- ==================== MODAL: NUEVO PRESTADOR ==================== -->
+<!-- MODAL: NUEVO PRESTADOR -->
 <div id="provider_modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex justify-center items-center p-4 z-50">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
         <h3 class="text-lg font-bold text-gray-800">Agregar Nuevo Prestador</h3>
@@ -239,7 +250,7 @@
     </div>
 </div>
 
-<!-- ==================== MODAL: NUEVO DEPARTAMENTO ==================== -->
+<!-- MODAL: NUEVO DEPARTAMENTO -->
 <div id="dept_modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex justify-center items-center p-4 z-50">
     <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
         <h3 class="text-lg font-bold text-gray-800">Agregar Nuevo Departamento</h3>
@@ -265,6 +276,37 @@
 </div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════════════
+// RESALTADO DE CAMPOS VACÍOS
+// ═══════════════════════════════════════════════════════════════════════════
+function highlightEmptyFields() {
+    document.querySelectorAll('#contract_form [required]').forEach(el => {
+        el.classList.remove('border-amber-400', 'bg-amber-50', 'ring-2', 'ring-amber-300');
+        el.classList.add('border-gray-300');
+        let isEmpty = (el.tagName === 'SELECT') ? !el.value : (!el.value || el.value.trim() === '');
+        if (isEmpty) {
+            el.classList.add('border-amber-400', 'bg-amber-50', 'ring-2', 'ring-amber-300');
+            el.classList.remove('border-gray-300');
+        }
+    });
+    document.querySelectorAll('#contract_form .function-row input[name="functions[]"]').forEach(el => {
+        el.classList.remove('border-amber-400', 'bg-amber-50', 'ring-2', 'ring-amber-300');
+        el.classList.add('border-gray-300');
+        if (!el.value || el.value.trim() === '') {
+            el.classList.add('border-amber-400', 'bg-amber-50', 'ring-2', 'ring-amber-300');
+            el.classList.remove('border-gray-300');
+        }
+    });
+}
+
+function clearFieldHighlights() {
+    document.querySelectorAll('#contract_form .border-amber-400').forEach(el => {
+        el.classList.remove('border-amber-400', 'bg-amber-50', 'ring-2', 'ring-amber-300');
+        el.classList.add('border-gray-300');
+    });
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PREVISUALIZACIÓN EN VIVO (Split-View)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -315,9 +357,7 @@ function updatePreview() {
     .then(html => {
         document.getElementById('preview_iframe').srcdoc = html;
     })
-    .catch(err => {
-        console.error('Preview error:', err);
-    })
+    .catch(err => console.error('Preview error:', err))
     .finally(() => {
         document.getElementById('preview_spinner').classList.add('hidden');
     });
@@ -325,21 +365,211 @@ function updatePreview() {
 
 function attachPreviewListeners() {
     document.querySelectorAll('.preview-trigger').forEach(el => {
+        el.removeEventListener('input', schedulePreview);
+        el.removeEventListener('change', schedulePreview);
         el.addEventListener('input', schedulePreview);
         el.addEventListener('change', schedulePreview);
+    });
+    document.querySelectorAll('.preview-trigger-function').forEach(el => {
+        el.removeEventListener('input', schedulePreview);
+        el.addEventListener('input', schedulePreview);
     });
 }
 attachPreviewListeners();
 
 document.getElementById('functions_container').addEventListener('input', function(e) {
-    if (e.target.classList.contains('preview-trigger-function')) {
-        schedulePreview();
-    }
+    if (e.target.classList.contains('preview-trigger-function')) schedulePreview();
 });
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DRAG & DROP OCR (Paso 1 → 2 → 3)
+// BUSCADOR DINÁMICO DE PRESTADORES + ÚLTIMO CONTRATO
+// ═══════════════════════════════════════════════════════════════════════════
+const providerSearchInput = document.getElementById('provider_search_input');
+const providerSearchDropdown = document.getElementById('provider_search_dropdown');
+const providerSearchClear = document.getElementById('provider_search_clear');
+let providerSearchTimeout = null;
+const PROVIDER_SEARCH_DEBOUNCE = 300;
+
+// Posicionar el dropdown correctamente debajo del input
+function positionProviderDropdown() {
+    const rect = providerSearchInput.getBoundingClientRect();
+    const parentRect = providerSearchInput.closest('.bg-white').getBoundingClientRect();
+    providerSearchDropdown.style.width = rect.width + 'px';
+    providerSearchDropdown.style.left = (rect.left - parentRect.left) + 'px';
+    providerSearchDropdown.style.top = (rect.bottom - parentRect.top + 2) + 'px';
+}
+
+providerSearchInput.addEventListener('input', function() {
+    const query = this.value.trim();
+    providerSearchClear.classList.toggle('hidden', query.length === 0);
+
+    if (query.length < 2) {
+        providerSearchDropdown.classList.add('hidden');
+        providerSearchDropdown.innerHTML = '';
+        return;
+    }
+
+    clearTimeout(providerSearchTimeout);
+    providerSearchTimeout = setTimeout(() => {
+        fetch("{{ url_for('contract_builder.search_provider_contract') }}?q=" + encodeURIComponent(query))
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.providers.length > 0) {
+                    let html = '';
+                    data.providers.forEach(p => {
+                        const hasContract = p.last_contract !== null;
+                        const contractInfo = hasContract
+                            ? '<div class="text-xs text-gray-400 mt-0.5">Último: ' + escapeHtml(p.last_contract.contract_number) + ' — ' + escapeHtml(p.last_contract.position_title) + '</div>'
+                            : '<div class="text-xs text-amber-500 mt-0.5">Sin contratos previos</div>';
+
+                        html += '<div class="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 provider-search-item" '
+                            + 'data-provider-index="' + data.providers.indexOf(p) + '" '
+                            + 'onclick=\'selectProviderFromSearch(' + JSON.stringify(p).replace(/'/g, "\\'") + ')\'>'
+                            + '<div class="flex justify-between items-center">'
+                            + '<span class="font-bold text-sm text-gray-800">' + escapeHtml(p.full_name) + '</span>'
+                            + '<span class="text-xs font-mono text-blue-700">' + p.rut + '</span>'
+                            + '</div>'
+                            + contractInfo
+                            + '</div>';
+                    });
+                    providerSearchDropdown.innerHTML = html;
+                    positionProviderDropdown();
+                    providerSearchDropdown.classList.remove('hidden');
+                } else {
+                    providerSearchDropdown.innerHTML = '<div class="px-3 py-3 text-xs text-gray-500 text-center">No se encontraron prestadores con "' + escapeHtml(query) + '"</div>';
+                    positionProviderDropdown();
+                    providerSearchDropdown.classList.remove('hidden');
+                }
+            })
+            .catch(err => {
+                console.error('Search error:', err);
+                providerSearchDropdown.classList.add('hidden');
+            });
+    }, PROVIDER_SEARCH_DEBOUNCE);
+});
+
+// Cerrar dropdown al hacer clic fuera
+document.addEventListener('click', function(e) {
+    if (!providerSearchInput.contains(e.target) && !providerSearchDropdown.contains(e.target)) {
+        providerSearchDropdown.classList.add('hidden');
+    }
+});
+
+function clearProviderSearch() {
+    providerSearchInput.value = '';
+    providerSearchClear.classList.add('hidden');
+    providerSearchDropdown.classList.add('hidden');
+    providerSearchDropdown.innerHTML = '';
+    providerSearchInput.focus();
+}
+
+function selectProviderFromSearch(provider) {
+    providerSearchDropdown.classList.add('hidden');
+    providerSearchDropdown.innerHTML = '';
+    providerSearchInput.value = provider.full_name + ' (' + provider.rut + ')';
+    providerSearchClear.classList.remove('hidden');
+
+    // 1. Seleccionar en el select
+    const select = document.getElementById('provider_select');
+    let found = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value == provider.id) {
+            select.selectedIndex = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        const opt = new Option(provider.full_name + ' (' + provider.rut + ')', provider.id, true, true);
+        opt.setAttribute('data-rut', provider.rut);
+        opt.setAttribute('data-name', provider.full_name);
+        select.add(opt);
+    }
+    select.dispatchEvent(new Event('change'));
+
+    // 2. Autocompletar con último contrato si existe
+    const hint = document.getElementById('ocr_provider_hint');
+    const c = provider.last_contract;
+
+    if (c) {
+        // Seleccionar departamento
+        if (c.department_id) {
+            const deptSelect = document.getElementById('department_select');
+            let deptFound = false;
+            for (let i = 0; i < deptSelect.options.length; i++) {
+                if (deptSelect.options[i].value == c.department_id) {
+                    deptSelect.selectedIndex = i;
+                    deptFound = true;
+                    break;
+                }
+            }
+            if (!deptFound && c.department_name) {
+                const opt = new Option(c.department_code + ' - ' + c.department_name, c.department_id, true, true);
+                opt.setAttribute('data-name', c.department_name);
+                deptSelect.add(opt);
+            }
+            deptSelect.dispatchEvent(new Event('change'));
+        }
+
+        // Campos del contrato
+        const fieldMap = {
+            'position_title': c.position_title,
+            'program_name': c.program_name,
+            'monthly_amount_gross': c.monthly_amount_gross,
+            'total_contract_amount': c.total_contract_amount,
+            'start_date': c.start_date,
+            'end_date': c.end_date,
+            'decline_number': c.decline_number,
+            'decline_date': c.decline_date
+        };
+
+        for (const [fieldId, value] of Object.entries(fieldMap)) {
+            if (value !== null && value !== undefined && value !== '') {
+                const el = document.getElementById(fieldId);
+                if (el) {
+                    el.value = value;
+                    el.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        // Funciones
+        if (c.functions && c.functions.length > 0) {
+            const container = document.getElementById('functions_container');
+            container.innerHTML = '';
+            c.functions.forEach((func, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center space-x-2 function-row';
+                row.innerHTML = '<span class="text-xs font-bold text-gray-500 w-6 text-center index-label">' + (idx + 1) + '.</span>'
+                    + '<input type="text" name="functions[]" required value="' + escapeHtml(func.description) + '" class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">'
+                    + '<button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>';
+                container.appendChild(row);
+            });
+            reindexFunctions();
+            attachPreviewListeners();
+        }
+
+        // Hint informativo
+        hint.textContent = '📋 Datos cargados del contrato ' + c.contract_number + '. Revise y ajuste los campos antes de guardar.';
+        hint.className = 'mt-1 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200';
+    } else {
+        // Sin contrato previo
+        hint.textContent = '👤 Prestador seleccionado. No tiene contratos previos — complete los datos manualmente.';
+        hint.className = 'mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200';
+    }
+
+    // Limpiar el hint del departamento (ya se manejó arriba)
+    const deptHint = document.getElementById('ocr_dept_hint');
+    deptHint.className = 'hidden mt-1 text-xs px-2 py-1 rounded border';
+
+    schedulePreview();
+    highlightEmptyFields();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAG & DROP OCR
 // ═══════════════════════════════════════════════════════════════════════════
 const dropzone = document.getElementById('ocr_dropzone');
 const fileInput = document.getElementById('ocr_file_input');
@@ -350,9 +580,7 @@ dropzone.addEventListener('click', (e) => {
 });
 
 fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        processOcrFile(e.target.files[0]);
-    }
+    if (e.target.files.length > 0) processOcrFile(e.target.files[0]);
 });
 
 dropzone.addEventListener('dragover', (e) => {
@@ -392,6 +620,13 @@ function resetOcrZone() {
     fileInput.value = '';
     document.getElementById('ocr_raw_text_container').classList.add('hidden');
     document.getElementById('ocr_raw_text').textContent = '';
+    document.getElementById('ocr_alert_container').classList.add('hidden');
+    document.getElementById('ocr_alert_container').innerHTML = '';
+    document.getElementById('ocr_provider_hint').classList.add('hidden');
+    document.getElementById('ocr_provider_hint').textContent = '';
+    document.getElementById('ocr_dept_hint').classList.add('hidden');
+    document.getElementById('ocr_dept_hint').textContent = '';
+    clearFieldHighlights();
     setOcrState('idle');
 }
 
@@ -429,6 +664,9 @@ function processOcrFile(file) {
 }
 
 function autofillForm(parsed, providerMatch, deptMatch) {
+
+    // Prestador
+    const providerHint = document.getElementById('ocr_provider_hint');
     if (providerMatch && providerMatch.id) {
         const select = document.getElementById('provider_select');
         let found = false;
@@ -445,8 +683,23 @@ function autofillForm(parsed, providerMatch, deptMatch) {
             opt.setAttribute('data-name', providerMatch.name);
             select.add(opt);
         }
+        select.dispatchEvent(new Event('change'));
+
+        if (providerMatch.auto_created) {
+            providerHint.textContent = '✅ Prestador "' + providerMatch.name + '" (' + providerMatch.rut + ') registrado automáticamente en el sistema.';
+            providerHint.className = 'mt-1 text-xs text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200';
+        } else {
+            providerHint.className = 'hidden mt-1 text-xs px-2 py-1 rounded border';
+        }
+    } else if (parsed.full_name) {
+        providerHint.textContent = '⚠️ No se pudo detectar el RUT del prestador "' + parsed.full_name + '". Selecciónelo o créelo manualmente.';
+        providerHint.className = 'mt-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200';
+    } else {
+        providerHint.className = 'hidden mt-1 text-xs px-2 py-1 rounded border';
     }
 
+    // Departamento
+    const deptHint = document.getElementById('ocr_dept_hint');
     if (deptMatch && deptMatch.id) {
         const select = document.getElementById('department_select');
         let found = false;
@@ -462,34 +715,60 @@ function autofillForm(parsed, providerMatch, deptMatch) {
             opt.setAttribute('data-name', deptMatch.name);
             select.add(opt);
         }
+        select.dispatchEvent(new Event('change'));
+
+        if (deptMatch.auto_created) {
+            deptHint.textContent = '✅ Departamento "' + deptMatch.name + '" (' + deptMatch.code + ') registrado automáticamente en el sistema.';
+            deptHint.className = 'mt-1 text-xs text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200';
+        } else {
+            deptHint.className = 'hidden mt-1 text-xs px-2 py-1 rounded border';
+        }
+    } else if (parsed.department_name) {
+        deptHint.textContent = '⚠️ Departamento detectado: "' + parsed.department_name + '". Selecciónelo o créelo manualmente.';
+        deptHint.className = 'mt-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200';
+    } else {
+        deptHint.className = 'hidden mt-1 text-xs px-2 py-1 rounded border';
     }
 
-    if (parsed.contract_number) document.getElementById('contract_number').value = parsed.contract_number;
-    if (parsed.decline_number) document.getElementById('decline_number').value = parsed.decline_number;
-    if (parsed.position_title) document.getElementById('position_title').value = parsed.position_title;
-    if (parsed.program_name) document.getElementById('program_name').value = parsed.program_name;
-    if (parsed.monthly_amount_gross) document.getElementById('monthly_amount_gross').value = parsed.monthly_amount_gross;
-    if (parsed.start_date) document.getElementById('start_date').value = parsed.start_date;
-    if (parsed.end_date) document.getElementById('end_date').value = parsed.end_date;
-    if (parsed.decline_date) document.getElementById('decline_date').value = parsed.decline_date;
+    // Campos directos
+    const fieldMap = {
+        'contract_number': parsed.contract_number,
+        'decline_number': parsed.decline_number,
+        'position_title': parsed.position_title,
+        'program_name': parsed.program_name,
+        'monthly_amount_gross': parsed.monthly_amount_gross,
+        'start_date': parsed.start_date,
+        'end_date': parsed.end_date,
+        'decline_date': parsed.decline_date
+    };
 
+    for (const [fieldId, value] of Object.entries(fieldMap)) {
+        if (value !== null && value !== undefined && value !== '') {
+            const el = document.getElementById(fieldId);
+            if (el) {
+                el.value = value;
+                el.dispatchEvent(new Event('change'));
+            }
+        }
+    }
+
+    // Funciones
     if (parsed.functions && parsed.functions.length > 0) {
         const container = document.getElementById('functions_container');
         container.innerHTML = '';
-
         parsed.functions.forEach((func, idx) => {
             const row = document.createElement('div');
             row.className = 'flex items-center space-x-2 function-row';
-            row.innerHTML = `
-                <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">${idx + 1}.</span>
-                <input type="text" name="functions[]" required value="${escapeHtml(func)}" class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">
-                <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
-            `;
+            row.innerHTML = '<span class="text-xs font-bold text-gray-500 w-6 text-center index-label">' + (idx + 1) + '.</span>'
+                + '<input type="text" name="functions[]" required value="' + escapeHtml(func) + '" class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">'
+                + '<button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>';
             container.appendChild(row);
         });
-
         reindexFunctions();
+        attachPreviewListeners();
     }
+
+    highlightEmptyFields();
 }
 
 function escapeHtml(text) {
@@ -497,67 +776,6 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// BUSCADOR DE PRESTADOR
-// ═══════════════════════════════════════════════════════════════════════════
-const searchInput = document.getElementById('provider_search_input');
-const dropdown = document.getElementById('search_results_dropdown');
-
-searchInput.addEventListener('input', function() {
-    const query = this.value.trim();
-    if (query.length < 2) {
-        dropdown.classList.add('hidden');
-        dropdown.innerHTML = '';
-        return;
-    }
-
-    fetch(`{{ url_for('contract_builder.search_provider') }}?q=${encodeURIComponent(query)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.providers.length > 0) {
-                let html = '';
-                data.providers.forEach(p => {
-                    html += `<div class="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 text-xs" onclick="selectProvider(${p.id}, '${p.full_name}', '${p.rut}')">
-                        <span class="font-bold text-gray-800">${p.full_name}</span> - <span class="text-blue-700 font-mono">${p.rut}</span>
-                    </div>`;
-                });
-                dropdown.innerHTML = html;
-                dropdown.classList.remove('hidden');
-            } else {
-                dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-500">No se encontraron prestadores.</div>';
-                dropdown.classList.remove('hidden');
-            }
-        });
-});
-
-function selectProvider(id, name, rut) {
-    const select = document.getElementById('provider_select');
-    let found = false;
-    for (let i = 0; i < select.options.length; i++) {
-        if (select.options[i].value == id) {
-            select.selectedIndex = i;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        const opt = new Option(name + ' (' + rut + ')', id, true, true);
-        opt.setAttribute('data-rut', rut);
-        opt.setAttribute('data-name', name);
-        select.add(opt);
-    }
-    searchInput.value = name + ' (' + rut + ')';
-    dropdown.classList.add('hidden');
-    schedulePreview();
-}
-
-document.addEventListener('click', function(e) {
-    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.classList.add('hidden');
-    }
-});
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -595,7 +813,9 @@ function saveQuickProvider() {
             document.getElementById('m_maternal_last_name').value = '';
             document.getElementById('m_email').value = '';
             document.getElementById('m_phone').value = '';
+            select.dispatchEvent(new Event('change'));
             schedulePreview();
+            highlightEmptyFields();
         } else {
             alert(res.message);
         }
@@ -634,7 +854,9 @@ function saveQuickDepartment() {
             document.getElementById('d_code').value = '';
             document.getElementById('d_name').value = '';
             document.getElementById('d_cost_center').value = '';
+            select.dispatchEvent(new Event('change'));
             schedulePreview();
+            highlightEmptyFields();
         } else {
             alert(res.message);
         }
@@ -647,12 +869,12 @@ document.getElementById('add_function_btn').addEventListener('click', function()
 
     const row = document.createElement('div');
     row.className = 'flex items-center space-x-2 function-row';
-    row.innerHTML = `
-        <span class="text-xs font-bold text-gray-500 w-6 text-center index-label">${count}.</span>
-        <input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">
-        <button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>
-    `;
+    row.innerHTML = '<span class="text-xs font-bold text-gray-500 w-6 text-center index-label">' + count + '.</span>'
+        + '<input type="text" name="functions[]" required placeholder="Descripción de la función o cometidos..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition preview-trigger-function">'
+        + '<button type="button" onclick="removeFunctionRow(this)" class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-xs font-bold">✕</button>';
     container.appendChild(row);
+    const newInput = row.querySelector('.preview-trigger-function');
+    if (newInput) newInput.addEventListener('input', schedulePreview);
 });
 
 function removeFunctionRow(btn) {
@@ -666,7 +888,7 @@ function removeFunctionRow(btn) {
 
 function reindexFunctions() {
     document.querySelectorAll('.function-row').forEach((row, index) => {
-        row.querySelector('.index-label').textContent = `${index + 1}.`;
+        row.querySelector('.index-label').textContent = (index + 1) + '.';
     });
 }
 </script>

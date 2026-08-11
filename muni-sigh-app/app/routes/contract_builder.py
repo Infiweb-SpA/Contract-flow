@@ -9,7 +9,7 @@ from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction
 from app.services.audit_service import log_action
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
-from app.services.ocr_service import extract_text_from_pdf, parse_contract_data
+from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es
 import os
 import tempfile
 import uuid
@@ -319,16 +319,10 @@ def api_preview():
             if dept:
                 department_name = dept.name
 
-        # Formatear fechas
-        def _fmt_date(d):
-            if not d:
-                return '___ de ________ de ____'
-            try:
-                if isinstance(d, str):
-                    d = datetime.strptime(d, '%Y-%m-%d').date()
-                return d.strftime('%d de %B de %Y')
-            except:
-                return str(d)
+        # Formatear fechas en español (sin depender del locale del sistema)
+        start_date_str = format_date_es(data.get('start_date'))
+        end_date_str = format_date_es(data.get('end_date'))
+        decline_date_str = format_date_es(data.get('decline_date'))
 
         # Formatear monto
         monto = data.get('monthly_amount_gross')
@@ -340,10 +334,10 @@ def api_preview():
             'position_title': data.get('position_title', '____________________'),
             'program_name': data.get('program_name', 'Gestión Municipal'),
             'monthly_amount_gross': monto_str,
-            'start_date': _fmt_date(data.get('start_date')),
-            'end_date': _fmt_date(data.get('end_date')),
+            'start_date': start_date_str,
+            'end_date': end_date_str,
             'decline_number': data.get('decline_number', ''),
-            'decline_date': _fmt_date(data.get('decline_date')),
+            'decline_date': decline_date_str,
             'created_at': datetime.now(),
             'provider_name': provider_name,
             'provider_rut': provider_rut,
@@ -369,7 +363,7 @@ def api_ocr_extract():
     """
     Recibe un PDF vía AJAX (drag & drop), ejecuta OCR, parsea los datos
     y devuelve un JSON con los campos detectados para autocompletar el formulario.
-    No crea ningún registro en la base de datos.
+    Si el prestador o departamento no existen, los crea automáticamente en la BD.
     """
     if 'contract_pdf' not in request.files:
         return jsonify({'success': False, 'message': 'No se envió ningún archivo.'}), 400
@@ -395,12 +389,38 @@ def api_ocr_extract():
         # Parsear datos estructurados
         parsed = parse_contract_data(extracted_text)
 
-        # Buscar prestador por RUT si existe
+        # ── Buscar o AUTO-CREAR prestador ────────────────────────────────────
         provider_match = None
         if parsed.get('rut'):
             provider = ServiceProvider.query.filter(
                 ServiceProvider.rut.ilike(f"%{parsed['rut']}%")
             ).first()
+
+            # Auto-crear si no existe y tenemos datos suficientes
+            if not provider and parsed.get('full_name'):
+                try:
+                    name_parts = parsed['full_name'].strip().split()
+                    if len(name_parts) >= 2:
+                        # Convención chilena: última palabra = maternal, penúltima = paternal, resto = first_name
+                        maternal_last_name = name_parts[-1]
+                        paternal_last_name = name_parts[-2]
+                        first_name = ' '.join(name_parts[:-2]) if len(name_parts) > 2 else name_parts[0]
+
+                        provider = ServiceProvider(
+                            rut=parsed['rut'],
+                            first_name=first_name,
+                            paternal_last_name=paternal_last_name,
+                            maternal_last_name=maternal_last_name
+                        )
+                        db.session.add(provider)
+                        db.session.flush()
+
+                        log_action('PROVIDER_AUTO_CREATE', 'service_provider', provider.id,
+                                   {'rut': parsed['rut'], 'source': 'ocr_extract'})
+                except Exception as create_err:
+                    current_app.logger.warning(f"No se pudo auto-crear prestador: {create_err}")
+                    db.session.rollback()
+
             if provider:
                 provider_match = {
                     'id': provider.id,
@@ -408,17 +428,47 @@ def api_ocr_extract():
                     'rut': provider.rut
                 }
 
-        # Buscar departamento por nombre si existe
+        # ── Buscar o AUTO-CREAR departamento ──────────────────────────────────
         dept_match = None
         if parsed.get('department_name'):
             dept = Department.query.filter(
                 Department.name.ilike(f"%{parsed['department_name']}%")
             ).first()
             if not dept:
-                # Intentar por código
                 dept = Department.query.filter(
                     Department.code.ilike(f"%{parsed['department_name'][:6]}%")
                 ).first()
+
+            # Auto-crear si no existe
+            if not dept:
+                try:
+                    dept_name = parsed['department_name'].strip()
+                    # Generar código automático: primeras letras de cada palabra (máx 10 chars)
+                    words = dept_name.split()
+                    if len(words) >= 2:
+                        code = ''.join(w[0] for w in words if w)[:10].upper()
+                    else:
+                        code = dept_name[:6].upper()
+
+                    # Verificar que el código no exista ya
+                    existing_code = Department.query.filter_by(code=code).first()
+                    if existing_code:
+                        code = code[:5] + str(Department.query.count() + 1)
+
+                    dept = Department(
+                        code=code,
+                        name=dept_name,
+                        is_active=1
+                    )
+                    db.session.add(dept)
+                    db.session.flush()
+
+                    log_action('DEPARTMENT_AUTO_CREATE', 'department', dept.id,
+                               {'code': code, 'name': dept_name, 'source': 'ocr_extract'})
+                except Exception as create_err:
+                    current_app.logger.warning(f"No se pudo auto-crear departamento: {create_err}")
+                    db.session.rollback()
+
             if dept:
                 dept_match = {
                     'id': dept.id,
@@ -444,6 +494,72 @@ def api_ocr_extract():
             except:
                 pass
 
+# =============================================================================
+# API: BUSCADOR DINÁMICO DE PRESTADORES + ÚLTIMO CONTRATO
+# =============================================================================
+@contract_builder_bp.route('/api/search-provider-contract', methods=['GET'])
+@login_required
+def search_provider_contract():
+    """
+    Busca prestadores por nombre o RUT y devuelve, para cada uno,
+    los datos de su último contrato registrado (si existe).
+    Usado por el buscador dinámico del armador de contratos.
+    """
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
+        return jsonify({'success': True, 'providers': []})
+
+    providers = ServiceProvider.query.filter(
+        db.or_(
+            ServiceProvider.rut.ilike(f'%{query}%'),
+            ServiceProvider.first_name.ilike(f'%{query}%'),
+            ServiceProvider.paternal_last_name.ilike(f'%{query}%'),
+            ServiceProvider.maternal_last_name.ilike(f'%{query}%')
+        )
+    ).limit(8).all()
+
+    results = []
+    for p in providers:
+        # Buscar el último contrato del prestador
+        last_contract = Contract.query.filter_by(provider_id=p.id)\
+            .order_by(Contract.id.desc()).first()
+
+        provider_data = {
+            'id': p.id,
+            'rut': p.rut,
+            'full_name': p.full_name,
+            'last_contract': None
+        }
+
+        if last_contract:
+            functions = ContractFunction.query.filter_by(
+                contract_id=last_contract.id
+            ).order_by(ContractFunction.function_order).all()
+
+            dept = Department.query.get(last_contract.department_id)
+
+            provider_data['last_contract'] = {
+                'contract_number': last_contract.contract_number,
+                'position_title': last_contract.position_title,
+                'program_name': last_contract.program_name or '',
+                'monthly_amount_gross': last_contract.monthly_amount_gross,
+                'total_contract_amount': last_contract.total_contract_amount,
+                'start_date': last_contract.start_date.strftime('%Y-%m-%d') if last_contract.start_date else '',
+                'end_date': last_contract.end_date.strftime('%Y-%m-%d') if last_contract.end_date else '',
+                'decline_number': last_contract.decline_number or '',
+                'decline_date': last_contract.decline_date.strftime('%Y-%m-%d') if last_contract.decline_date else '',
+                'department_id': last_contract.department_id,
+                'department_code': dept.code if dept else '',
+                'department_name': dept.name if dept else '',
+                'functions': [
+                    {'order': f.function_order, 'description': f.function_description}
+                    for f in functions
+                ]
+            }
+
+        results.append(provider_data)
+
+    return jsonify({'success': True, 'providers': results})
 
 # =============================================================================
 # APIs AUXILIARES

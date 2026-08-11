@@ -66,11 +66,10 @@
             font-style: italic;
         }
     </style>
-<base target="_blank">
 </head>
 <body>
     <div class="watermark">VISTA PREVIA</div>
-
+    
     <div class="header">
         República de Chile<br>
         Municipalidad de Temuco<br>
@@ -81,8 +80,19 @@
 
     <div class="title">CONTRATO DE PRESTACIÓN DE SERVICIOS A HONORARIOS</div>
 
+    {# Fecha de creación formateada en español sin depender del locale del sistema #}
+    {% set meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
+    {% if contract.created_at and contract.created_at is defined %}
+        {% set dia = contract.created_at.day %}
+        {% set mes = meses[contract.created_at.month - 1] %}
+        {% set anio = contract.created_at.year %}
+        {% set fecha_hoy = dia ~ ' de ' ~ mes ~ ' de ' ~ anio %}
+    {% else %}
+        {% set fecha_hoy = '___ de ________ de ____' %}
+    {% endif %}
+
     <div class="section">
-        En Temuco, a {{ contract.created_at.strftime('%d de %B de %Y') if contract.created_at is defined and contract.created_at else '___ de ________ de ____' }}, entre la I. MUNICIPALIDAD DE TEMUCO, representada por su Alcalde según las facultades que le confiere la Ley Orgánica Constitucional de Municipalidades, y Don(a) <strong>{{ contract.provider_name or '____________________' }}</strong>, cédula de identidad N° <strong>{{ contract.provider_rut or '____________________' }}</strong>, se conviene el siguiente contrato de prestación de servicios a honorarios:
+        En Temuco, a {{ fecha_hoy }}, entre la I. MUNICIPALIDAD DE TEMUCO, representada por su Alcalde según las facultades que le confiere la Ley Orgánica Constitucional de Municipalidades, y Don(a) <strong>{{ contract.provider_name or '____________________' }}</strong>, cédula de identidad N° <strong>{{ contract.provider_rut or '____________________' }}</strong>, se conviene el siguiente contrato de prestación de servicios a honorarios:
     </div>
 
     <div class="section">
