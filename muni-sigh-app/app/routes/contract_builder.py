@@ -539,6 +539,7 @@ def search_provider_contract():
             dept = Department.query.get(last_contract.department_id)
 
             provider_data['last_contract'] = {
+                'id': last_contract.id,  # ← ESTA LÍNEA NUEVA
                 'contract_number': last_contract.contract_number,
                 'position_title': last_contract.position_title,
                 'program_name': last_contract.program_name or '',

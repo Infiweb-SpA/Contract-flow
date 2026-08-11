@@ -27,7 +27,7 @@
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Prestadores de Servicio</h3>
             <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_providers }}</p>
         </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-orange-500">
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-orange-500">
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">
                 {% if user.role == 'JEFE_DEPTO' %}Pagos Pendientes de Mi Depto
                 {% elif user.role == 'FINANZAS_CONTROL' %}Pagos por Liberar
@@ -44,7 +44,21 @@
             <span>Últimos Contratos Registrados</span>
             <a href="{{ url_for('payments.bandeja') }}" class="text-xs text-blue-700 hover:underline font-semibold">Ver Bandeja de Pagos</a>
         </div>
-        <table class="w-full text-left text-sm text-gray-600">
+
+        <!-- FILTRO DE TABLA -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
+            <div class="relative max-w-md">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input type="text" id="table_filter_input"
+                    placeholder="Filtrar por nombre o RUT..."
+                    autocomplete="off"
+                    class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+        </div>
+
+        <table class="w-full text-left text-sm text-gray-600" id="contracts_table">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-semibold border-b">
                 <tr>
                     <th class="px-6 py-3">Correlativo</th>
@@ -57,7 +71,8 @@
             </thead>
             <tbody class="divide-y divide-gray-200">
                 {% for contract in recent_contracts %}
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50 contract-row"
+                    data-search="{{ contract.provider.full_name | lower }} {{ contract.provider.rut | lower }} {{ contract.contract_number | lower }} {{ contract.position_title | lower }}">
                     <td class="px-6 py-4 font-semibold text-gray-800">{{ contract.contract_number }}</td>
                     <td class="px-6 py-4">{{ contract.provider.full_name }}</td>
                     <td class="px-6 py-4">{{ contract.position_title }}</td>
@@ -65,17 +80,20 @@
                     <td class="px-6 py-4"><span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded font-semibold">{{ contract.status }}</span></td>
                     <td class="px-6 py-4 flex space-x-3">
                         <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-blue-600 hover:underline font-semibold text-xs">
-                            📄 Ver Detalle
+                            Ver Detalle
                         </a>
                         <a href="{{ url_for('contract_builder.preview', contract_id=contract.id) }}" target="_blank" class="text-gray-600 hover:underline font-semibold text-xs">
-                            🖨️ Imprimir
+                            Imprimir
                         </a>
                         <a href="{{ url_for('payments.validate_report', contract_id=contract.id) }}" class="text-green-600 hover:underline font-semibold text-xs">
-                            ✅ Validar Informe
+                            Validar Informe
                         </a>
                     </td>
                 </tr>
                 {% else %}
+                <tr id="no_results_row" style="display:none;">
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>
+                </tr>
                 <tr>
                     <td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos registrados aún.</td>
                 </tr>
@@ -84,4 +102,45 @@
         </table>
     </div>
 </div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+// ═══════════════════════════════════════════════════════════════
+// FILTRO LOCAL DE TABLA (solo cliente, sin llamadas al backend)
+// ═══════════════════════════════════════════════════════════════
+(function() {
+    const filterInput = document.getElementById('table_filter_input');
+    const rows = document.querySelectorAll('.contract-row');
+    const tbody = document.querySelector('#contracts_table tbody');
+
+    // Crear fila de "sin resultados" si no existe
+    var noResults = document.getElementById('no_results_row');
+    if (!noResults) {
+        noResults = document.createElement('tr');
+        noResults.id = 'no_results_row';
+        noResults.style.display = 'none';
+        noResults.innerHTML = '<td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>';
+        tbody.appendChild(noResults);
+    }
+
+    filterInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        var visibleCount = 0;
+
+        rows.forEach(function(row) {
+            var searchData = row.getAttribute('data-search') || '';
+            if (query === '' || searchData.indexOf(query) !== -1) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        noResults.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
+    });
+})();
+</script>
+{% endblock %}
 {% endblock %}

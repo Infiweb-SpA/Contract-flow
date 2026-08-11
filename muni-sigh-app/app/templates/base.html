@@ -9,7 +9,7 @@
 <body class="bg-gray-100 min-h-screen text-gray-800 flex flex-col font-sans">
 
     <!-- Navegación Superior -->
-    <nav class="bg-blue-900 text-white shadow-md">
+    <nav class="bg-blue-900 text-white shadow-md relative z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center space-x-6">
@@ -21,12 +21,30 @@
                     <div class="hidden md:flex items-center space-x-1 text-sm">
                         <a href="{{ url_for('dashboard.index') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">Dashboard</a>
                         <a href="{{ url_for('contract_builder.create') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">+ Contrato</a>
-                        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">💰 Pagos</a>
+                        <a href="{{ url_for('payments.bandeja') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">Pagos</a>
                     </div>
                     {% endif %}
                 </div>
+
                 {% if session.get('user_id') %}
                 <div class="flex items-center space-x-4">
+                    <!-- BUSCADOR GLOBAL OMNIPRESENTE -->
+                    <div class="relative" id="global_search_container">
+                        <div class="relative">
+                            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <input type="text" id="global_search_input"
+                                placeholder="Buscar contrato o prestador..."
+                                autocomplete="off"
+                                class="w-56 lg:w-72 pl-9 pr-16 py-1.5 bg-blue-800 border border-blue-600 rounded-md text-sm text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-700 transition">
+                            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-blue-700 text-blue-300 px-1.5 py-0.5 rounded border border-blue-600 font-mono">Ctrl+K</kbd>
+                        </div>
+                        <!-- Dropdown de resultados -->
+                        <div id="global_search_dropdown" class="hidden absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50">
+                        </div>
+                    </div>
+
                     <a href="{{ url_for('auth.profile') }}" class="text-sm font-medium hover:text-blue-200 transition">
                         {{ session.get('user_name') }}
                         <span class="text-xs text-blue-200">({{ session.get('user_role') }})</span>
@@ -64,5 +82,109 @@
     <footer class="bg-gray-200 text-center py-4 text-xs text-gray-600 border-t border-gray-300">
         SIGH-MUNI &copy; 2026 - Sistema Integrado de Gestión, Creación y Revisión de Honorarios Municipales
     </footer>
+
+    {% if session.get('user_id') %}
+    <script>
+    // ═══════════════════════════════════════════════════════════════
+    // BUSCADOR GLOBAL OMNIPRESENTE (Topbar + Ctrl+K)
+    // ═══════════════════════════════════════════════════════════════
+    (function() {
+        const searchInput = document.getElementById('global_search_input');
+        const searchDropdown = document.getElementById('global_search_dropdown');
+        let searchTimeout = null;
+        const DEBOUNCE_MS = 300;
+
+        // Ctrl+K → focus al buscador
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+            // Escape → cerrar dropdown
+            if (e.key === 'Escape') {
+                searchDropdown.classList.add('hidden');
+                searchInput.blur();
+            }
+        });
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            if (query.length < 2) {
+                searchDropdown.classList.add('hidden');
+                searchDropdown.innerHTML = '';
+                return;
+            }
+
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                fetch('/contracts/api/search-provider-contract?q=' + encodeURIComponent(query))
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.success && data.providers.length > 0) {
+                            var html = '';
+                            data.providers.forEach(function(p) {
+                                var hasContract = p.last_contract !== null;
+                                var borderColor = hasContract ? 'border-l-blue-500' : 'border-l-gray-300';
+                                var contractInfo = hasContract
+                                    ? '<div class="flex items-center justify-between mt-1">'
+                                        + '<span class="text-xs text-gray-500">Último contrato:</span>'
+                                        + '<span class="text-xs font-mono font-bold text-blue-700">' + esc(p.last_contract.contract_number) + '</span>'
+                                        + '</div>'
+                                        + '<div class="text-xs text-gray-500 mt-0.5">' + esc(p.last_contract.position_title)
+                                        + (p.last_contract.department_name ? ' — ' + esc(p.last_contract.department_name) : '')
+                                        + '</div>'
+                                    : '<div class="text-xs text-amber-500 mt-1 italic">Sin contratos previos</div>';
+
+                                // Navegar al detalle del último contrato, o al armador si no tiene
+                                var href = hasContract
+                                    ? '/contracts/' + p.last_contract.id
+                                    : '/contracts/create';
+
+                                html += '<div class="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 border-l-4 ' + borderColor + '"'
+                                    + ' onclick="window.location.href=\'' + href + '\'">'
+                                    + '<div class="flex items-center justify-between">'
+                                    + '<span class="font-bold text-sm text-gray-800">' + esc(p.full_name) + '</span>'
+                                    + '<span class="text-xs font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded">' + p.rut + '</span>'
+                                    + '</div>'
+                                    + contractInfo
+                                    + '</div>';
+                            });
+                            searchDropdown.innerHTML = html;
+                            searchDropdown.classList.remove('hidden');
+                        } else {
+                            searchDropdown.innerHTML = '<div class="px-4 py-4 text-center">'
+                                + '<div class="text-gray-400 text-sm">No se encontraron resultados para "' + esc(query) + '"</div>'
+                                + '<a href="/contracts/create" class="text-xs text-blue-600 hover:underline mt-1 inline-block">+ Crear nuevo contrato</a>'
+                                + '</div>';
+                            searchDropdown.classList.remove('hidden');
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('Search error:', err);
+                        searchDropdown.classList.add('hidden');
+                    });
+            }, DEBOUNCE_MS);
+        });
+
+        // Cerrar al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            var container = document.getElementById('global_search_container');
+            if (!container.contains(e.target)) {
+                searchDropdown.classList.add('hidden');
+            }
+        });
+
+        function esc(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    })();
+    </script>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>
