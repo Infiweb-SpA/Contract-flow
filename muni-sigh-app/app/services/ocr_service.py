@@ -1,19 +1,34 @@
 import os
+# 1. Estas variables deben ir ANTES de importar paddleocr para desactivar el modo que crashea en Windows
+os.environ['FLAGS_enable_pir_in_executor'] = '0'
+os.environ['FLAGS_enable_pir_api'] = '0'
+
 import re
-import pdfplumber
-from paddleocr import PaddleOCR
+import io
 import logging
 from datetime import datetime
 
-# Inicializar PaddleOCR (solo idioma español)
-ocr_engine = PaddleOCR(use_angle_cls=True, lang='es')
+import pdfplumber
+import fitz  # PyMuPDF
+from PIL import Image
+import numpy as np
+from paddleocr import PaddleOCR
+
+# 2. Desactivar oneDNN (enable_mkldnn=False)
+ocr_engine = PaddleOCR(
+    lang='es', 
+    use_textline_orientation=False, 
+    use_doc_orientation_classify=False, 
+    use_doc_unwarping=False, 
+    enable_mkldnn=False
+)
 
 
 def extract_text_from_pdf(file_path: str) -> str:
     """
     Intenta extraer texto de un PDF de forma nativa. 
     Si no encuentra texto suficiente (probablemente un documento escaneado), 
-    aplica OCR a las páginas.
+    aplica OCR a las páginas convirtiéndolas a imagen primero.
     """
     extracted_text = ""
     needs_ocr = False
@@ -40,18 +55,73 @@ def extract_text_from_pdf(file_path: str) -> str:
 
 
 def _extract_via_ocr(file_path: str) -> str:
-    """Aplica PaddleOCR convirtiendo el PDF en imágenes temporalmente."""
+    """Aplica PaddleOCR 3.x convirtiendo el PDF en imágenes con PyMuPDF."""
     ocr_text = ""
 
-    result = ocr_engine.ocr(file_path, cls=True)
+    try:
+        doc = fitz.open(file_path)
+    except Exception as e:
+        logging.error(f"No se pudo abrir el PDF con PyMuPDF {file_path}: {e}")
+        return ""
 
-    for page_result in result:
-        if page_result:
-            for line in page_result:
-                ocr_text += line[1][0] + " "
-            ocr_text += "\n"
+    total_pages = len(doc)
+    print(f"--> Iniciando OCR para {total_pages} páginas...")
 
-    return ocr_text
+    try:
+        for page_index in range(total_pages):
+            print(f"    - Procesando página {page_index + 1}/{total_pages}...")
+            try:
+                # Reducimos el zoom a 1.5 (~108 DPI) para que sea más rápido en CPU
+                page = doc.load_page(page_index)
+                zoom = 1.5  
+                #oom = 1.0
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                # Convertir a array NumPy
+                img_data = pix.tobytes("png")
+                pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
+                #il_img = Image.open(io.BytesIO(img_data)).convert("L")
+                img_array = np.array(pil_img)
+
+                # Ejecutar predicción
+                result_gen = ocr_engine.predict(input=img_array)
+
+                # PaddleOCR 3.x a veces devuelve un generador, lo convertimos a lista
+                if not isinstance(result_gen, list):
+                    results = list(result_gen)
+                else:
+                    results = result_gen
+
+                if results and len(results) > 0:
+                    page_res = results[0]
+                    
+                    # Extraer los textos reconocidos
+                    texts = []
+                    if hasattr(page_res, 'rec_texts'):
+                        texts = page_res.rec_texts
+                    elif isinstance(page_res, dict) and 'rec_texts' in page_res:
+                        texts = page_res['rec_texts']
+                    
+                    lines_count = 0
+                    for t in texts:
+                        if t and t.strip():
+                            ocr_text += t.strip() + " "
+                            lines_count += 1
+                    ocr_text += "\n"
+                    print(f"      ✓ Texto extraído en página {page_index + 1}: {lines_count} líneas")
+                    
+            except Exception as page_err:
+                logging.error(f"Error OCR en página {page_index}: {page_err}")
+                continue
+        print("--> OCR finalizado.")
+    finally:
+        doc.close()
+
+    return ocr_text.strip()
+# =============================================================================
+# AQUÍ MANTIENES TODO TU CÓDIGO ORIGINAL (Fechas y Parser)
+# =============================================================================
 
 
 # =============================================================================
