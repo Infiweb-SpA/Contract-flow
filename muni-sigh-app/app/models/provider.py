@@ -1,3 +1,4 @@
+# app/models/provider.py
 from datetime import datetime
 from app import db
 
@@ -12,9 +13,18 @@ class ServiceProvider(db.Model):
     email = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     address = db.Column(db.Text, nullable=True)
+
+    # ── Nuevos campos personales (Contrato Freire) ──
+    profession_or_trade = db.Column(db.String(150), nullable=True)   # "Fonoaudiología"
+    nationality = db.Column(db.String(50), nullable=True, default='Chilena')
+    civil_status = db.Column(db.String(30), nullable=True)           # "Soltero/a", "Casado/a"
+    birth_date = db.Column(db.Date, nullable=True)
+
+    # ── Datos bancarios (info estática para depósito, NO para validación de pagos) ──
     bank_name = db.Column(db.String(100), nullable=True)
     account_type = db.Column(db.String(50), nullable=True)
     account_number = db.Column(db.String(50), nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     # Relación sincronizada con back_populates hacia Contract

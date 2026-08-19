@@ -23,12 +23,12 @@
             }
         }
 
-        body { 
-            font-family: 'Times New Roman', Times, serif; 
-            font-size: 12pt; 
-            line-height: 1.7; 
-            margin: 0; 
-            color: #000; 
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.7;
+            margin: 0;
+            color: #000;
             text-align: justify;
         }
 
@@ -82,15 +82,21 @@
             text-align: center;
             font-size: 13pt;
             font-weight: bold;
-            margin: 20px 0 15px;
+            margin: 20px 0 5px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         .numero-contrato {
             text-align: center;
             font-size: 11pt;
-            margin-bottom: 20px;
+            margin-bottom: 4px;
             font-weight: bold;
+        }
+        .fecha-contrato {
+            text-align: center;
+            font-size: 10pt;
+            margin-bottom: 20px;
+            color: #333;
         }
 
         /* Cláusulas */
@@ -105,8 +111,8 @@
         }
 
         /* Listas de funciones */
-        .lista-funciones { 
-            margin: 8px 0 8px 30px; 
+        .lista-funciones {
+            margin: 8px 0 8px 30px;
             padding-left: 0;
         }
         .lista-funciones li {
@@ -194,7 +200,6 @@
         .salto-pagina { page-break-before: always; }
     </style>
 <base target="_blank">
-<base target="_blank">
 </head>
 <body>
     <!-- Barra de acciones (solo visible en pantalla) -->
@@ -208,7 +213,7 @@
     <div class="print-bar-spacer"></div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- MEMBRETE INSTITUCIONAL                                           -->
+    <!-- MEMBRETE INSTITUCIONAL                                         -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="membrete">
         <div class="membrete-escudo">☖</div>
@@ -221,13 +226,25 @@
         </div>
     </div>
 
-    <!-- Título y número -->
+    <!-- Título, número y fecha de firma -->
     <div class="titulo-contrato">Contrato de Prestación de Servicios a Honorarios</div>
     <div class="numero-contrato">N° {{ contract.contract_number }}</div>
+    {% if contract.contract_date %}
+    <div class="fecha-contrato">Fecha de firma: {{ contract.contract_date.strftime('%d de %B de %Y') }}</div>
+    {% endif %}
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- CONSTITUCIÓN DE LAS PARTES                                       -->
+    <!-- CONSTITUCIÓN DE LAS PARTES                                     -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    {# Calcular duración en meses #}
+    {% if contract.start_date and contract.end_date %}
+        {% set _diff_months = ((contract.end_date.year - contract.start_date.year) * 12 + (contract.end_date.month - contract.start_date.month) + 1) %}
+        {% set duration_months = _diff_months %}
+    {% else %}
+        {% set duration_months = none %}
+    {% endif %}
+
     <div class="clausula">
         En Temuco, a <span class="negrita">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>, comparecen:
     </div>
@@ -237,7 +254,11 @@
     </div>
 
     <div class="clausula">
-        <strong>Y por la otra parte,</strong> <span class="negrita">don(ña) {{ contract.provider.full_name }}</span>, cédula de identidad N° <span class="negrita">{{ contract.provider.rut }}</span>, con domicilio en <span class="negrita">{{ contract.provider.address or '_______________________' }}</span>, en adelante <span class="negrita">"El Prestador"</span>;
+        <strong>Y por la otra parte,</strong> <span class="negrita">don(ña) {{ contract.provider.full_name }}</span>, cédula de identidad N° <span class="negrita">{{ contract.provider.rut }}</span>
+        {%- if contract.provider.profession_or_trade %}, {{ contract.provider.profession_or_trade }}{% endif %}
+        {%- if contract.provider.nationality %}, de nacionalidad {{ contract.provider.nationality }}{% endif %}
+        {%- if contract.provider.civil_status %}, estado civil {{ contract.provider.civil_status }}{% endif %},
+        con domicilio en <span class="negrita">{{ contract.provider.address or '_______________________' }}</span>, en adelante <span class="negrita">"El Prestador"</span>;
     </div>
 
     <div class="clausula">
@@ -245,34 +266,58 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- CLÁUSULAS                                                        -->
+    <!-- CLÁUSULAS                                                      -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
 
-    <!-- PRIMERO: ANTECEDENTES -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- PRIMERO: ANTECEDENTES (+ sub_program, + decreto integrado)    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
         <span class="clausula-titulo">Primero: Antecedentes</span><br>
         {% if contract.decline_number %}
-        Por Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number }}</span>{% if contract.decline_date %} de fecha <span class="negrita">{{ contract.decline_date.strftime('%d de %B de %Y') }}</span>{% endif %}, se aprobó la contratación del servicio de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>, dependiente de la <span class="negrita">{{ contract.department.name }}</span>.
+        Por Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number }}</span>{% if contract.decline_date %} de fecha <span class="negrita">{{ contract.decline_date.strftime('%d de %B de %Y') }}</span>{% endif %}, se aprobó la contratación del servicio de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>
+        {%- if contract.sub_program %}, subprograma <span class="cursiva">{{ contract.sub_program }}</span>{% endif %}, dependiente de la <span class="negrita">{{ contract.department.name }}</span>.
         {% else %}
-        La Municipalidad requiere contratar los servicios profesionales de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>, dependiente de la <span class="negrita">{{ contract.department.name }}</span>, en el marco de sus facultades y atribuciones legales.
+        La Municipalidad requiere contratar los servicios profesionales de <span class="negrita">{{ contract.position_title }}</span>, para el programa municipal <span class="cursiva">{{ contract.program_name or 'Gestión Municipal' }}</span>
+        {%- if contract.sub_program %}, subprograma <span class="cursiva">{{ contract.sub_program }}</span>{% endif %}, dependiente de la <span class="negrita">{{ contract.department.name }}</span>, en el marco de sus facultades y atribuciones legales.
         {% endif %}
     </div>
 
-    <!-- SEGUNDO: OBJETO -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- SEGUNDO: IMPUTACIÓN PRESUPUESTARIA (NUEVA)                    -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    {% if contract.budget_account or contract.cost_center %}
     <div class="clausula">
-        <span class="clausula-titulo">Segundo: Objeto</span><br>
+        <span class="clausula-titulo">Segundo: Imputación Presupuestaria</span><br>
+        Para efectos presupuestarios, el presente contrato se imputará a
+        {% if contract.budget_account %}la cuenta presupuestaria N° <span class="negrita">{{ contract.budget_account }}</span>{% endif %}
+        {%- if contract.budget_account and contract.cost_center %} y {% endif %}
+        {%- if contract.cost_center %}el centro de costo <span class="negrita">{{ contract.cost_center }}</span>{% endif %}.
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- OBJETO (renumerado según exista o no la cláusula de           -->
+    <!--         imputación presupuestaria)                            -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <div class="clausula">
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Tercero{% else %}Segundo{% endif %}: Objeto</span><br>
         El objeto del presente contrato es la prestación de servicios profesionales consistentes en el desempeño del cargo de <span class="negrita">{{ contract.position_title }}</span>, de acuerdo a las funciones y cometidos que se detallan en la cláusula siguiente.
     </div>
 
-    <!-- TERCERO: NATURALEZA JURÍDICA -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- NATURALEZA JURÍDICA                                           -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Tercero: Naturaleza Jurídica del Contrato</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Cuarto{% else %}Tercero{% endif %}: Naturaleza Jurídica del Contrato</span><br>
         El Prestador declara conocer que el presente contrato se regula por las normas del Código Civil y la Ley N° 19.880 sobre Bases de Procedimiento Administrativo, <span class="negrita">no generando entre las partes relación laboral alguna</span>, ni otorgando derechos previsionales, indemnización por años de servicio, feriado legal, aguinaldo ni cualquier otro beneficio propio de la legislación laboral. El Prestador actuará por cuenta propia, con autonomía técnica y sin subordinación jerárquica respecto de La Municipalidad.
     </div>
 
-    <!-- CUARTO: OBLIGACIONES Y FUNCIONES -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- OBLIGACIONES Y FUNCIONES                                      -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Cuarto: Obligaciones y Funciones Específicas</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Quinto{% else %}Cuarto{% endif %}: Obligaciones y Funciones Específicas</span><br>
         Serán funciones específicas del Prestador las siguientes:
         <ol class="lista-funciones">
             {% for f in contract.functions %}
@@ -282,51 +327,84 @@
         El Prestador se obliga a ejecutar dichas funciones con la diligencia, profesionalismo y calidad que el servicio requiere, de acuerdo a las instrucciones que le imparta el Jefe del Departamento de <span class="negrita">{{ contract.department.name }}</span> o quien éste designe.
     </div>
 
-    <!-- QUINTO: PLAZO -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- PLAZO DE DURACIÓN (+ duración en meses)                       -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Quinto: Plazo de Duración</span><br>
-        El presente contrato tendrá una duración desde el <span class="negrita">{{ contract.start_date.strftime('%d de %B de %Y') }}</span> hasta el <span class="negrita">{{ contract.end_date.strftime('%d de %B de %Y') }}</span>, ambas fechas inclusive. Vencido el plazo, el contrato terminará de pleno derecho, sin perjuicio de lo dispuesto en la cláusula novena.
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Sexto{% else %}Quinto{% endif %}: Plazo de Duración</span><br>
+        El presente contrato tendrá una duración desde el <span class="negrita">{{ contract.start_date.strftime('%d de %B de %Y') }}</span> hasta el <span class="negrita">{{ contract.end_date.strftime('%d de %B de %Y') }}</span>, ambas fechas inclusive
+        {%- if duration_months %}, con una duración estimada de <span class="negrita">{{ duration_months }} meses</span>{% endif %}. Vencido el plazo, el contrato terminará de pleno derecho, sin perjuicio de lo dispuesto en la cláusula de terminación anticipada.
     </div>
 
-    <!-- SEXTO: RETRIBUCIÓN -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- RETRIBUCIÓN (+ payment_modality, + total_contract_amount)     -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Sexto: Retribución</span><br>
-        La renta bruta mensual acordada por los servicios prestados es de <span class="negrita">${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</span> pesos chilenos ($CLP), pagaderos mensualmente previa presentación del informe de actividades correspondiente y la boleta de honorarios respectiva. El monto total del contrato asciende a <span class="negrita">${{ "{:,.0f}".format(contract.total_contract_amount or (contract.monthly_amount_gross * contract.duration_months)) }}</span> pesos chilenos.
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Séptimo{% else %}Sexto{% endif %}: Retribución</span><br>
+        La renta bruta mensual acordada por los servicios prestados es de <span class="negrita">${{ "{:,.0f}".format(contract.monthly_amount_gross) }}</span> pesos chilenos ($CLP),
+        {% if contract.payment_modality == 'MENSUAL_FIJO' %}
+            pagadera en forma mensual y fija
+        {% elif contract.payment_modality == 'POR_PRODUCTO' %}
+            pagadera por producto o servicio entregado
+        {% else %}
+            pagaderos mensualmente
+        {% endif %}
+        previa presentación del informe de actividades correspondiente y la boleta de honorarios respectiva.
+        {% if contract.total_contract_amount %}
+        El monto total del contrato asciende a <span class="negrita">${{ "{:,.0f}".format(contract.total_contract_amount) }}</span> pesos chilenos.
+        {% elif duration_months %}
+        El monto total estimado del contrato asciende a <span class="negrita">${{ "{:,.0f}".format(contract.monthly_amount_gross * duration_months) }}</span> pesos chilenos.
+        {% endif %}
     </div>
 
-    <!-- SÉPTIMO: INFORME DE ACTIVIDADES -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- INFORME DE ACTIVIDADES                                        -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Séptimo: Informe de Actividades</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Octavo{% else %}Séptimo{% endif %}: Informe de Actividades</span><br>
         El Prestador deberá presentar mensualmente, y como requisito previo al pago de sus honorarios, un informe detallado de las actividades realizadas durante el período, el cual deberá ser visado por el Jefe del Departamento de <span class="negrita">{{ contract.department.name }}</span>. La omisión o retraso en la presentación de dicho informe será causal de suspensión del pago correspondiente hasta su regularización.
     </div>
 
-    <!-- OCTAVO: DOMICILIO -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- DOMICILIO                                                     -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Octavo: Domicilio</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Noveno{% else %}Octavo{% endif %}: Domicilio</span><br>
         Para todos los efectos del presente contrato, las partes señalan como sus domicilios los indicados en la frase de constitución, sin perjuicio de la facultad de cambiarlo mediante comunicación escrita a la otra parte.
     </div>
 
-    <!-- NOVENO: TERMINACIÓN ANTICIPADA -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- TERMINACIÓN ANTICIPADA                                        -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Noveno: Terminación Anticipada</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Décimo{% else %}Noveno{% endif %}: Terminación Anticipada</span><br>
         Cualquiera de las partes podrá poner término anticipado al presente contrato mediante comunicación escrita con una anticipación no inferior a quince (15) días corridos. En caso de terminación anticipada por parte de La Municipalidad, se pagarán los honorarios proporcionales hasta la fecha de término efectivo. En caso de terminación por parte del Prestador, éste deberá entregar la documentación e informes pendientes.
     </div>
 
-    <!-- DÉCIMO: JURISDICCIÓN -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- JURISDICCIÓN                                                  -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Décimo: Jurisdicción</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Décimo Primero{% else %}Décimo{% endif %}: Jurisdicción</span><br>
         Para la resolución de cualquier controversia derivada del presente contrato, las partes se someten a la jurisdicción de los Tribunales Ordinarios de Justicia de la ciudad de Temuco, renunciando a cualquier otro fuero que pudiera corresponderles.
     </div>
 
-    <!-- DÉCIMO PRIMERO: NOTIFICACIONES -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- NOTIFICACIONES                                                -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Décimo Primero: Notificaciones</span><br>
-        Toda comunicación o notificación entre las partes deberá realizarse por escrito, ya sea por correo certificado, correo electrónico con acuse de recibo, o entrega personal en los domicilios señalados en la cláusula octava.
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Décimo Segundo{% else %}Décimo Primero{% endif %}: Notificaciones</span><br>
+        Toda comunicación o notificación entre las partes deberá realizarse por escrito, ya sea por correo certificado, correo electrónico con acuse de recibo, o entrega personal en los domicilios señalados en la cláusula de domicilio.
+        {% if contract.provider.email %}
+        Para efectos de notificaciones electrónicas, el Prestador señala el correo electrónico: <span class="negrita">{{ contract.provider.email }}</span>.
+        {% endif %}
     </div>
 
-    <!-- DÉCIMO SEGUNDO: DISPOSICIONES FINALES -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+    <!-- DISPOSICIONES FINALES                                         -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
     <div class="clausula">
-        <span class="clausula-titulo">Décimo Segundo: Disposiciones Finales</span><br>
+        <span class="clausula-titulo">{% if contract.budget_account or contract.cost_center %}Décimo Tercero{% else %}Décimo Segundo{% endif %}: Disposiciones Finales</span><br>
         {% if contract.decline_number %}
         El presente contrato se otorga en conformidad al Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number }}</span>{% if contract.decline_date %} de fecha <span class="negrita">{{ contract.decline_date.strftime('%d de %B de %Y') }}</span>{% endif %}.
         {% endif %}
@@ -334,7 +412,20 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- TESTIMONIO Y FIRMAS                                              -->
+    <!-- DATOS BANCARIOS DEL PRESTADOR (NUEVO)                         -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    {% if contract.provider.bank_name or contract.provider.account_number %}
+    <div class="clausula">
+        <span class="clausula-titulo">Datos Bancarios del Prestador</span><br>
+        Para efectos del pago de honorarios, el Prestador señala los siguientes datos bancarios:
+        {% if contract.provider.bank_name %}<br>Banco: <span class="negrita">{{ contract.provider.bank_name }}</span>{% endif %}
+        {% if contract.provider.account_type %}<br>Tipo de cuenta: <span class="negrita">{{ contract.provider.account_type }}</span>{% endif %}
+        {% if contract.provider.account_number %}<br>N° de cuenta: <span class="negrita">{{ contract.provider.account_number }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TESTIMONIO Y FIRMAS                                           -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="testimonio">
         En testimonio de lo cual, y en conformidad al Decreto Alcaldicio N° <span class="negrita">{{ contract.decline_number or '_________' }}</span>, las partes firman el presente contrato en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte, en la ciudad de Temuco, a <span class="negrita">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>.
@@ -356,7 +447,9 @@
                 <div class="firma-linea">
                     <div class="firma-nombre">{{ contract.provider.full_name }}</div>
                     <div class="firma-cargo">RUT: {{ contract.provider.rut }}</div>
-                    <div class="firma-cargo">C.I. N° {{ contract.provider.rut }}</div>
+                    {% if contract.provider.profession_or_trade %}
+                    <div class="firma-cargo">{{ contract.provider.profession_or_trade }}</div>
+                    {% endif %}
                 </div>
                 <div style="margin-top: 8px; font-size: 9pt; color: #444;">
                     <strong>POR EL PRESTADOR</strong>

@@ -26,7 +26,8 @@ class MonthlyPayment(db.Model):
     )
 
     # ← RELACIÓN AGREGADA: acceso al contrato desde el pago
-    contract = db.relationship('Contract', back_populates='payments', lazy=True)
+    # ✅ LÍNEA NUEVA
+    contract = db.relationship('Contract', backref=db.backref('payments', lazy=True, cascade='all, delete-orphan'), lazy=True)
     
     reviewed_by_depto = db.relationship('User', foreign_keys=[reviewed_by_depto_user_id])
     approved_by_rrhh = db.relationship('User', foreign_keys=[approved_by_rrhh_user_id])

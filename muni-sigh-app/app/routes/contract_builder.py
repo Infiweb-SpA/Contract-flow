@@ -40,6 +40,13 @@ def create():
 
             decline_date = datetime.strptime(decline_date_str, '%Y-%m-%d').date() if decline_date_str else None
 
+            # ── Nuevos campos (estructura Freire) ──
+            contract_date_str = request.form.get('contract_date')
+            budget_account = request.form.get('budget_account', '').strip()
+            sub_program = request.form.get('sub_program', '').strip()
+            cost_center = request.form.get('cost_center', '').strip()
+            payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
+
             new_contract = Contract(
                 provider_id=provider_id,
                 department_id=department_id,
@@ -53,6 +60,11 @@ def create():
                 total_contract_amount=total_contract_amount,
                 start_date=start_date,
                 end_date=end_date,
+                contract_date=datetime.strptime(contract_date_str, '%Y-%m-%d').date() if contract_date_str else None,
+                budget_account=budget_account or None,
+                sub_program=sub_program or None,
+                cost_center=cost_center or None,
+                payment_modality=payment_modality,
                 status='BORRADOR'
             )
             db.session.add(new_contract)
@@ -65,8 +77,7 @@ def create():
                     func = ContractFunction(
                         contract_id=new_contract.id,
                         function_order=index,
-                        function_description=clean_desc,
-                        is_mandatory_for_payment=1
+                        function_description=clean_desc
                     )
                     db.session.add(func)
 
@@ -125,6 +136,14 @@ def edit(contract_id):
             contract.end_date = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
             contract.status = request.form.get('status', 'BORRADOR')
 
+            # ── Nuevos campos (estructura Freire) ──
+            contract_date_str = request.form.get('contract_date')
+            contract.contract_date = datetime.strptime(contract_date_str, '%Y-%m-%d').date() if contract_date_str else None
+            contract.budget_account = request.form.get('budget_account', '').strip() or None
+            contract.sub_program = request.form.get('sub_program', '').strip() or None
+            contract.cost_center = request.form.get('cost_center', '').strip() or None
+            contract.payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
+
             ContractFunction.query.filter_by(contract_id=contract.id).delete()
             functions = request.form.getlist('functions[]')
             for index, func_desc in enumerate(functions, start=1):
@@ -133,8 +152,7 @@ def edit(contract_id):
                     db.session.add(ContractFunction(
                         contract_id=contract.id,
                         function_order=index,
-                        function_description=clean_desc,
-                        is_mandatory_for_payment=1
+                        function_description=clean_desc
                     ))
 
             db.session.commit()
@@ -198,7 +216,7 @@ def change_status(contract_id):
     if new_status in allowed:
         contract.status = new_status
         db.session.commit()
-        log_action('CONTRACT_STATUS_CHANGE', 'contract', contract.id, 
+        log_action('CONTRACT_STATUS_CHANGE', 'contract', contract.id,
                    {'from': current, 'to': new_status})
         flash(f'Estado actualizado a: {contract.status_label}', 'success')
     else:
@@ -268,12 +286,11 @@ def upload_external():
                             db.session.add(ContractFunction(
                                 contract_id=new_contract.id,
                                 function_order=idx,
-                                function_description=line,
-                                is_mandatory_for_payment=1
+                                function_description=line
                             ))
 
                 db.session.commit()
-                log_action('CONTRACT_UPLOAD', 'contract', new_contract.id, 
+                log_action('CONTRACT_UPLOAD', 'contract', new_contract.id,
                            {'contract_number': contract_number, 'ocr': bool(extracted_text)})
                 flash(f'Contrato externo N° {contract_number} cargado. Revise las funciones extraídas.', 'success')
                 return redirect(url_for('contract_builder.edit', contract_id=new_contract.id))
@@ -306,6 +323,8 @@ def api_preview():
         # Buscar nombres reales si tenemos IDs
         provider_name = data.get('provider_name', '____________________')
         provider_rut = data.get('provider_rut', '____________________')
+        provider_profession = ''
+        provider_nationality = ''
         department_name = data.get('department_name', '____________________')
 
         if data.get('provider_id'):
@@ -313,6 +332,8 @@ def api_preview():
             if provider:
                 provider_name = provider.full_name
                 provider_rut = provider.rut
+                provider_profession = provider.profession_or_trade or ''
+                provider_nationality = provider.nationality or ''
 
         if data.get('department_id'):
             dept = Department.query.get(data['department_id'])
@@ -323,10 +344,27 @@ def api_preview():
         start_date_str = format_date_es(data.get('start_date'))
         end_date_str = format_date_es(data.get('end_date'))
         decline_date_str = format_date_es(data.get('decline_date'))
+        contract_date_str = format_date_es(data.get('contract_date'))
 
         # Formatear monto
         monto = data.get('monthly_amount_gross')
         monto_str = "{:,.0f}".format(float(monto)) if monto else '__________'
+
+        # Formatear monto total
+        total = data.get('total_contract_amount')
+        total_str = "{:,.0f}".format(float(total)) if total else None
+
+        # Calcular duración en meses
+        sd = data.get('start_date')
+        ed = data.get('end_date')
+        duration_months = None
+        if sd and ed:
+            try:
+                sd_dt = datetime.strptime(sd, '%Y-%m-%d')
+                ed_dt = datetime.strptime(ed, '%Y-%m-%d')
+                duration_months = (ed_dt.year - sd_dt.year) * 12 + (ed_dt.month - sd_dt.month) + 1
+            except:
+                pass
 
         # Construir objeto de preview
         preview_data = {
@@ -334,14 +372,23 @@ def api_preview():
             'position_title': data.get('position_title', '____________________'),
             'program_name': data.get('program_name', 'Gestión Municipal'),
             'monthly_amount_gross': monto_str,
+            'total_contract_amount': total_str,
             'start_date': start_date_str,
             'end_date': end_date_str,
             'decline_number': data.get('decline_number', ''),
             'decline_date': decline_date_str,
+            'contract_date': contract_date_str,
             'created_at': datetime.now(),
             'provider_name': provider_name,
             'provider_rut': provider_rut,
+            'provider_profession': provider_profession,
+            'provider_nationality': provider_nationality,
             'department_name': department_name,
+            'budget_account': data.get('budget_account', ''),
+            'sub_program': data.get('sub_program', ''),
+            'cost_center': data.get('cost_center', ''),
+            'payment_modality': data.get('payment_modality', 'MENSUAL_FIJO'),
+            'duration_months': duration_months,
             'functions': [f.strip() for f in data.get('functions', []) if f.strip()]
         }
 
@@ -401,7 +448,6 @@ def api_ocr_extract():
                 try:
                     name_parts = parsed['full_name'].strip().split()
                     if len(name_parts) >= 2:
-                        # Convención chilena: última palabra = maternal, penúltima = paternal, resto = first_name
                         maternal_last_name = name_parts[-1]
                         paternal_last_name = name_parts[-2]
                         first_name = ' '.join(name_parts[:-2]) if len(name_parts) > 2 else name_parts[0]
@@ -443,14 +489,12 @@ def api_ocr_extract():
             if not dept:
                 try:
                     dept_name = parsed['department_name'].strip()
-                    # Generar código automático: primeras letras de cada palabra (máx 10 chars)
                     words = dept_name.split()
                     if len(words) >= 2:
                         code = ''.join(w[0] for w in words if w)[:10].upper()
                     else:
                         code = dept_name[:6].upper()
 
-                    # Verificar que el código no exista ya
                     existing_code = Department.query.filter_by(code=code).first()
                     if existing_code:
                         code = code[:5] + str(Department.query.count() + 1)
@@ -494,6 +538,7 @@ def api_ocr_extract():
             except:
                 pass
 
+
 # =============================================================================
 # API: BUSCADOR DINÁMICO DE PRESTADORES + ÚLTIMO CONTRATO
 # =============================================================================
@@ -520,7 +565,6 @@ def search_provider_contract():
 
     results = []
     for p in providers:
-        # Buscar el último contrato del prestador
         last_contract = Contract.query.filter_by(provider_id=p.id)\
             .order_by(Contract.id.desc()).first()
 
@@ -539,7 +583,7 @@ def search_provider_contract():
             dept = Department.query.get(last_contract.department_id)
 
             provider_data['last_contract'] = {
-                'id': last_contract.id,  # ← ESTA LÍNEA NUEVA
+                'id': last_contract.id,
                 'contract_number': last_contract.contract_number,
                 'position_title': last_contract.position_title,
                 'program_name': last_contract.program_name or '',
@@ -549,6 +593,11 @@ def search_provider_contract():
                 'end_date': last_contract.end_date.strftime('%Y-%m-%d') if last_contract.end_date else '',
                 'decline_number': last_contract.decline_number or '',
                 'decline_date': last_contract.decline_date.strftime('%Y-%m-%d') if last_contract.decline_date else '',
+                'contract_date': last_contract.contract_date.strftime('%Y-%m-%d') if last_contract.contract_date else '',
+                'budget_account': last_contract.budget_account or '',
+                'sub_program': last_contract.sub_program or '',
+                'cost_center': last_contract.cost_center or '',
+                'payment_modality': last_contract.payment_modality or 'MENSUAL_FIJO',
                 'department_id': last_contract.department_id,
                 'department_code': dept.code if dept else '',
                 'department_name': dept.name if dept else '',
@@ -561,6 +610,7 @@ def search_provider_contract():
         results.append(provider_data)
 
     return jsonify({'success': True, 'providers': results})
+
 
 # =============================================================================
 # APIs AUXILIARES
@@ -589,10 +639,33 @@ def search_provider():
             'full_name': p.full_name,
             'email': p.email or '',
             'phone': p.phone or '',
-            'address': p.address or ''
+            'address': p.address or '',
+            'profession_or_trade': p.profession_or_trade or ''
         })
 
     return jsonify({'success': True, 'providers': results})
+
+
+# =============================================================================
+# API: DETALLE EXTENDIDO DEL PRESTADOR (datos personales y bancarios)
+# =============================================================================
+@contract_builder_bp.route('/api/provider/<int:provider_id>/detail')
+@login_required
+def api_provider_detail(provider_id):
+    """Devuelve datos personales y bancarios de un prestador para el preview."""
+    provider = ServiceProvider.query.get_or_404(provider_id)
+    return jsonify({
+        'success': True,
+        'provider': {
+            'profession_or_trade': provider.profession_or_trade or '',
+            'nationality': provider.nationality or '',
+            'civil_status': provider.civil_status or '',
+            'birth_date': str(provider.birth_date) if provider.birth_date else '',
+            'bank_name': provider.bank_name or '',
+            'account_type': provider.account_type or '',
+            'account_number': provider.account_number or '',
+        }
+    })
 
 
 @contract_builder_bp.route('/provider/quick-add', methods=['POST'])
@@ -615,6 +688,10 @@ def quick_add_provider():
             email=data.get('email', '').strip(),
             phone=data.get('phone', '').strip(),
             address=data.get('address', '').strip(),
+            profession_or_trade=data.get('profession_or_trade', '').strip(),
+            nationality=data.get('nationality', 'Chilena').strip(),
+            civil_status=data.get('civil_status', '').strip(),
+            birth_date=datetime.strptime(data['birth_date'], '%Y-%m-%d').date() if data.get('birth_date') else None,
             bank_name=data.get('bank_name', '').strip(),
             account_type=data.get('account_type', '').strip(),
             account_number=data.get('account_number', '').strip()
@@ -673,3 +750,4 @@ def quick_add_department():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
