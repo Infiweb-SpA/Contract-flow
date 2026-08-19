@@ -8,7 +8,7 @@
     <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Panel de Control</h1>
-            <p class="text-sm text-gray-500">Gestión Integrada de Honorarios Municipales (SIGH-MUNI)</p>
+            <p class="text-sm text-gray-500">Gestión Integrada de Honorarios Municipales ({{ g.municipio_nombre | default('SIGH-MUNI') }})</p>
         </div>
         <div class="flex space-x-2">
             <a href="{{ url_for('contract_builder.create') }}" class="bg-blue-800 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-md shadow text-sm transition">
@@ -17,8 +17,8 @@
         </div>
     </div>
 
-    <!-- Indicadores -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Indicadores (solo 2 tarjetas) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-800">
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Contratos Registrados</h3>
             <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_contracts }}</p>
@@ -27,22 +27,12 @@
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Prestadores de Servicio</h3>
             <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_providers }}</p>
         </div>
-        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-orange-500">
-            <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">
-                {% if user.role == 'JEFE_DEPTO' %}Pagos Pendientes de Mi Depto
-                {% elif user.role == 'FINANZAS_CONTROL' %}Pagos por Liberar
-                {% else %}Pagos Activos en el Sistema{% endif %}
-            </h3>
-            <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ pending_payments }}</p>
-            <a href="{{ url_for('payments.bandeja') }}" class="text-xs text-blue-700 hover:underline font-semibold mt-1 inline-block">Ir a bandeja →</a>
-        </div>
     </div>
 
     <!-- Tabla Últimos Contratos -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 font-bold text-gray-700 text-sm flex justify-between items-center">
             <span>Últimos Contratos Registrados</span>
-            <a href="{{ url_for('payments.bandeja') }}" class="text-xs text-blue-700 hover:underline font-semibold">Ver Bandeja de Pagos</a>
         </div>
 
         <!-- FILTRO DE TABLA -->
@@ -83,10 +73,7 @@
                             Ver Detalle
                         </a>
                         <a href="{{ url_for('contract_builder.preview', contract_id=contract.id) }}" target="_blank" class="text-gray-600 hover:underline font-semibold text-xs">
-                            Imprimir
-                        </a>
-                        <a href="{{ url_for('payments.validate_report', contract_id=contract.id) }}" class="text-green-600 hover:underline font-semibold text-xs">
-                            Validar Informe
+                            Imprimir / PDF
                         </a>
                     </td>
                 </tr>
