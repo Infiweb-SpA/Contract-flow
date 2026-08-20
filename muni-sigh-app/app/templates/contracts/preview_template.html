@@ -251,7 +251,9 @@
     <div class="clausula">
         <strong>Y por la otra parte,</strong> <span class="negrita">don(ña) {{ contract.provider_name or '____________________' }}</span>, cédula de identidad N° <span class="negrita">{{ contract.provider_rut or '____________________' }}</span>
         {%- if contract.provider_profession %}, {{ contract.provider_profession }}{% endif %}
-        {%- if contract.provider_nationality %}, de nacionalidad {{ contract.provider_nationality }}{% endif %},
+        {%- if contract.provider_nationality %}, de nacionalidad {{ contract.provider_nationality }}{% endif %}
+        {%- if contract.provider_address %}, domiciliado(a) en <span class="negrita">{{ contract.provider_address }}</span>{% endif %}
+        {%- if contract.provider_email %}, correo electrónico <span class="negrita">{{ contract.provider_email }}</span>{% endif %},
         en adelante <span class="negrita">"El Prestador"</span>;
     </div>
 
