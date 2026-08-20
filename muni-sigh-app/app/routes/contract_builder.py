@@ -389,7 +389,18 @@ def api_preview():
             'cost_center': data.get('cost_center', ''),
             'payment_modality': data.get('payment_modality', 'MENSUAL_FIJO'),
             'duration_months': duration_months,
-            'functions': [f.strip() for f in data.get('functions', []) if f.strip()]
+            'functions': [f.strip() for f in data.get('functions', []) if f.strip()],
+            # ── Datos institucionales desde config.py ──
+            'mayor_name': current_app.config.get('MAYOR_NAME', ''),
+            'mayor_rut': current_app.config.get('MAYOR_RUT', ''),
+            'municipality_name': current_app.config.get('MUNICIPALITY_NAME', ''),
+            'municipality_short': current_app.config.get('MUNICIPALITY_SHORT', ''),
+            'municipality_rut': current_app.config.get('MUNICIPALITY_RUT', ''),
+            'municipality_address': current_app.config.get('MUNICIPALITY_ADDRESS', ''),
+            'municipality_region': current_app.config.get('MUNICIPALITY_REGION', ''),
+            'municipality_phone': current_app.config.get('MUNICIPALITY_PHONE', ''),
+            'municipality_email': current_app.config.get('MUNICIPALITY_EMAIL', ''),
+            'municipality_unit_name': current_app.config.get('MUNICIPALITY_UNIT_NAME', ''),
         }
 
         html = render_template('contracts/preview_template.html', contract=preview_data)
@@ -398,7 +409,6 @@ def api_preview():
     except Exception as e:
         current_app.logger.error(f"Error en preview: {e}")
         return f"<html><body style='color:red;padding:20px;font-family:sans-serif;'><h3>Error al generar preview</h3><p>{str(e)}</p></body></html>", 500
-
 
 # =============================================================================
 # API: EXTRACCIÓN OCR PARA AUTOCOMPLETADO (Drag & Drop)

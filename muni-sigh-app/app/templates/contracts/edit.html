@@ -485,7 +485,7 @@
                         <div class="text-center border-b-2 border-slate-800 pb-4 mb-6 doc-header">
                             <p class="text-[11px] font-bold tracking-widest text-slate-800 uppercase">República de Chile</p>
                             <p class="text-lg font-bold text-slate-900 mt-0.5 tracking-tight">{{ g.municipio_nombre | default('Municipalidad de Temuco') }}</p>
-                            <p class="text-[10px] text-slate-500 mt-1 italic">Ilustre {{ g.municipio_nombre | default('Municipalidad de Temuco') }} — Región de La Araucanía</p>
+                            <p class="text-[10px] text-slate-500 mt-1 italic">{{ g.municipio_nombre | default('Ilustre Municipalidad') }} — {{ g.municipio_region | default('Región de La Araucanía') }}</p>
                             <div class="mt-3 flex justify-center">
                                 <div class="w-16 h-16 rounded-full border-2 border-slate-300 flex items-center justify-center bg-slate-50">
                                     <svg class="w-8 h-8 text-slate-400" viewBox="0 0 48 48" fill="none"><path d="M24 4L6 14v20c0 8.8 7.2 16 16 16h4c8.8 0 16-7.2 16-16V14L24 4z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
@@ -504,7 +504,7 @@
                         <div class="space-y-4 text-[11px] leading-relaxed text-slate-800 doc-header">
 
                             <p class="text-justify">
-                                <strong>En Temuco,</strong> a <span id="preview_sign_date">___ de ___ de 2026</span>, entre la <strong>Ilustre {{ g.municipio_nombre | default('Municipalidad de Temuco') }}</strong>, representada por su Alcalde, don <strong>{{ g.mayor_name | default('Alcalde Municipal') }}</strong>, RUT <strong>{{ g.mayor_rut | default('__.___.___-_') }}</strong>, denominado en adelante <strong>"La Municipalidad"</strong>, y don(ña) <strong id="preview_provider_name">_______________________</strong>, RUT <strong id="preview_provider_rut">__.___.___-_</strong><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, denominado(a) en adelante <strong>"El Prestador"</strong>, se ha convenido el siguiente contrato de prestación de servicios a honorarios:
+                                <strong>En Temuco,</strong> a <span id="preview_sign_date">___ de ___ de 2026</span>,entre la <strong>{{ g.municipio_nombre | default('Ilustre Municipalidad') }}</strong>, representada por su Alcalde, don <strong>{{ g.mayor_name | default('Alcalde Municipal') }}</strong>, RUT <strong>{{ g.mayor_rut | default('__.___.___-_') }}</strong>, denominado en adelante <strong>"La Municipalidad"</strong>, y don(ña) <strong id="preview_provider_name">_______________________</strong>, RUT <strong id="preview_provider_rut">__.___.___-_</strong><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, denominado(a) en adelante <strong>"El Prestador"</strong>, se ha convenido el siguiente contrato de prestación de servicios a honorarios:
                             </p>
 
                             <div class="mt-4">
