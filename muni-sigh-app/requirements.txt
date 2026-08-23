@@ -11,3 +11,4 @@ SQLAlchemy
 Werkzeug
 WTForms
 xhtml2pdf
+opencv-python-headless
