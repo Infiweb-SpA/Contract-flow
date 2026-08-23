@@ -434,26 +434,22 @@ def api_ocr_extract():
 
     temp_path = None
     try:
-        # Guardar temporalmente
         temp_dir = tempfile.gettempdir()
         temp_filename = f"ocr_{uuid.uuid4().hex}_{secure_filename(file.filename)}"
         temp_path = os.path.join(temp_dir, temp_filename)
         file.save(temp_path)
 
-        # Extraer texto con OCR
         extracted_text = extract_text_from_pdf(temp_path)
-
-        # Parsear datos estructurados
         parsed = parse_contract_data(extracted_text)
 
         # ── Buscar o AUTO-CREAR prestador ────────────────────────────────────
         provider_match = None
+        provider_was_created = False
         if parsed.get('rut'):
             provider = ServiceProvider.query.filter(
                 ServiceProvider.rut.ilike(f"%{parsed['rut']}%")
             ).first()
 
-            # Auto-crear si no existe y tenemos datos suficientes
             if not provider and parsed.get('full_name'):
                 try:
                     name_parts = parsed['full_name'].strip().split()
@@ -470,6 +466,7 @@ def api_ocr_extract():
                         )
                         db.session.add(provider)
                         db.session.flush()
+                        provider_was_created = True
 
                         log_action('PROVIDER_AUTO_CREATE', 'service_provider', provider.id,
                                    {'rut': parsed['rut'], 'source': 'ocr_extract'})
@@ -481,11 +478,13 @@ def api_ocr_extract():
                 provider_match = {
                     'id': provider.id,
                     'name': provider.full_name,
-                    'rut': provider.rut
+                    'rut': provider.rut,
+                    'auto_created': provider_was_created
                 }
 
         # ── Buscar o AUTO-CREAR departamento ──────────────────────────────────
         dept_match = None
+        dept_was_created = False
         if parsed.get('department_name'):
             dept = Department.query.filter(
                 Department.name.ilike(f"%{parsed['department_name']}%")
@@ -495,7 +494,6 @@ def api_ocr_extract():
                     Department.code.ilike(f"%{parsed['department_name'][:6]}%")
                 ).first()
 
-            # Auto-crear si no existe
             if not dept:
                 try:
                     dept_name = parsed['department_name'].strip()
@@ -516,6 +514,7 @@ def api_ocr_extract():
                     )
                     db.session.add(dept)
                     db.session.flush()
+                    dept_was_created = True
 
                     log_action('DEPARTMENT_AUTO_CREATE', 'department', dept.id,
                                {'code': code, 'name': dept_name, 'source': 'ocr_extract'})
@@ -527,7 +526,8 @@ def api_ocr_extract():
                 dept_match = {
                     'id': dept.id,
                     'name': dept.name,
-                    'code': dept.code
+                    'code': dept.code,
+                    'auto_created': dept_was_created
                 }
 
         return jsonify({
