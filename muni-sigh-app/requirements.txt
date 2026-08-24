@@ -1,4 +1,4 @@
-opencv-python-headless
+paddlepaddle
 PyMuPDF
 Flask
 Flask_Migrate
