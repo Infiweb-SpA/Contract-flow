@@ -7,7 +7,7 @@ from app.auth.utils import login_required, role_required, get_current_user
 from app.models.user import Department
 from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction
-from app.services.audit_service import log_action
+from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
 from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es
 import os
@@ -47,6 +47,9 @@ def create():
             cost_center = request.form.get('cost_center', '').strip()
             payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
 
+            # ── Trazabilidad: registrar quién crea ──
+            current_user = get_current_user()
+
             new_contract = Contract(
                 provider_id=provider_id,
                 department_id=department_id,
@@ -65,7 +68,9 @@ def create():
                 sub_program=sub_program or None,
                 cost_center=cost_center or None,
                 payment_modality=payment_modality,
-                status='BORRADOR'
+                status='BORRADOR',
+                created_by_user_id=current_user.id if current_user else None,
+                last_modified_by_user_id=current_user.id if current_user else None,
             )
             db.session.add(new_contract)
             db.session.flush()
@@ -110,7 +115,9 @@ def create():
 @login_required
 def detail(contract_id):
     contract = Contract.query.get_or_404(contract_id)
-    return render_template('contracts/detail.html', contract=contract)
+    # ── Trazabilidad: obtener historial completo ──
+    audit_trail = get_contract_audit_trail(contract_id)
+    return render_template('contracts/detail.html', contract=contract, audit_trail=audit_trail)
 
 
 # =============================================================================
@@ -143,6 +150,10 @@ def edit(contract_id):
             contract.sub_program = request.form.get('sub_program', '').strip() or None
             contract.cost_center = request.form.get('cost_center', '').strip() or None
             contract.payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
+
+            # ── Trazabilidad: registrar quién modifica ──
+            current_user = get_current_user()
+            contract.last_modified_by_user_id = current_user.id if current_user else None
 
             ContractFunction.query.filter_by(contract_id=contract.id).delete()
             functions = request.form.getlist('functions[]')
@@ -215,6 +226,11 @@ def change_status(contract_id):
 
     if new_status in allowed:
         contract.status = new_status
+
+        # ── Trazabilidad: registrar quién cambió el estado ──
+        current_user = get_current_user()
+        contract.last_modified_by_user_id = current_user.id if current_user else None
+
         db.session.commit()
         log_action('CONTRACT_STATUS_CHANGE', 'contract', contract.id,
                    {'from': current, 'to': new_status})
@@ -262,6 +278,9 @@ def upload_external():
                 except Exception as ocr_e:
                     flash(f'Advertencia OCR: {str(ocr_e)}', 'warning')
 
+                # ── Trazabilidad: registrar quién carga ──
+                current_user = get_current_user()
+
                 new_contract = Contract(
                     provider_id=provider_id,
                     department_id=department_id,
@@ -274,7 +293,9 @@ def upload_external():
                     end_date=end_date,
                     pdf_file_path=filepath,
                     ocr_processed=1 if extracted_text else 0,
-                    status='INGRESADO'
+                    status='INGRESADO',
+                    created_by_user_id=current_user.id if current_user else None,
+                    last_modified_by_user_id=current_user.id if current_user else None,
                 )
                 db.session.add(new_contract)
                 db.session.flush()
@@ -312,15 +333,9 @@ def upload_external():
 @contract_builder_bp.route('/api/preview', methods=['POST'])
 @login_required
 def api_preview():
-    """
-    Recibe los datos actuales del formulario vía JSON y devuelve el HTML
-    renderizado del contrato para mostrarlo en el iframe de previsualización.
-    No guarda nada en la base de datos.
-    """
     try:
         data = request.get_json() or {}
 
-        # Buscar nombres reales si tenemos IDs
         provider_name = data.get('provider_name', '____________________')
         provider_rut = data.get('provider_rut', '____________________')
         provider_profession = ''
@@ -340,21 +355,17 @@ def api_preview():
             if dept:
                 department_name = dept.name
 
-        # Formatear fechas en español (sin depender del locale del sistema)
         start_date_str = format_date_es(data.get('start_date'))
         end_date_str = format_date_es(data.get('end_date'))
         decline_date_str = format_date_es(data.get('decline_date'))
         contract_date_str = format_date_es(data.get('contract_date'))
 
-        # Formatear monto
         monto = data.get('monthly_amount_gross')
         monto_str = "{:,.0f}".format(float(monto)) if monto else '__________'
 
-        # Formatear monto total
         total = data.get('total_contract_amount')
         total_str = "{:,.0f}".format(float(total)) if total else None
 
-        # Calcular duración en meses
         sd = data.get('start_date')
         ed = data.get('end_date')
         duration_months = None
@@ -366,7 +377,6 @@ def api_preview():
             except:
                 pass
 
-        # Construir objeto de preview
         preview_data = {
             'contract_number': data.get('contract_number', 'CT-XXXX-XXX') or 'CT-XXXX-XXX',
             'position_title': data.get('position_title', '____________________'),
@@ -390,7 +400,6 @@ def api_preview():
             'payment_modality': data.get('payment_modality', 'MENSUAL_FIJO'),
             'duration_months': duration_months,
             'functions': [f.strip() for f in data.get('functions', []) if f.strip()],
-            # ── Datos institucionales desde config.py ──
             'mayor_name': current_app.config.get('MAYOR_NAME', ''),
             'mayor_rut': current_app.config.get('MAYOR_RUT', ''),
             'municipality_name': current_app.config.get('MUNICIPALITY_NAME', ''),
@@ -410,6 +419,7 @@ def api_preview():
         current_app.logger.error(f"Error en preview: {e}")
         return f"<html><body style='color:red;padding:20px;font-family:sans-serif;'><h3>Error al generar preview</h3><p>{str(e)}</p></body></html>", 500
 
+
 # =============================================================================
 # API: EXTRACCIÓN OCR PARA AUTOCOMPLETADO (Drag & Drop)
 # =============================================================================
@@ -417,11 +427,6 @@ def api_preview():
 @login_required
 @role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO')
 def api_ocr_extract():
-    """
-    Recibe un PDF vía AJAX (drag & drop), ejecuta OCR, parsea los datos
-    y devuelve un JSON con los campos detectados para autocompletar el formulario.
-    Si el prestador o departamento no existen, los crea automáticamente en la BD.
-    """
     if 'contract_pdf' not in request.files:
         return jsonify({'success': False, 'message': 'No se envió ningún archivo.'}), 400
 
@@ -442,7 +447,7 @@ def api_ocr_extract():
         extracted_text = extract_text_from_pdf(temp_path)
         parsed = parse_contract_data(extracted_text)
 
-        # ── Buscar o AUTO-CREAR prestador ────────────────────────────────────
+        # ── Buscar o AUTO-CREAR prestador ──
         provider_match = None
         provider_was_created = False
         if parsed.get('rut'):
@@ -482,7 +487,7 @@ def api_ocr_extract():
                     'auto_created': provider_was_created
                 }
 
-        # ── Buscar o AUTO-CREAR departamento ──────────────────────────────────
+        # ── Buscar o AUTO-CREAR departamento ──
         dept_match = None
         dept_was_created = False
         if parsed.get('department_name'):
@@ -555,11 +560,6 @@ def api_ocr_extract():
 @contract_builder_bp.route('/api/search-provider-contract', methods=['GET'])
 @login_required
 def search_provider_contract():
-    """
-    Busca prestadores por nombre o RUT y devuelve, para cada uno,
-    los datos de su último contrato registrado (si existe).
-    Usado por el buscador dinámico del armador de contratos.
-    """
     query = request.args.get('q', '').strip()
     if not query or len(query) < 2:
         return jsonify({'success': True, 'providers': []})
@@ -656,13 +656,9 @@ def search_provider():
     return jsonify({'success': True, 'providers': results})
 
 
-# =============================================================================
-# API: DETALLE EXTENDIDO DEL PRESTADOR (datos personales y bancarios)
-# =============================================================================
 @contract_builder_bp.route('/api/provider/<int:provider_id>/detail')
 @login_required
 def api_provider_detail(provider_id):
-    """Devuelve datos personales y bancarios de un prestador para el preview."""
     provider = ServiceProvider.query.get_or_404(provider_id)
     return jsonify({
         'success': True,
@@ -725,7 +721,6 @@ def quick_add_provider():
 @login_required
 @role_required('ADMIN_RRHH', 'SUPERADMIN')
 def quick_add_department():
-    """Crea un departamento rápidamente desde el armador de contratos."""
     try:
         data = request.get_json()
         code = data.get('code', '').strip().upper()
@@ -760,4 +755,3 @@ def quick_add_department():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
-

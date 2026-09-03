@@ -22,6 +22,9 @@
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-800">
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Contratos Registrados</h3>
             <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_contracts }}</p>
+            {% if selected_dept %}
+            <p class="text-xs text-gray-400 mt-1">Filtrados por departamento</p>
+            {% endif %}
         </div>
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-green-600">
             <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Prestadores de Servicio</h3>
@@ -33,18 +36,46 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 font-bold text-gray-700 text-sm flex justify-between items-center">
             <span>Últimos Contratos Registrados</span>
+            {% if selected_dept %}
+            <a href="{{ url_for('dashboard.index') }}" class="text-xs text-blue-600 hover:underline font-semibold">
+                ✕ Limpiar filtro
+            </a>
+            {% endif %}
         </div>
 
-        <!-- FILTRO DE TABLA -->
+        <!-- FILTROS DE TABLA -->
         <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
-            <div class="relative max-w-md">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-                <input type="text" id="table_filter_input"
-                    placeholder="Filtrar por nombre o RUT..."
-                    autocomplete="off"
-                    class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Filtro por departamento (server-side) -->
+                <div class="relative">
+                    <select id="dept_filter_select"
+                        onchange="filterByDepartment(this.value)"
+                        class="pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer appearance-none">
+                        <option value="">Todos los departamentos</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_dept == dept.id|string %}selected{% endif %}>
+                            {{ dept.code }} — {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+
+                <!-- Separador visual -->
+                <div class="h-6 w-px bg-gray-300"></div>
+
+                <!-- Filtro por texto (client-side, existente) -->
+                <div class="relative flex-grow max-w-md">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input type="text" id="table_filter_input"
+                        placeholder="Filtrar por nombre o RUT..."
+                        autocomplete="off"
+                        class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                </div>
             </div>
         </div>
 
@@ -54,6 +85,7 @@
                     <th class="px-6 py-3">Correlativo</th>
                     <th class="px-6 py-3">Prestador</th>
                     <th class="px-6 py-3">Cargo</th>
+                    <th class="px-6 py-3">Departamento</th>
                     <th class="px-6 py-3">Origen</th>
                     <th class="px-6 py-3">Estado</th>
                     <th class="px-6 py-3">Acciones</th>
@@ -62,10 +94,14 @@
             <tbody class="divide-y divide-gray-200">
                 {% for contract in recent_contracts %}
                 <tr class="hover:bg-gray-50 contract-row"
-                    data-search="{{ contract.provider.full_name | lower }} {{ contract.provider.rut | lower }} {{ contract.contract_number | lower }} {{ contract.position_title | lower }}">
+                    data-search="{{ contract.provider.full_name | lower }} {{ contract.provider.rut | lower }} {{ contract.contract_number | lower }} {{ contract.position_title | lower }} {{ contract.department.code | lower }} {{ contract.department.name | lower }}">
                     <td class="px-6 py-4 font-semibold text-gray-800">{{ contract.contract_number }}</td>
                     <td class="px-6 py-4">{{ contract.provider.full_name }}</td>
                     <td class="px-6 py-4">{{ contract.position_title }}</td>
+                    <td class="px-6 py-4">
+                        <span class="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded">{{ contract.department.code }}</span>
+                        <span class="text-xs text-gray-500 ml-1 hidden lg:inline">{{ contract.department.name }}</span>
+                    </td>
                     <td class="px-6 py-4"><span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-mono">{{ contract.creation_type }}</span></td>
                     <td class="px-6 py-4"><span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded font-semibold">{{ contract.status }}</span></td>
                     <td class="px-6 py-4 flex space-x-3">
@@ -79,10 +115,16 @@
                 </tr>
                 {% else %}
                 <tr id="no_results_row" style="display:none;">
-                    <td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>
+                    <td colspan="7" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>
                 </tr>
                 <tr>
-                    <td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos registrados aún.</td>
+                    <td colspan="7" class="px-6 py-4 text-center text-gray-400 text-sm">
+                        {% if selected_dept %}
+                            No hay contratos registrados para este departamento.
+                        {% else %}
+                            No hay contratos registrados aún.
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -93,6 +135,21 @@
 {% block scripts %}
 {{ super() }}
 <script>
+// ═══════════════════════════════════════════════════════════════
+// FILTRO POR DEPARTAMENTO (server-side via query string)
+// ═══════════════════════════════════════════════════════════════
+function filterByDepartment(deptId) {
+    var url = new URL(window.location.href);
+    if (deptId) {
+        url.searchParams.set('dept', deptId);
+    } else {
+        url.searchParams.delete('dept');
+    }
+    // Limpiar también el filtro de texto al cambiar departamento
+    url.searchParams.delete('q');
+    window.location.href = url.toString();
+}
+
 // ═══════════════════════════════════════════════════════════════
 // FILTRO LOCAL DE TABLA (solo cliente, sin llamadas al backend)
 // ═══════════════════════════════════════════════════════════════
@@ -107,7 +164,7 @@
         noResults = document.createElement('tr');
         noResults.id = 'no_results_row';
         noResults.style.display = 'none';
-        noResults.innerHTML = '<td colspan="6" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>';
+        noResults.innerHTML = '<td colspan="7" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>';
         tbody.appendChild(noResults);
     }
 
