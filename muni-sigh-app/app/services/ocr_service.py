@@ -14,6 +14,16 @@ from PIL import Image
 import numpy as np
 from paddleocr import PaddleOCR
 
+
+# =============================================================================
+# EXCEPCIÓN DE CANCELACIÓN
+# =============================================================================
+
+class OCRCancelledException(Exception):
+    """Se lanza cuando el procesamiento OCR es cancelado por el usuario."""
+    pass
+
+
 # 2. Desactivar oneDNN (enable_mkldnn=False)
 ocr_engine = PaddleOCR(
     lang='es',
@@ -24,11 +34,16 @@ ocr_engine = PaddleOCR(
 )
 
 
-def extract_text_from_pdf(file_path: str) -> str:
+def extract_text_from_pdf(file_path: str, is_cancelled=None) -> str:
     """
     Intenta extraer texto de un PDF de forma nativa.
     Si no encuentra texto suficiente (probablemente un documento escaneado),
     aplica OCR a las páginas convirtiéndolas a imagen primero.
+
+    Args:
+        file_path: Ruta al archivo PDF.
+        is_cancelled: Callable opcional que retorna True si el procesamiento
+                      debe ser cancelado. Se verifica entre cada página del OCR.
     """
     extracted_text = ""
     needs_ocr = False
@@ -45,17 +60,26 @@ def extract_text_from_pdf(file_path: str) -> str:
                 needs_ocr = True
 
         if needs_ocr:
-            extracted_text = _extract_via_ocr(file_path)
+            extracted_text = _extract_via_ocr(file_path, is_cancelled=is_cancelled)
 
         return extracted_text.strip()
 
+    except OCRCancelledException:
+        raise
     except Exception as e:
         logging.error(f"Error procesando PDF {file_path}: {str(e)}")
         raise e
 
 
-def _extract_via_ocr(file_path: str) -> str:
-    """Aplica PaddleOCR 3.x convirtiendo el PDF en imágenes con PyMuPDF."""
+def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
+    """
+    Aplica PaddleOCR 3.x convirtiendo el PDF en imágenes con PyMuPDF.
+
+    Args:
+        file_path: Ruta al archivo PDF.
+        is_cancelled: Callable opcional que se invoca entre cada página.
+                      Si retorna True, se detiene el procesamiento inmediatamente.
+    """
     ocr_text = ""
 
     try:
@@ -69,6 +93,15 @@ def _extract_via_ocr(file_path: str) -> str:
 
     try:
         for page_index in range(total_pages):
+            # ── Verificar cancelación antes de procesar cada página ──
+            if is_cancelled and is_cancelled():
+                print(f"    ✗ OCR cancelado por el usuario en página {page_index + 1}/{total_pages}")
+                # NO cerrar doc aquí — el finally se encarga de eso.
+                # Solo lanzar la excepción de cancelación.
+                raise OCRCancelledException(
+                    f"Procesamiento OCR cancelado en página {page_index + 1} de {total_pages}"
+                )
+
             print(f"    - Procesando página {page_index + 1}/{total_pages}...")
             try:
                 page = doc.load_page(page_index)
@@ -103,12 +136,18 @@ def _extract_via_ocr(file_path: str) -> str:
                             lines_count += 1
                     print(f"      ✓ Texto extraído en página {page_index + 1}: {lines_count} líneas")
 
+            except OCRCancelledException:
+                raise
             except Exception as page_err:
                 logging.error(f"Error OCR en página {page_index}: {page_err}")
                 continue
         print("--> OCR finalizado.")
     finally:
-        doc.close()
+        # Cerrar el documento de forma segura (puede ya estar cerrado)
+        try:
+            doc.close()
+        except Exception:
+            pass
 
     return ocr_text.strip()
 
@@ -281,17 +320,10 @@ def parse_contract_data(text: str) -> dict:
         data['contract_number'] = match_ct.group(1).upper().strip()
 
     # ── 2. DECRETO ALCALDICIO (INTELIGENTE) ────────────────────────────────
-    # Problema anterior: encontraba decreto 215 (referencia) en vez de 1824 (principal).
-    # Solución: primero buscar el decreto cerca de "APRUEBA" (el operativo),
-    # luego buscar el decreto con fecha, y finalmente el primero del documento.
     match_dec = _try_match(full_text, [
-        # Patrón 1: Decreto cerca de APRUEBA (el decreto principal)
         r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)[\s\S]{0,200}?(?:APRUEBA|Aprueba|aprueba)',
-        # Patrón 2: Decreto con fecha inline (formato YYYY-MM-DD o DD-MM-YYYY)
         r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)\s*(?:,\s*|\s+de\s+fecha\s+|\s+del?\s+)([\d\-/]{8,12})',
-        # Patrón 3: Primer decreto del documento (sin fecha)
         r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)',
-        # Patrón 4: Abreviatura D.A.
         r'(?:D\.A\.|DA)\s+N[°oº\.]*\s*(\d+)',
     ])
     if match_dec:
@@ -299,8 +331,7 @@ def parse_contract_data(text: str) -> dict:
         if match_dec.lastindex >= 2 and match_dec.group(2):
             data['decline_date'] = _parse_any_date(match_dec.group(2))
 
-    # ── 3. FECHA DEL DOCUMENTO (para contract_date y decline_date) ─────────
-    # Busca "En la comuna de X, a DD de mes de YYYY" o "CUNCO, DD de mes de YYYY"
+    # ── 3. FECHA DEL DOCUMENTO ─────────────────────────────────────────────
     match_doc_date = _try_match(full_text, [
         r'(?:En\s+la\s+comuna\s+de\s+\w+),?\s+a\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
         r'(?:[A-Z]{2,}),?\s+a\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
@@ -315,20 +346,13 @@ def parse_contract_data(text: str) -> dict:
             data['decline_date'] = parsed_date
 
     # ── 4. PRESTADOR (nombre + RUT) ────────────────────────────────────────
-    # Acepta: don(a), don(ña), doña, don — nombres en MAYÚSCULAS o Title Case
-    # Acepta: Cédula Nacional de Identidad, Cédula de Identidad, RUT, R.U.T.
-    # Maneja "de nacionalidad X" entre nombre e identificador
     match_prestador = _try_match(full_text, [
-        # Patrón 1: don(a) NOMBRE, [de nacionalidad X,] Cédula Nacional de Identidad N° RUT
         r'don(?:$$[^)]*$$)?\s+([^,]+?)(?:,\s*de\s+nacionalidad\s+\w+)?,\s*(?:[Cc]édula\s+(?:Nacional\s+de\s+)?[Ii]dentidad)\s*(?:N?[°oº\.:\s]+)\s*([\d\.\-\s]+[kK]?)',
-        # Patrón 2: don(a) NOMBRE, R.U.T.: RUT
         r'don(?:$$[^)]*$$)?\s+([^,]+),\s*[Rr](?:\.?U\.?T\.?|ut)\s*(?::?\s*N?[°oº\.:\s]*)\s*([\d\.\-\s]+[kK]?)',
-        # Patrón 3: NOMBRE EN MAYÚSCULAS, RUT (genérico)
         r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.]+?),\s*(?:R\.?U\.?T\.?|CI)\s*(?:N?[°oº\.:\s]*)\s*([\d\.\-\s]+[kK]?)',
     ])
     if match_prestador:
         data['full_name'] = re.sub(r'\s+', ' ', match_prestador.group(1).strip()).title()
-        # NO eliminar puntos del RUT para que coincida con el formato de la BD
         data['rut'] = re.sub(r'\s', '', match_prestador.group(2)).strip().upper()
 
     # ── 5. PROGRAMA ────────────────────────────────────────────────────────
@@ -381,11 +405,8 @@ def parse_contract_data(text: str) -> dict:
 
     # ── 10. VIGENCIA (fechas inicio y término) ─────────────────────────────
     match_vigencia = _try_match(full_text, [
-        # "regirá desde 01 de julio de 2026 al 31 de diciembre de 2026"
         r'(?:regir[áa]|vigencia|duraci[óo]n|regir[áa])\s+desde\s+(?:el\s+)?(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})\s+(?:hasta\s+(?:el\s+)?|al\s+)(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
-        # "duración desde el 2026-01-01 hasta el 2026-12-31"
         r'(?:regir[áa]|vigencia|duraci[óo]n)\s+desde\s+(?:el\s+)?([\d\-/]{8,12})\s+(?:hasta\s+(?:el\s+)?|al\s+)([\d\-/]{8,12})',
-        # "desde 01 de julio de 2026 hasta 31 de diciembre de 2026" (sin palabra clave)
         r'desde\s+(?:el\s+)?(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})\s+(?:hasta\s+(?:el\s+)?|al\s+)(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
     ])
     if match_vigencia:
@@ -393,7 +414,6 @@ def parse_contract_data(text: str) -> dict:
         data['end_date'] = _parse_any_date(match_vigencia.group(2))
 
     # ── 11. MONTOS ─────────────────────────────────────────────────────────
-    # Total: "suma única y total de $5.481.000", "monto total del contrato $X"
     match_total = _try_match(full_text, [
         r'suma\s+(?:[úu]nica\s+y\s+)?total\s+(?:de\s+)?\$\s*([\d\.\,]+)',
         r'monto\s+total\s+(?:del\s+)?contrato[^\$]*\$\s*([\d\.\,]+)',
@@ -402,7 +422,6 @@ def parse_contract_data(text: str) -> dict:
     if match_total:
         data['total_contract_amount'] = _normalize_amount(match_total.group(1))
 
-    # Mensual: "6 cuota(s) Mensual sucesiva(s) de $913.500", "renta bruta mensual $X"
     match_monto = _try_match(full_text, [
         r'\d+\s*cuota[^\$]*\$\s*([\d\.\,]+)',
         r'renta\s+bruta\s+mensual[^\$]*\$\s*([\d\.\,]+)',
@@ -411,7 +430,6 @@ def parse_contract_data(text: str) -> dict:
     if match_monto:
         data['monthly_amount_gross'] = _normalize_amount(match_monto.group(1))
 
-    # Modalidad
     if 'producto o servicio entregado' in full_text.lower():
         data['payment_modality'] = 'POR_PRODUCTO'
 
@@ -440,22 +458,16 @@ def extract_functions(text: str) -> list:
     """
     functions = []
 
-    # Buscar bloque de funciones con múltiples encabezados posibles
     match_sec = _try_match(text, [
-        # "Serán funciones específicas del Prestador las siguientes:"
         r'(?:Ser[áa]n\s+)?funciones\s+(?:espec[íi]ficas\s+)?(?:del\s+Prestador\s+)?las\s+siguientes\s*:\s*(.*?)(?:El\s+Prestador\s+se\s+obliga|TERCERO|CUARTO|SEXTO|S[EÉ]PTIMO|CL[AÁ]USULA|ESTADO\s+DE\s+PAGO)',
-        # "en las siguientes funciones:"
         r'en\s+las\s+siguientes\s+funciones\s*:\s*(.*?)(?:ESTADO\s+DE\s+PAGO|TERCERO|CUARTO|Modalidad)',
-        # "Cometidos específicos:" (con dos puntos)
         r'Cometidos\s+espec[íi]ficos\s*:\s*(.*?)(?:TERCERO|CUARTO|ESTADO\s+DE\s+PAGO|Modalidad)',
-        # "funciones:" (genérico)
         r'funciones\s*:\s*(.*?)(?:TERCERO|CUARTO|ESTADO\s+DE\s+PAGO|Modalidad)',
     ], flags=re.DOTALL | re.IGNORECASE)
 
     if match_sec:
         block = match_sec.group(1)
 
-        # Intentar extraer items numerados primero (1. texto / 1) texto)
         numbered = re.findall(
             r'(?:^|\n)\s*\d+[\.\)]\s+(.+?)(?=\n\s*\d+[\.\)]|\s*$)',
             block, re.MULTILINE
@@ -466,35 +478,27 @@ def extract_functions(text: str) -> list:
                 if clean and len(clean) > 5:
                     functions.append(clean)
         else:
-            # Extraer items con guion/bullet (manejo multi-línea)
             lines = block.split('\n')
             current_item = []
             for line in lines:
                 stripped = line.strip()
                 if re.match(r'^[-•*]\s*', stripped):
-                    # Nuevo item: guardar el anterior si existe
                     if current_item:
                         clean = re.sub(r'\s+', ' ', ' '.join(current_item).strip())
                         if clean and len(clean) > 5:
                             functions.append(clean)
-                    # Iniciar nuevo item (quitar el guion/bullet)
                     current_item = [re.sub(r'^[-•*]\s*', '', stripped)]
                 elif current_item and stripped:
-                    # Continuación multi-línea del item actual
                     current_item.append(stripped)
                 elif not current_item and stripped and functions and len(stripped) > 15:
-                    # Línea sin guion entre funciones detectadas
-                    # (posible item con guion faltante por error de OCR)
                     if not re.match(r'^(?:ESTADO|TERCERO|CUARTO|Modalidad|La Municipalidad|MUNICIPALIDAD)', stripped, re.IGNORECASE):
                         functions.append(stripped)
 
-            # Guardar último item
             if current_item:
                 clean = re.sub(r'\s+', ' ', ' '.join(current_item).strip())
                 if clean and len(clean) > 5:
                     functions.append(clean)
 
-    # Fallback: buscar líneas con palabras clave de función
     if not functions:
         for line in text.split('\n'):
             line = line.strip()

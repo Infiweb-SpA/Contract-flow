@@ -5,8 +5,7 @@
 {% block content %}
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- SIGH-MUNI — Plantilla Jinja2: Creación de Contrato a Honorarios      -->
-<!-- v2.5.0 — Campos nuevos: contract_date, budget_account, sub_program,   -->
-<!--          cost_center, payment_modality + datos personales/bancarios    -->
+<!-- v2.6.0 — +OCR cancellation: AbortController + cancel_token + UI       -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
 <style>
@@ -101,6 +100,14 @@
         .panel-right { width: 100% !important; height: 60vh; position: relative; }
         .action-bar { width: 100% !important; }
     }
+
+    /* ── OCR cancel button ── */
+    .ocr-cancel-btn {
+        transition: all 0.15s ease;
+    }
+    .ocr-cancel-btn:hover {
+        transform: scale(1.02);
+    }
 </style>
 
 <!-- Fuentes institucionales -->
@@ -183,6 +190,12 @@
                             <div class="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-[#1e3a8a] mx-auto mb-2"></div>
                             <p class="text-xs font-semibold text-slate-700">Procesando documento...</p>
                             <p class="text-[11px] text-slate-400 mt-1">Extrayendo texto y estructurando datos</p>
+                            <!-- BOTÓN CANCELAR OCR -->
+                            <button type="button" id="ocr_cancel_btn" onclick="cancelOcrProcess()"
+                                class="ocr-cancel-btn mt-3 px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 mx-auto">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                Cancelar procesamiento
+                            </button>
                         </div>
                         <div id="ocr_success_state" class="hidden">
                             <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-green-50 border border-green-200 flex items-center justify-center">
@@ -198,6 +211,15 @@
                             </div>
                             <p class="text-xs font-semibold text-red-800" id="ocr_error_msg">Error al procesar</p>
                             <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#1e3a8a] hover:text-[#0f265c] underline font-medium">Reintentar</button>
+                        </div>
+                        <!-- ESTADO CANCELADO (NUEVO) -->
+                        <div id="ocr_cancelled_state" class="hidden">
+                            <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-xs font-semibold text-amber-800">Procesamiento cancelado</p>
+                            <p class="text-[11px] text-amber-600 mt-1">El OCR fue detenido. El documento no fue procesado completamente.</p>
+                            <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#1e3a8a] hover:text-[#0f265c] underline font-medium">Procesar otro archivo</button>
                         </div>
                     </div>
                     <div id="ocr_raw_text_container" class="mt-2 hidden">
@@ -218,7 +240,7 @@
             <form method="POST" action="{{ url_for('contract_builder.create') }}" class="space-y-0" id="contract_form">
 
                 <!-- ══════════════════════════════════════════════════════ -->
-                <!-- PASO 1: ASIGNACIÓN Y ORIGEN (sin cambios)              -->
+                <!-- PASO 1: ASIGNACIÓN Y ORIGEN                            -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-8">
                     <div class="stepper-line"></div>
@@ -230,7 +252,6 @@
                         </div>
                         <div class="p-5 space-y-5">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                <!-- Prestador -->
                                 <div>
                                     <div class="flex justify-between items-center mb-1.5">
                                         <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Prestador de Servicios <span class="text-red-500">*</span></label>
@@ -246,7 +267,6 @@
                                     <p class="microcopy mt-1.5">Seleccione un prestador registrado</p>
                                     <div id="ocr_provider_hint" class="hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border"></div>
                                 </div>
-                                <!-- Departamento -->
                                 <div>
                                     <div class="flex justify-between items-center mb-1.5">
                                         <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Departamento Solicitante <span class="text-red-500">*</span></label>
@@ -269,8 +289,6 @@
 
                 <!-- ══════════════════════════════════════════════════════ -->
                 <!-- PASO 2: ANTECEDENTES LEGALES Y PRESUPUESTO             -->
-                <!-- ══════ REORGANIZADO: +contract_date, +sub_program,     -->
-                <!-- +budget_account, +cost_center, +payment_modality ══════ -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-8">
                     <div class="stepper-line"></div>
@@ -281,8 +299,6 @@
                             <p class="text-[11px] text-slate-400 mt-0.5">Datos del instrumento legal, imputación presupuestaria, montos y vigencia del contrato</p>
                         </div>
                         <div class="p-5 space-y-5">
-
-                            <!-- ── Grupo: N° Contrato y Decreto Alcaldicio ── -->
                             <div>
                                 <p class="subsection-label">N° Contrato y Decreto Alcaldicio</p>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -311,8 +327,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- ── Grupo: Cargo, Programa y Subprograma ── -->
                             <div>
                                 <p class="subsection-label">Cargo, Programa y Subprograma</p>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -336,8 +350,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- ── Grupo: Imputación Presupuestaria y Modalidad ── -->
                             <div>
                                 <p class="subsection-label">Imputación Presupuestaria y Modalidad</p>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -365,8 +377,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- ── Grupo: Monto y Vigencia ── -->
                             <div>
                                 <p class="subsection-label">Monto y Vigencia</p>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -400,13 +410,12 @@
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
 
                 <!-- ══════════════════════════════════════════════════════ -->
-                <!-- PASO 3: CLÁUSULAS, FUNCIONES Y COMETIDOS (sin cambios) -->
+                <!-- PASO 3: CLÁUSULAS, FUNCIONES Y COMETIDOS               -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-4">
                     <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">3</div>
@@ -443,7 +452,7 @@
             <!-- Footer -->
             <div class="mt-8 pt-4 border-t border-slate-200 flex justify-between items-center">
                 <div class="text-[10px] text-slate-400">
-                    <span class="font-semibold">SIGH-MUNI v2.5.0</span> &bull; {{ g.municipio_nombre | default('Municipalidad de Temuco') }} &bull; 2026
+                    <span class="font-semibold">SIGH-MUNI v2.6.0</span> &bull; {{ g.municipio_nombre | default('Municipalidad de Temuco') }} &bull; 2026
                 </div>
                 <div class="flex gap-3">
                     <a href="#" class="text-[10px] text-slate-400 hover:text-slate-600 transition-colors">Manual de Usuario</a>
@@ -477,8 +486,6 @@
                 <div class="paper-sheet rounded-sm relative">
                     <div class="watermark">PREVISTA</div>
                     <div class="p-[25mm] relative z-20">
-
-                        <!-- ── Membrete institucional ── -->
                         <div class="text-center border-b-2 border-slate-800 pb-4 mb-6 doc-header">
                             <p class="text-[11px] font-bold tracking-widest text-slate-800 uppercase">República de Chile</p>
                             <p class="text-lg font-bold text-slate-900 mt-0.5 tracking-tight">{{ g.municipio_nombre | default('Municipalidad de Temuco') }}</p>
@@ -489,35 +496,23 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- ── Título del contrato ── -->
                         <div class="text-center mb-6 doc-header">
                             <h1 class="text-sm font-bold text-slate-900 uppercase tracking-wide">Contrato de Prestación de Servicios a Honorarios</h1>
                             <p class="text-[11px] text-slate-600 mt-1">N° <span id="preview_contract_number">CT-2026-___</span></p>
                             <p class="text-[10px] text-slate-500 mt-0.5">Fecha: <span id="preview_contract_date">___ de ___ de 2026</span></p>
                         </div>
-
-                        <!-- ── Cuerpo del documento ── -->
                         <div class="space-y-4 text-[11px] leading-relaxed text-slate-800 doc-header">
-
-                            <!-- Párrafo introductorio -->
                             <p class="text-justify">
                                 <strong>En Temuco,</strong> a <span id="preview_sign_date">___ de ___ de 2026</span>, entre la <strong>{{ g.municipio_nombre | default('Ilustre Municipalidad') }}</strong>, representada por su Alcalde, don <strong>{{ g.mayor_name | default('Alcalde Municipal') }}</strong>, RUT <strong>{{ g.mayor_rut | default('__.___.___-_') }}</strong>, denominado en adelante <strong>"La Municipalidad"</strong>, y don(ña) <strong id="preview_provider_name">_______________________</strong>, RUT <strong id="preview_provider_rut">__.___.___-_</strong><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, denominado(a) en adelante <strong>"El Prestador"</strong>, se ha convenido el siguiente contrato de prestación de servicios a honorarios:
                             </p>
-
-                            <!-- PRIMERO: ANTECEDENTES -->
                             <div class="mt-4">
                                 <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">PRIMERO: ANTECEDENTES</p>
                                 <p class="text-justify">Por Decreto Alcaldicio N° <span id="preview_decline_number">_________</span> de fecha <span id="preview_decline_date">_________</span>, se aprobó la contratación del servicio de <strong id="preview_position">_______________________</strong>, para el programa <span id="preview_program">_______________________</span><span id="preview_sub_program_wrapper">, subprograma <strong id="preview_sub_program">_______________________</strong></span>, dependiente de la <strong id="preview_department">_______________________</strong>.</p>
                             </div>
-
-                            <!-- SEGUNDO: IMPUTACIÓN PRESUPUESTARIA (NUEVO) -->
                             <div class="mt-4" id="preview_budget_section">
                                 <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">SEGUNDO: IMPUTACIÓN PRESUPUESTARIA</p>
                                 <p class="text-justify">Para efectos presupuestarios, el presente contrato se imputará a la cuenta presupuestaria <strong id="preview_budget_account">_________</strong> y centro de costo <strong id="preview_cost_center">_________</strong>.</p>
                             </div>
-
-                            <!-- TERCERO: OBJETO -->
                             <div class="mt-4">
                                 <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">TERCERO: OBJETO</p>
                                 <p class="text-justify">El objeto del presente contrato es la prestación de servicios profesionales consistentes en <strong id="preview_position2">_______________________</strong>, de acuerdo a las funciones y cometidos que se detallan a continuación:</p>
@@ -525,14 +520,10 @@
                                     <li class="text-justify">___________________________________________________________</li>
                                 </ol>
                             </div>
-
-                            <!-- CUARTO: DURACIÓN Y MONTO -->
                             <div class="mt-4">
                                 <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">CUARTO: DURACIÓN Y MONTO</p>
                                 <p class="text-justify">El presente contrato tendrá una duración desde el <strong id="preview_start_date">_________</strong> hasta el <strong id="preview_end_date">_________</strong>, con un monto mensual bruto de <strong id="preview_amount">$_________</strong> (pesos chilenos), pagadero <span id="preview_payment_modality">según modalidad acordada</span>, previa presentación de boleta de honorarios.</p>
                             </div>
-
-                            <!-- Firmas -->
                             <div class="mt-8 pt-6 border-t border-slate-300">
                                 <div class="grid grid-cols-2 gap-8 text-center">
                                     <div>
@@ -552,8 +543,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Pie de página del documento -->
                         <div class="mt-8 pt-3 border-t border-slate-200 text-center">
                             <p class="text-[9px] text-slate-400 doc-header">Documento generado por SIGH-MUNI — Sistema Integrado de Gestión de Honorarios Municipales</p>
                             <p class="text-[9px] text-slate-400 doc-header">{{ g.municipio_nombre | default('Municipalidad de Temuco') }} — Región de La Araucanía, Chile</p>
@@ -570,7 +559,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="fixed bottom-0 left-0 w-[55%] action-bar px-6 py-3 flex items-center justify-between z-40">
     <div class="flex items-center gap-3">
-        <a href="{{ url_for('dashboard.index') }}"
+        <a href="{{ url_for('dashboard.index') }}" id="nav_dashboard_link"
             class="px-4 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-800 hover:border-slate-400 transition-all shadow-sm flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             Volver al Dashboard
@@ -592,7 +581,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- MODAL: NUEVO PRESTADOR (ACTUALIZADO: +datos personales y bancarios)   -->
+<!-- MODAL: NUEVO PRESTADOR                                                -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="provider_modal" class="fixed inset-0 bg-slate-900/60 hidden flex justify-center items-center p-4 z-50 backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-95 opacity-0" id="provider_modal_content">
@@ -603,8 +592,6 @@
             </button>
         </div>
         <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto sigh-scroll">
-
-            <!-- ── Datos Personales ── -->
             <div>
                 <p class="subsection-label">Datos Personales</p>
                 <div class="space-y-3">
@@ -616,42 +603,35 @@
                     <div class="grid grid-cols-3 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Nombres <span class="text-red-500">*</span></label>
-                            <input type="text" id="m_first_name"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
+                            <input type="text" id="m_first_name" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Apellido Paterno <span class="text-red-500">*</span></label>
-                            <input type="text" id="m_paternal_last_name"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
+                            <input type="text" id="m_paternal_last_name" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Apellido Materno</label>
-                            <input type="text" id="m_maternal_last_name"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
+                            <input type="text" id="m_maternal_last_name" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Profesión u Oficio</label>
-                            <input type="text" id="m_profession_or_trade" placeholder="Ej: Ingeniero en Informática"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                            <input type="text" id="m_profession_or_trade" placeholder="Ej: Ingeniero en Informática" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Fecha de Nacimiento</label>
-                            <input type="date" id="m_birth_date"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional text-slate-600">
+                            <input type="date" id="m_birth_date" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional text-slate-600">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Nacionalidad</label>
-                            <input type="text" id="m_nationality" value="Chilena" placeholder="Chilena"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                            <input type="text" id="m_nationality" value="Chilena" placeholder="Chilena" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Estado Civil</label>
-                            <select id="m_civil_status"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
+                            <select id="m_civil_status" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
                                 <option value="">— Seleccione —</option>
                                 <option value="Soltero(a)">Soltero(a)</option>
                                 <option value="Casado(a)">Casado(a)</option>
@@ -665,27 +645,22 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Correo Electrónico</label>
-                            <input type="email" id="m_email" placeholder="correo@ejemplo.cl"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                            <input type="email" id="m_email" placeholder="correo@ejemplo.cl" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Teléfono</label>
-                            <input type="text" id="m_phone" placeholder="+56 9 1234 5678"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                            <input type="text" id="m_phone" placeholder="+56 9 1234 5678" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- ── Datos Bancarios ── -->
             <div>
                 <p class="subsection-label">Datos Bancarios</p>
                 <div class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Banco</label>
-                            <select id="m_bank_name"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
+                            <select id="m_bank_name" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
                                 <option value="">— Seleccione —</option>
                                 <option value="BancoEstado">BancoEstado</option>
                                 <option value="Banco de Chile">Banco de Chile</option>
@@ -703,8 +678,7 @@
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Tipo de Cuenta</label>
-                            <select id="m_account_type"
-                                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
+                            <select id="m_account_type" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional cursor-pointer">
                                 <option value="">— Seleccione —</option>
                                 <option value="Cuenta Corriente">Cuenta Corriente</option>
                                 <option value="Cuenta Vista">Cuenta Vista</option>
@@ -715,12 +689,10 @@
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Número de Cuenta</label>
-                        <input type="text" id="m_account_number" placeholder="Ej: 00012345678"
-                            class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                        <input type="text" id="m_account_number" placeholder="Ej: 00012345678" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                     </div>
                 </div>
             </div>
-
         </div>
         <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
             <button type="button" onclick="toggleProviderModal(false)" class="px-4 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-600 hover:bg-white transition-colors">Cancelar</button>
@@ -730,7 +702,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- MODAL: NUEVO DEPARTAMENTO (sin cambios)                               -->
+<!-- MODAL: NUEVO DEPARTAMENTO                                              -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div id="dept_modal" class="fixed inset-0 bg-slate-900/60 hidden flex justify-center items-center p-4 z-50 backdrop-blur-sm">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all scale-95 opacity-0" id="dept_modal_content">
@@ -743,19 +715,16 @@
         <div class="p-6 space-y-4">
             <div>
                 <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Código <span class="text-red-500">*</span></label>
-                <input type="text" id="d_code" placeholder="Ej: DIDECO, SECPLA, DOM"
-                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional uppercase placeholder:text-slate-400">
+                <input type="text" id="d_code" placeholder="Ej: DIDECO, SECPLA, DOM" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional uppercase placeholder:text-slate-400">
                 <p class="microcopy mt-1">Código corto identificador de la dirección</p>
             </div>
             <div>
                 <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Nombre de la Dirección <span class="text-red-500">*</span></label>
-                <input type="text" id="d_name" placeholder="Ej: Dirección de Desarrollo Comunitario"
-                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                <input type="text" id="d_name" placeholder="Ej: Dirección de Desarrollo Comunitario" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
             </div>
             <div>
                 <label class="block text-[11px] font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Centro de Costo</label>
-                <input type="text" id="d_cost_center" placeholder="Ej: 21045"
-                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
+                <input type="text" id="d_cost_center" placeholder="Ej: 21045" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm input-institucional placeholder:text-slate-400">
                 <p class="microcopy mt-1">Código contable asociado (opcional)</p>
             </div>
         </div>
@@ -767,20 +736,25 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- SCRIPTS FUNCIONALES (ACTUALIZADOS)                                    -->
+<!-- SCRIPTS FUNCIONALES v2.6.0                                            -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// Estado global: datos extendidos del prestador seleccionado
+// Estado global
 // ═══════════════════════════════════════════════════════════════════════
 let selectedProviderExtended = {
     profession_or_trade: '', nationality: '', civil_status: '', birth_date: '',
     bank_name: '', account_type: '', account_number: ''
 };
 
-// URL template para obtener detalle completo del prestador vía API
 const API_PROVIDER_DETAIL_URL = "{{ url_for('contract_builder.api_provider_detail', provider_id=0) }}".replace('/0', '/');
-//const API_PROVIDER_DETAIL_URL = "{{ url_for('contract_builder.create') }}".replace('/create', '/api/provider/__ID__/detail');
+const API_OCR_EXTRACT_URL = "{{ url_for('contract_builder.api_ocr_extract') }}";
+const API_OCR_CANCEL_URL = "{{ url_for('contract_builder.api_ocr_cancel') }}";
+
+// ── Estado de cancelación OCR ──
+let ocrAbortController = null;
+let ocrCancelToken = null;
+let ocrIsProcessing = false;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Toggle OCR Banner
@@ -793,7 +767,7 @@ function toggleOcrBanner() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// OCR Zone Logic (sin cambios sustanciales)
+// OCR Zone Logic — CON CANCELACIÓN
 // ═══════════════════════════════════════════════════════════════════════
 const dropzone = document.getElementById('ocr_dropzone');
 const fileInput = document.getElementById('ocr_file_input');
@@ -810,52 +784,181 @@ dropzone.addEventListener('drop', (e) => {
 });
 
 function setOcrState(state) {
-    ['ocr_idle_state', 'ocr_loading_state', 'ocr_success_state', 'ocr_error_state'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['ocr_idle_state', 'ocr_loading_state', 'ocr_success_state', 'ocr_error_state', 'ocr_cancelled_state'].forEach(id => document.getElementById(id).classList.add('hidden'));
     document.getElementById('ocr_' + state + '_state').classList.remove('hidden');
     const badge = document.getElementById('ocr_status_badge');
     if (state === 'success') { badge.classList.remove('hidden'); badge.textContent = 'Procesado'; badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200'; }
     else if (state === 'error') { badge.classList.remove('hidden'); badge.textContent = 'Error'; badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200'; }
     else if (state === 'loading') { badge.classList.remove('hidden'); badge.textContent = 'Procesando...'; badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200'; }
+    else if (state === 'cancelled') { badge.classList.remove('hidden'); badge.textContent = 'Cancelado'; badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200'; }
     else { badge.classList.add('hidden'); }
 }
 function showOcrError(msg) { document.getElementById('ocr_error_msg').textContent = msg; setOcrState('error'); }
+
 function resetOcrZone() {
     fileInput.value = '';
     document.getElementById('ocr_raw_text_container').classList.add('hidden');
     document.getElementById('ocr_raw_text').textContent = '';
     document.getElementById('ocr_provider_hint').classList.add('hidden');
     document.getElementById('ocr_dept_hint').classList.add('hidden');
+    ocrAbortController = null;
+    ocrCancelToken = null;
+    ocrIsProcessing = false;
     setOcrState('idle');
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// CANCELAR PROCESO OCR
+// ═══════════════════════════════════════════════════════════════════════
+function cancelOcrProcess() {
+    if (!ocrIsProcessing) return;
+    console.log('[OCR Cancel] Iniciando cancelación... Token:', ocrCancelToken);
+
+    // Marcar como no procesando inmediatamente (evita doble cancelación)
+    ocrIsProcessing = false;
+
+    // 1. Notificar al backend que cancele (usar sendBeacon para mayor confiabilidad)
+    if (ocrCancelToken) {
+        const payload = JSON.stringify({ cancel_token: ocrCancelToken });
+
+        // Intentar con fetch normal primero
+        fetch(API_OCR_CANCEL_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true   // Importante: permite que la request sobreviva a la navegación
+        })
+        .then(res => res.json())
+        .then(data => console.log('[OCR Cancel] Backend respondió:', data.message))
+        .catch(err => console.warn('[OCR Cancel] Error notificando al backend:', err));
+    }
+
+    // 2. Abortar la request fetch del OCR inmediatamente
+    if (ocrAbortController) {
+        ocrAbortController.abort();
+        ocrAbortController = null;
+        console.log('[OCR Cancel] Fetch abortado.');
+    }
+
+    // 3. Limpiar token y actualizar UI
+    ocrCancelToken = null;
+    setOcrState('cancelled');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PROCESAR ARCHIVO OCR
+// El cancel_token se genera EN EL FRONTEND antes de enviar,
+// para que esté disponible inmediatamente si el usuario cancela.
+// ═══════════════════════════════════════════════════════════════════════
 function processOcrFile(file) {
     if (!file.name.toLowerCase().endsWith('.pdf')) { showOcrError('El archivo debe ser un PDF.'); return; }
+
+    // Si ya hay un proceso en curso, cancelar primero
+    if (ocrIsProcessing) {
+        cancelOcrProcess();
+    }
+
     setOcrState('loading');
+    ocrIsProcessing = true;
+
+    // ── Generar cancel_token en el frontend ANTES de enviar ──
+    ocrCancelToken = crypto.randomUUID();
+    console.log('[OCR] Token generado:', ocrCancelToken);
+
+    // Crear AbortController para esta request
+    ocrAbortController = new AbortController();
+
     const formData = new FormData();
     formData.append('contract_pdf', file);
-    fetch("{{ url_for('contract_builder.api_ocr_extract') }}", { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
+    formData.append('cancel_token', ocrCancelToken);   // ← Se envía al backend
+
+    fetch(API_OCR_EXTRACT_URL, {
+        method: 'POST',
+        body: formData,
+        signal: ocrAbortController.signal
+    })
+    .then(res => {
+        return res.json().then(data => ({ status: res.status, data: data }));
+    })
+    .then(({ status, data }) => {
+        ocrIsProcessing = false;
+
         if (data.success) {
+            ocrCancelToken = null;
             document.getElementById('ocr_raw_text').textContent = data.extracted_text;
             document.getElementById('ocr_raw_text_container').classList.remove('hidden');
             autofillForm(data.parsed, data.provider_match, data.department_match);
             setOcrState('success');
             updatePreview();
-        } else { showOcrError(data.message || 'Error desconocido en el procesamiento.'); }
+        } else if (data.status === 'cancelled' || data.status_text === 'cancelled') {
+            console.log('[OCR] Backend confirmó cancelación.');
+            setOcrState('cancelled');
+        } else {
+            showOcrError(data.message || 'Error desconocido en el procesamiento.');
+        }
     })
-    .catch(err => { console.error('OCR Error:', err); showOcrError('Error de conexión al procesar el archivo.'); });
+    .catch(err => {
+        ocrIsProcessing = false;
+
+        if (err.name === 'AbortError') {
+            console.log('[OCR] Request abortada por el usuario.');
+            setOcrState('cancelled');
+        } else {
+            console.error('OCR Error:', err);
+            showOcrError('Error de conexión al procesar el archivo.');
+        }
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Autofill desde OCR (CORREGIDO: +total_contract_amount, +debug logging)
+// Interceptores de navegación: abortar OCR al abandonar la página
+// ═══════════════════════════════════════════════════════════════════════
+
+// 1. Al cerrar/recargar la pestaña
+window.addEventListener('beforeunload', function(e) {
+    if (ocrIsProcessing && ocrCancelToken) {
+        // Abortar fetch inmediatamente
+        if (ocrAbortController) {
+            ocrAbortController.abort();
+        }
+        // sendBeacon: la request se completa incluso si la página se cierra
+        navigator.sendBeacon(
+            API_OCR_CANCEL_URL,
+            new Blob([JSON.stringify({ cancel_token: ocrCancelToken })], { type: 'application/json' })
+        );
+    }
+});
+
+// 2. Interceptar clicks en links de navegación
+document.addEventListener('click', function(e) {
+    if (!ocrIsProcessing) return;
+
+    const link = e.target.closest('a[href]');
+    if (!link) return;
+
+    const href = link.getAttribute('href');
+    if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+    console.log('[OCR] Navegación detectada, abortando OCR antes de ir a:', href);
+    cancelOcrProcess();
+}, true);
+
+// 3. Interceptar el botón "atrás" del navegador
+window.addEventListener('popstate', function() {
+    if (ocrIsProcessing) {
+        console.log('[OCR] popstate detectado, abortando OCR.');
+        cancelOcrProcess();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// Autofill desde OCR (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════
 function autofillForm(parsed, providerMatch, deptMatch) {
-    // ── Debug: ver qué llegó del backend ──
     console.log('[OCR Autofill] parsed:', parsed);
     console.log('[OCR Autofill] provider_match:', providerMatch);
     console.log('[OCR Autofill] department_match:', deptMatch);
 
-    // ── Prestador ──
     const providerHint = document.getElementById('ocr_provider_hint');
     if (providerMatch && providerMatch.id) {
         const select = document.getElementById('provider_select');
@@ -883,7 +986,6 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         providerHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
     }
 
-    // ── Departamento ──
     const deptHint = document.getElementById('ocr_dept_hint');
     if (deptMatch && deptMatch.id) {
         const select = document.getElementById('department_select');
@@ -910,7 +1012,6 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         deptHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
     }
 
-    // ── Mapping de campos (CORREGIDO: +total_contract_amount) ──
     const fieldMap = {
         'contract_number': parsed.contract_number,
         'contract_date': parsed.contract_date,
@@ -923,7 +1024,7 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         'cost_center': parsed.cost_center,
         'payment_modality': parsed.payment_modality,
         'monthly_amount_gross': parsed.monthly_amount_gross,
-        'total_contract_amount': parsed.total_contract_amount,   // ← ESTE FALTABA
+        'total_contract_amount': parsed.total_contract_amount,
         'start_date': parsed.start_date,
         'end_date': parsed.end_date
     };
@@ -936,15 +1037,11 @@ function autofillForm(parsed, providerMatch, deptMatch) {
                 el.value = value;
                 el.dispatchEvent(new Event('change'));
                 filledCount++;
-                console.log('[OCR Autofill] ✓ ' + fieldId + ' = ' + value);
-            } else {
-                console.warn('[OCR Autofill] ✗ Elemento no encontrado: #' + fieldId);
             }
         }
     }
-    console.log('[OCR Autofill] Total: ' + filledCount + ' campos rellenados de ' + Object.keys(fieldMap).length);
+    console.log('[OCR Autofill] Total: ' + filledCount + ' campos rellenados');
 
-    // ── Funciones ──
     if (parsed.functions && parsed.functions.length > 0) {
         const container = document.getElementById('functions_container');
         container.innerHTML = '';
@@ -958,7 +1055,6 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         });
         reindexFunctions();
         attachPreviewListeners();
-        console.log('[OCR Autofill] ✓ ' + parsed.functions.length + ' funciones cargadas');
     }
 }
 
@@ -1008,8 +1104,7 @@ function fetchProviderExtendedData(providerId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Preview Logic (ACTUALIZADO: +contract_date, sub_program, budget_*,
-//                 cost_center, payment_modality, provider profession)
+// Preview Logic (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════
 let previewTimeout = null;
 const PREVIEW_DEBOUNCE_MS = 400;
@@ -1023,7 +1118,6 @@ function updatePreview() {
     const providerSelect = document.getElementById('provider_select');
     const deptSelect = document.getElementById('department_select');
 
-    // ─── Prestador ───
     if (providerSelect.selectedIndex > 0) {
         const opt = providerSelect.options[providerSelect.selectedIndex];
         const name = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
@@ -1033,7 +1127,6 @@ function updatePreview() {
         document.getElementById('preview_provider_rut').textContent = rut;
         document.getElementById('preview_provider_rut2').textContent = rut;
 
-        // Profesión y nacionalidad del prestador (datos extendidos)
         let providerDesc = '';
         if (selectedProviderExtended.profession_or_trade) providerDesc = selectedProviderExtended.profession_or_trade;
         if (selectedProviderExtended.nationality) providerDesc += (providerDesc ? ', ' : '') + 'de nacionalidad ' + selectedProviderExtended.nationality;
@@ -1050,18 +1143,15 @@ function updatePreview() {
         document.getElementById('preview_provider_ext_wrapper').style.display = 'none';
     }
 
-    // ─── Departamento ───
     if (deptSelect.selectedIndex > 0) {
         document.getElementById('preview_department').textContent = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
     } else { document.getElementById('preview_department').textContent = '_______________________'; }
 
-    // ─── Fecha del contrato (contract_date → header + firma) ───
     const contractDateVal = document.getElementById('contract_date')?.value;
     const contractDateFormatted = contractDateVal ? formatDateLong(contractDateVal) : '___ de ___ de 2026';
     document.getElementById('preview_contract_date').textContent = contractDateFormatted;
     document.getElementById('preview_sign_date').textContent = contractDateFormatted;
 
-    // ─── Subprograma (condicional) ───
     const subProgramVal = document.getElementById('sub_program')?.value || '';
     const subProgramWrapper = document.getElementById('preview_sub_program_wrapper');
     if (subProgramVal) {
@@ -1069,17 +1159,14 @@ function updatePreview() {
         subProgramWrapper.style.display = '';
     } else { subProgramWrapper.style.display = 'none'; }
 
-    // ─── Cuenta presupuestaria y centro de costo ───
     const budgetVal = document.getElementById('budget_account')?.value || '';
     const costCenterVal = document.getElementById('cost_center')?.value || '';
     document.getElementById('preview_budget_account').textContent = budgetVal || '_________';
     document.getElementById('preview_cost_center').textContent = costCenterVal || '_________';
 
-    // ─── Modalidad de pago ───
     const paymentVal = document.getElementById('payment_modality')?.value || '';
     document.getElementById('preview_payment_modality').textContent = getPaymentModalityText(paymentVal);
 
-    // ─── Campos directos (existentes, sin cambios) ───
     const fieldMap = {
         'contract_number': { id: 'preview_contract_number', prefix: 'N° ', fallback: 'CT-2026-___' },
         'decline_number': { id: 'preview_decline_number', prefix: '', fallback: '_________' },
@@ -1099,7 +1186,6 @@ function updatePreview() {
         else { const el = document.getElementById(cfg.id); if (el) el.textContent = displayVal; }
     }
 
-    // ─── Funciones ───
     const funcInputs = document.querySelectorAll('input[name="functions[]"]');
     const funcContainer = document.getElementById('preview_functions');
     funcContainer.innerHTML = '';
@@ -1124,9 +1210,6 @@ function attachPreviewListeners() {
 }
 attachPreviewListeners();
 
-// ═══════════════════════════════════════════════════════════════════════
-// Listener: cambio en select de prestador → fetch datos extendidos
-// ═══════════════════════════════════════════════════════════════════════
 document.getElementById('provider_select').addEventListener('change', function() {
     const providerId = this.value;
     if (!providerId) {
@@ -1137,8 +1220,7 @@ document.getElementById('provider_select').addEventListener('change', function()
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// Provider Search (sin cambios en estructura; selectProviderFromSearch
-//                  ahora almacena datos extendidos)
+// Provider Search (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════
 const providerSearchInput = document.getElementById('provider_search_input');
 const providerSearchDropdown = document.getElementById('provider_search_dropdown');
@@ -1196,7 +1278,6 @@ function selectProviderFromSearch(provider) {
     providerSearchInput.value = provider.full_name + ' (' + provider.rut + ')';
     providerSearchClear.classList.remove('hidden');
 
-    // 1. Seleccionar en el select nativo
     const select = document.getElementById('provider_select');
     let found = false;
     for (let i = 0; i < select.options.length; i++) { if (select.options[i].value == provider.id) { select.selectedIndex = i; found = true; break; } }
@@ -1206,7 +1287,6 @@ function selectProviderFromSearch(provider) {
     }
     select.dispatchEvent(new Event('change'));
 
-    // 2. Autocompletar con último contrato si existe
     const hint = document.getElementById('ocr_provider_hint');
     const c = provider.last_contract;
 
@@ -1222,7 +1302,6 @@ function selectProviderFromSearch(provider) {
             deptSelect.dispatchEvent(new Event('change'));
         }
 
-        // Mapping de campos del último contrato (incluye campos nuevos)
         const contractFieldMap = {
             'contract_number': c.contract_number, 'contract_date': c.contract_date,
             'decline_number': c.decline_number, 'decline_date': c.decline_date,
@@ -1239,7 +1318,6 @@ function selectProviderFromSearch(provider) {
             }
         }
 
-        // Funciones del último contrato
         if (c.functions && c.functions.length > 0) {
             const container = document.getElementById('functions_container');
             container.innerHTML = '';
@@ -1263,17 +1341,15 @@ function selectProviderFromSearch(provider) {
         hint.className = 'mt-2 text-[11px] text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-200';
     }
 
-    // 3. Fetch datos extendidos del prestador (profesión, nacionalidad, etc.)
     fetchProviderExtendedData(provider.id).then(() => {
         schedulePreview();
     });
 
-    // Limpiar hint del departamento
     document.getElementById('ocr_dept_hint').className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Modal: Nuevo Prestador (ACTUALIZADO: +campos personales y bancarios)
+// Modal: Nuevo Prestador (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════
 function toggleProviderModal(show) {
     const modal = document.getElementById('provider_modal');
@@ -1295,12 +1371,10 @@ function saveQuickProvider() {
         maternal_last_name: document.getElementById('m_maternal_last_name').value,
         email: document.getElementById('m_email').value,
         phone: document.getElementById('m_phone').value,
-        // ── Nuevos campos personales ──
         profession_or_trade: document.getElementById('m_profession_or_trade').value,
         nationality: document.getElementById('m_nationality').value,
         civil_status: document.getElementById('m_civil_status').value,
         birth_date: document.getElementById('m_birth_date').value,
-        // ── Nuevos campos bancarios ──
         bank_name: document.getElementById('m_bank_name').value,
         account_type: document.getElementById('m_account_type').value,
         account_number: document.getElementById('m_account_number').value
@@ -1321,13 +1395,11 @@ function saveQuickProvider() {
             select.add(opt);
             toggleProviderModal(false);
 
-            // Limpiar todos los campos del modal
             ['m_rut','m_first_name','m_paternal_last_name','m_maternal_last_name','m_email','m_phone',
              'm_profession_or_trade','m_birth_date','m_account_number'].forEach(id => { document.getElementById(id).value = ''; });
             ['m_civil_status','m_bank_name','m_account_type'].forEach(id => { document.getElementById(id).selectedIndex = 0; });
             document.getElementById('m_nationality').value = 'Chilena';
 
-            // Almacenar datos extendidos para preview inmediato
             selectedProviderExtended = {
                 profession_or_trade: data.profession_or_trade,
                 nationality: data.nationality,
@@ -1373,11 +1445,10 @@ function saveQuickDepartment() {
         if (res.success) {
             const select = document.getElementById('department_select');
             const opt = new Option(res.label, res.id, true, true);
-            opt.setAttribute('data-name', data.name); select.add(opt);
+            opt.setAttribute('data-name', data.name);
+            select.add(opt);
             toggleDeptModal(false);
-            document.getElementById('d_code').value = '';
-            document.getElementById('d_name').value = '';
-            document.getElementById('d_cost_center').value = '';
+            ['d_code', 'd_name', 'd_cost_center'].forEach(id => { document.getElementById(id).value = ''; });
             select.dispatchEvent(new Event('change'));
             schedulePreview();
         } else { alert(res.message); }
@@ -1385,26 +1456,58 @@ function saveQuickDepartment() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Dynamic Functions (sin cambios)
+// Funciones auxiliares del formulario (sin cambios)
 // ═══════════════════════════════════════════════════════════════════════
+function reindexFunctions() {
+    document.querySelectorAll('#functions_container .function-row').forEach((row, idx) => {
+        const label = row.querySelector('.index-label');
+        if (label) label.textContent = idx + 1;
+    });
+}
+
+function removeFunctionRow(btn) {
+    const row = btn.closest('.function-row');
+    const container = document.getElementById('functions_container');
+    if (container.children.length > 1) {
+        row.remove();
+        reindexFunctions();
+        schedulePreview();
+    }
+}
+
 document.getElementById('add_function_btn').addEventListener('click', function() {
     const container = document.getElementById('functions_container');
-    const count = container.querySelectorAll('.function-row').length + 1;
+    const idx = container.children.length + 1;
     const row = document.createElement('div');
     row.className = 'function-chip flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2.5 shadow-sm function-row group';
-    row.innerHTML = '<span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center index-label">' + count + '</span>'
-        + '<input type="text" name="functions[]" required placeholder="Describa la función o cometido a desempeñar..." class="flex-grow bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none preview-trigger-function">'
+    row.innerHTML = '<span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center index-label">' + idx + '</span>'
+        + '<input type="text" name="functions[]" required placeholder="Describa la función o cometido..." class="flex-grow bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none preview-trigger-function">'
         + '<button type="button" onclick="removeFunctionRow(this)" class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 w-6 h-6 rounded-md bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center text-xs font-bold"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>';
     container.appendChild(row);
-    const newInput = row.querySelector('.preview-trigger-function');
-    if (newInput) newInput.addEventListener('input', schedulePreview);
-    schedulePreview();
+    attachPreviewListeners();
+    row.querySelector('input').focus();
 });
-function removeFunctionRow(btn) {
-    const container = document.getElementById('functions_container');
-    if (container.querySelectorAll('.function-row').length > 1) { btn.closest('.function-row').remove(); reindexFunctions(); schedulePreview(); }
+
+function saveDraft() { alert('Funcionalidad de borrador pendiente de implementación.'); }
+
+// Auto-calcular total cuando cambian monto o fechas
+document.getElementById('monthly_amount_gross').addEventListener('input', autoCalcTotal);
+document.getElementById('start_date').addEventListener('change', autoCalcTotal);
+document.getElementById('end_date').addEventListener('change', autoCalcTotal);
+
+function autoCalcTotal() {
+    const monthly = parseFloat(document.getElementById('monthly_amount_gross').value) || 0;
+    const sd = document.getElementById('start_date').value;
+    const ed = document.getElementById('end_date').value;
+    if (monthly && sd && ed) {
+        const start = new Date(sd + 'T00:00:00');
+        const end = new Date(ed + 'T00:00:00');
+        const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+        if (months > 0) {
+            document.getElementById('total_contract_amount').value = (monthly * months).toFixed(0);
+        }
+    }
 }
-function reindexFunctions() { document.querySelectorAll('.function-row').forEach((row, index) => { row.querySelector('.index-label').textContent = (index + 1); }); }
-function saveDraft() { alert('Borrador guardado correctamente.'); }
 </script>
+
 {% endblock %}

@@ -1,4 +1,3 @@
-# app/routes/contract_builder.py
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -9,12 +8,51 @@ from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction
 from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
-from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es
+from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es, OCRCancelledException
 import os
 import tempfile
 import uuid
+import threading
 
 contract_builder_bp = Blueprint('contract_builder', __name__, url_prefix='/contracts')
+
+
+# =============================================================================
+# REGISTRY DE CANCELACIÓN OCR (thread-safe)
+# =============================================================================
+# Diccionario que almacena tokens de OCR en curso.
+# Cuando el usuario cancela, el frontend envía su token al endpoint
+# /api/ocr-cancel, y se marca como True. El bucle de OCR consulta
+# este diccionario entre cada página y detiene el procesamiento.
+_ocr_cancel_registry = {}
+_ocr_cancel_lock = threading.Lock()
+
+
+def _register_cancel_token(token):
+    """Registra un nuevo token como activo (no cancelado)."""
+    with _ocr_cancel_lock:
+        _ocr_cancel_registry[token] = False
+
+
+def _mark_cancelled(token):
+    """Marca un token como cancelado."""
+    with _ocr_cancel_lock:
+        if token in _ocr_cancel_registry:
+            _ocr_cancel_registry[token] = True
+            return True
+        return False
+
+
+def _is_token_cancelled(token):
+    """Verifica si un token fue marcado como cancelado."""
+    with _ocr_cancel_lock:
+        return _ocr_cancel_registry.get(token, False)
+
+
+def _unregister_cancel_token(token):
+    """Limpia un token del registry (tanto si fue exitoso como cancelado)."""
+    with _ocr_cancel_lock:
+        _ocr_cancel_registry.pop(token, None)
 
 
 # =============================================================================
@@ -115,7 +153,6 @@ def create():
 @login_required
 def detail(contract_id):
     contract = Contract.query.get_or_404(contract_id)
-    # ── Trazabilidad: obtener historial completo ──
     audit_trail = get_contract_audit_trail(contract_id)
     return render_template('contracts/detail.html', contract=contract, audit_trail=audit_trail)
 
@@ -143,7 +180,6 @@ def edit(contract_id):
             contract.end_date = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
             contract.status = request.form.get('status', 'BORRADOR')
 
-            # ── Nuevos campos (estructura Freire) ──
             contract_date_str = request.form.get('contract_date')
             contract.contract_date = datetime.strptime(contract_date_str, '%Y-%m-%d').date() if contract_date_str else None
             contract.budget_account = request.form.get('budget_account', '').strip() or None
@@ -151,7 +187,6 @@ def edit(contract_id):
             contract.cost_center = request.form.get('cost_center', '').strip() or None
             contract.payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
 
-            # ── Trazabilidad: registrar quién modifica ──
             current_user = get_current_user()
             contract.last_modified_by_user_id = current_user.id if current_user else None
 
@@ -181,7 +216,7 @@ def edit(contract_id):
 
 
 # =============================================================================
-# VISTA PREVIA / BORRADOR (para contratos ya guardados)
+# VISTA PREVIA / BORRADOR
 # =============================================================================
 @contract_builder_bp.route('/<int:contract_id>/preview')
 @login_required
@@ -226,8 +261,6 @@ def change_status(contract_id):
 
     if new_status in allowed:
         contract.status = new_status
-
-        # ── Trazabilidad: registrar quién cambió el estado ──
         current_user = get_current_user()
         contract.last_modified_by_user_id = current_user.id if current_user else None
 
@@ -278,7 +311,6 @@ def upload_external():
                 except Exception as ocr_e:
                     flash(f'Advertencia OCR: {str(ocr_e)}', 'warning')
 
-                # ── Trazabilidad: registrar quién carga ──
                 current_user = get_current_user()
 
                 new_contract = Contract(
@@ -421,7 +453,7 @@ def api_preview():
 
 
 # =============================================================================
-# API: EXTRACCIÓN OCR PARA AUTOCOMPLETADO (Drag & Drop)
+# API: EXTRACCIÓN OCR PARA AUTOCOMPLETADO (Drag & Drop) — CON CANCELACIÓN
 # =============================================================================
 @contract_builder_bp.route('/api/ocr-extract', methods=['POST'])
 @login_required
@@ -437,6 +469,16 @@ def api_ocr_extract():
     if not file.filename.lower().endswith('.pdf'):
         return jsonify({'success': False, 'message': 'Solo se permiten archivos PDF.'}), 400
 
+    # ── El cancel_token viene del frontend (generado con crypto.randomUUID()) ──
+    cancel_token = request.form.get('cancel_token', '').strip()
+    if not cancel_token:
+        cancel_token = uuid.uuid4().hex  # Fallback por seguridad
+
+    _register_cancel_token(cancel_token)
+
+    def is_cancelled():
+        return _is_token_cancelled(cancel_token)
+
     temp_path = None
     try:
         temp_dir = tempfile.gettempdir()
@@ -444,7 +486,7 @@ def api_ocr_extract():
         temp_path = os.path.join(temp_dir, temp_filename)
         file.save(temp_path)
 
-        extracted_text = extract_text_from_pdf(temp_path)
+        extracted_text = extract_text_from_pdf(temp_path, is_cancelled=is_cancelled)
         parsed = parse_contract_data(extracted_text)
 
         # ── Buscar o AUTO-CREAR prestador ──
@@ -537,21 +579,64 @@ def api_ocr_extract():
 
         return jsonify({
             'success': True,
+            'cancel_token': cancel_token,
             'extracted_text': extracted_text,
             'parsed': parsed,
             'provider_match': provider_match,
             'department_match': dept_match
         })
 
+    except OCRCancelledException:
+        current_app.logger.info(f"OCR cancelado por el usuario (token: {cancel_token[:8]}...)")
+        return jsonify({
+            'success': False,
+            'status_text': 'cancelled',
+            'message': 'El procesamiento OCR fue cancelado por el usuario.'
+        }), 200
+
     except Exception as e:
         current_app.logger.error(f"Error OCR extract: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
     finally:
         if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except:
                 pass
+        _unregister_cancel_token(cancel_token)
+
+
+# =============================================================================
+# API: CANCELAR PROCESO OCR EN CURSO (NUEVO)
+# =============================================================================
+@contract_builder_bp.route('/api/ocr-cancel', methods=['POST'])
+@login_required
+def api_ocr_cancel():
+    """
+    Endpoint para cancelar un proceso OCR en curso.
+    Recibe el cancel_token que se devolvió en la respuesta de /api/ocr-extract.
+    El motor OCR verificará este token entre cada página y detendrá el procesamiento.
+    """
+    data = request.get_json() or {}
+    cancel_token = data.get('cancel_token', '').strip()
+
+    if not cancel_token:
+        return jsonify({'success': False, 'message': 'Token de cancelación no proporcionado.'}), 400
+
+    was_marked = _mark_cancelled(cancel_token)
+
+    if was_marked:
+        current_app.logger.info(f"Solicitud de cancelación OCR registrada (token: {cancel_token[:8]}...)")
+        return jsonify({
+            'success': True,
+            'message': 'Solicitud de cancelación registrada. El proceso se detendrá en la próxima página.'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'El token no existe o el proceso ya finalizó.'
+        }), 404
 
 
 # =============================================================================
