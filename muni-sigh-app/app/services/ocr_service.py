@@ -16,18 +16,18 @@ from paddleocr import PaddleOCR
 
 # 2. Desactivar oneDNN (enable_mkldnn=False)
 ocr_engine = PaddleOCR(
-    lang='es', 
-    use_textline_orientation=False, 
-    use_doc_orientation_classify=False, 
-    use_doc_unwarping=False, 
+    lang='es',
+    use_textline_orientation=False,
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
     enable_mkldnn=False
 )
 
 
 def extract_text_from_pdf(file_path: str) -> str:
     """
-    Intenta extraer texto de un PDF de forma nativa. 
-    Si no encuentra texto suficiente (probablemente un documento escaneado), 
+    Intenta extraer texto de un PDF de forma nativa.
+    Si no encuentra texto suficiente (probablemente un documento escaneado),
     aplica OCR a las páginas convirtiéndolas a imagen primero.
     """
     extracted_text = ""
@@ -71,23 +71,17 @@ def _extract_via_ocr(file_path: str) -> str:
         for page_index in range(total_pages):
             print(f"    - Procesando página {page_index + 1}/{total_pages}...")
             try:
-                # Reducimos el zoom a 1.5 (~108 DPI) para que sea más rápido en CPU
                 page = doc.load_page(page_index)
-                zoom = 1.5  
-                #oom = 1.0
+                zoom = 1.5
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat, alpha=False)
 
-                # Convertir a array NumPy
                 img_data = pix.tobytes("png")
                 pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
-                #il_img = Image.open(io.BytesIO(img_data)).convert("L")
                 img_array = np.array(pil_img)
 
-                # Ejecutar predicción
                 result_gen = ocr_engine.predict(input=img_array)
 
-                # PaddleOCR 3.x a veces devuelve un generador, lo convertimos a lista
                 if not isinstance(result_gen, list):
                     results = list(result_gen)
                 else:
@@ -95,22 +89,20 @@ def _extract_via_ocr(file_path: str) -> str:
 
                 if results and len(results) > 0:
                     page_res = results[0]
-                    
-                    # Extraer los textos reconocidos
+
                     texts = []
                     if hasattr(page_res, 'rec_texts'):
                         texts = page_res.rec_texts
                     elif isinstance(page_res, dict) and 'rec_texts' in page_res:
                         texts = page_res['rec_texts']
-                    
+
                     lines_count = 0
                     for t in texts:
                         if t and t.strip():
-                            ocr_text += t.strip() + " "
+                            ocr_text += t.strip() + "\n"
                             lines_count += 1
-                    ocr_text += "\n"
                     print(f"      ✓ Texto extraído en página {page_index + 1}: {lines_count} líneas")
-                    
+
             except Exception as page_err:
                 logging.error(f"Error OCR en página {page_index}: {page_err}")
                 continue
@@ -119,9 +111,6 @@ def _extract_via_ocr(file_path: str) -> str:
         doc.close()
 
     return ocr_text.strip()
-# =============================================================================
-# AQUÍ MANTIENES TODO TU CÓDIGO ORIGINAL (Fechas y Parser)
-# =============================================================================
 
 
 # =============================================================================
@@ -150,13 +139,13 @@ def format_date_es(date_input) -> str:
     """
     if not date_input:
         return '___ de ________ de ____'
-    
+
     try:
         if isinstance(date_input, str):
             date_input = datetime.strptime(date_input, '%Y-%m-%d').date()
         elif isinstance(date_input, datetime):
             date_input = date_input.date()
-        
+
         day = date_input.day
         month = _MONTHS_ES_LIST[date_input.month - 1]
         year = date_input.year
@@ -166,13 +155,82 @@ def format_date_es(date_input) -> str:
 
 
 # =============================================================================
-# PARSER INTELIGENTE DE DATOS DE CONTRATO
+# HELPERS NUEVOS
+# =============================================================================
+
+def _try_match(text: str, patterns: list, flags=re.IGNORECASE):
+    """
+    Intenta múltiples regex contra el texto y devuelve el primer match encontrado.
+    Permite tener patrones primarios y de fallback para cada campo.
+    """
+    for pattern in patterns:
+        m = re.search(pattern, text, flags)
+        if m:
+            return m
+    return None
+
+
+def _normalize_amount(raw: str):
+    """
+    Convierte un string de monto (con puntos, comas, espacios) a entero.
+    Ej: '5.481.000' → 5481000, '$ 913.500' → 913500
+    """
+    if not raw:
+        return None
+    cleaned = re.sub(r'[^\d]', '', raw.strip())
+    if not cleaned:
+        return None
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def _parse_any_date(date_str: str) -> str:
+    """
+    Convierte CUALQUIER formato de fecha encontrado en el OCR a ISO YYYY-MM-DD.
+    Soporta: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD de mes de YYYY, YYYY/MM/DD
+    """
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+
+    # YYYY-MM-DD
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', date_str)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+    # DD/MM/YYYY o DD-MM-YYYY
+    m = re.match(r'^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$', date_str)
+    if m:
+        return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
+
+    # DD de mes de YYYY (ej: "30 de junio de 2026")
+    m = re.search(r'(\d{1,2})\s+de\s+([a-zA-Záéíóú]+)\s+de\s+(\d{4})', date_str, re.IGNORECASE)
+    if m:
+        day, month_name, year = m.groups()
+        month = _MONTHS_ES.get(month_name.lower().strip(), 1)
+        return f"{int(year):04d}-{month:02d}-{int(day):02d}"
+
+    # YYYY/MM/DD
+    m = re.match(r'^(\d{4})/(\d{1,2})/(\d{1,2})$', date_str)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+    return date_str
+
+
+# =============================================================================
+# PARSER INTELIGENTE DE DATOS DE CONTRATO (REESCRITO)
 # =============================================================================
 
 def parse_contract_data(text: str) -> dict:
     """
     Analiza texto extraído de un contrato a honorarios municipal y extrae datos estructurados.
     Retorna un diccionario mapeado para auto-completar el formulario/contexto.
+
+    V3: Regex reescritos con múltiples patrones de fallback para manejar
+    la variabilidad real de contratos municipales chilenos.
     """
     data = {
         # Prestador
@@ -182,20 +240,20 @@ def parse_contract_data(text: str) -> dict:
         'provider_nationality': None,
         'provider_address': None,
         'provider_email': None,
-        
+
         # Objeto y Estructura
         'position_title': None,
         'program_name': None,
         'sub_program': None,
         'department_name': None,
-        
+
         # Presupuesto y Pagos
         'monthly_amount_gross': None,
         'total_contract_amount': None,
         'budget_account': None,
         'cost_center': None,
         'payment_modality': 'MENSUAL_FIJO',
-        
+
         # Fechas y Documentos
         'start_date': None,
         'end_date': None,
@@ -203,140 +261,248 @@ def parse_contract_data(text: str) -> dict:
         'decline_number': None,
         'decline_date': None,
         'contract_number': None,
-        
+
         # Funciones
         'functions': [],
         'raw_text': text
     }
 
     full_text = text
-    # ── 1. NÚMERO DE CONTRATO Y DECRETO ──────────────────────────────────────
-    match_ct = re.search(r'(?:N[°o]|N°\s*)(CT-\d{4}-\d{4})', full_text, re.IGNORECASE)
-    if match_ct:
-        data['contract_number'] = match_ct.group(1).upper()
 
-    match_dec = re.search(r'Decreto\s+Alcaldicio\s+N[°o]?\s*(\d+)(?:\s+de\s+fecha\s+([\d\-]{10}))?', full_text, re.IGNORECASE)
+    # ── 1. NÚMERO DE CONTRATO ──────────────────────────────────────────────
+    match_ct = _try_match(full_text, [
+        r'(?:N[°oº\.]*\s*)(CT-\d{4}-\d{3,6})',
+        r'(?:N[°oº\.]*\s*)(CH-\d{4}-\d{3,6})',
+        r'(CT-\d{4}-\d{3,6})',
+        r'(CH-\d{4}-\d{3,6})',
+        r'(?:Contrato\s+(?:N[°oº\.]*\s*)?)(\w{2,4}-\d{4}-\d{3,6})',
+    ])
+    if match_ct:
+        data['contract_number'] = match_ct.group(1).upper().strip()
+
+    # ── 2. DECRETO ALCALDICIO (INTELIGENTE) ────────────────────────────────
+    # Problema anterior: encontraba decreto 215 (referencia) en vez de 1824 (principal).
+    # Solución: primero buscar el decreto cerca de "APRUEBA" (el operativo),
+    # luego buscar el decreto con fecha, y finalmente el primero del documento.
+    match_dec = _try_match(full_text, [
+        # Patrón 1: Decreto cerca de APRUEBA (el decreto principal)
+        r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)[\s\S]{0,200}?(?:APRUEBA|Aprueba|aprueba)',
+        # Patrón 2: Decreto con fecha inline (formato YYYY-MM-DD o DD-MM-YYYY)
+        r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)\s*(?:,\s*|\s+de\s+fecha\s+|\s+del?\s+)([\d\-/]{8,12})',
+        # Patrón 3: Primer decreto del documento (sin fecha)
+        r'(?:DECRETO\s+ALCALDICIO|Decreto\s+Alcaldicio)\s+N[°oº\.\s]*\s*(\d+)',
+        # Patrón 4: Abreviatura D.A.
+        r'(?:D\.A\.|DA)\s+N[°oº\.]*\s*(\d+)',
+    ])
     if match_dec:
         data['decline_number'] = match_dec.group(1)
-        if match_dec.group(2):
-            data['decline_date'] = match_dec.group(2)
+        if match_dec.lastindex >= 2 and match_dec.group(2):
+            data['decline_date'] = _parse_any_date(match_dec.group(2))
 
-    # ── 2. PRESTADOR DE SERVICIOS ────────────────────────────────────────────
-    # Extrae directamente a don(ña) <nombre>, RUT <rut>, <profesion>
-    match_prestador = re.search(
-        r'don\(ña\)\s+([^\,]+),\s*cédula\s+de\s+identidad\s+N[°o]?\s*([\d\.\-kK]+)',
-        full_text,
-        re.IGNORECASE
-    )
+    # ── 3. FECHA DEL DOCUMENTO (para contract_date y decline_date) ─────────
+    # Busca "En la comuna de X, a DD de mes de YYYY" o "CUNCO, DD de mes de YYYY"
+    match_doc_date = _try_match(full_text, [
+        r'(?:En\s+la\s+comuna\s+de\s+\w+),?\s+a\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
+        r'(?:[A-Z]{2,}),?\s+a\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
+        r'[Ff]echa\s+de\s+firma\s*:\s*(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
+        r'[Ff]echa\s+de\s+firma\s*:\s*([\d\-/]{8,12})',
+    ])
+    if match_doc_date:
+        parsed_date = _parse_any_date(match_doc_date.group(1))
+        if not data['contract_date']:
+            data['contract_date'] = parsed_date
+        if not data['decline_date']:
+            data['decline_date'] = parsed_date
+
+    # ── 4. PRESTADOR (nombre + RUT) ────────────────────────────────────────
+    # Acepta: don(a), don(ña), doña, don — nombres en MAYÚSCULAS o Title Case
+    # Acepta: Cédula Nacional de Identidad, Cédula de Identidad, RUT, R.U.T.
+    # Maneja "de nacionalidad X" entre nombre e identificador
+    match_prestador = _try_match(full_text, [
+        # Patrón 1: don(a) NOMBRE, [de nacionalidad X,] Cédula Nacional de Identidad N° RUT
+        r'don(?:$$[^)]*$$)?\s+([^,]+?)(?:,\s*de\s+nacionalidad\s+\w+)?,\s*(?:[Cc]édula\s+(?:Nacional\s+de\s+)?[Ii]dentidad)\s*(?:N?[°oº\.:\s]+)\s*([\d\.\-\s]+[kK]?)',
+        # Patrón 2: don(a) NOMBRE, R.U.T.: RUT
+        r'don(?:$$[^)]*$$)?\s+([^,]+),\s*[Rr](?:\.?U\.?T\.?|ut)\s*(?::?\s*N?[°oº\.:\s]*)\s*([\d\.\-\s]+[kK]?)',
+        # Patrón 3: NOMBRE EN MAYÚSCULAS, RUT (genérico)
+        r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.]+?),\s*(?:R\.?U\.?T\.?|CI)\s*(?:N?[°oº\.:\s]*)\s*([\d\.\-\s]+[kK]?)',
+    ])
     if match_prestador:
-        data['full_name'] = match_prestador.group(1).strip().title()
-        data['rut'] = match_prestador.group(2).replace('.', '').strip().upper()
+        data['full_name'] = re.sub(r'\s+', ' ', match_prestador.group(1).strip()).title()
+        # NO eliminar puntos del RUT para que coincida con el formato de la BD
+        data['rut'] = re.sub(r'\s', '', match_prestador.group(2)).strip().upper()
 
-    # ── 3. CARGO, PROGRAMA, SUBPROGRAMA Y DEPARTAMENTO ───────────────────────
-    match_prog = re.search(
-        r'servicio\s+de\s+([^,]+),\s*para\s+el\s+programa\s+municipal\s+([^,]+)(?:,\s*subprograma\s+([^,]+))?,\s*dependiente\s+de\s+la\s+([^\.]+)',
-        full_text,
-        re.IGNORECASE
-    )
+    # ── 5. PROGRAMA ────────────────────────────────────────────────────────
+    match_prog = _try_match(full_text, [
+        r'programa\s+(?:denominado\s+)?["""\']?([^"""\',\.]+)',
+        r'Programa\s+["""\']?([^"""\',\.]+)',
+        r'programa\s+municipal\s+([^,\.]+)',
+    ])
     if match_prog:
-        data['position_title'] = match_prog.group(1).strip().capitalize()
-        data['program_name'] = match_prog.group(2).strip()
-        if match_prog.group(3):
-            data['sub_program'] = match_prog.group(3).strip()
-        data['department_name'] = match_prog.group(4).strip()
+        data['program_name'] = match_prog.group(1).strip()
 
-    # ── 4. PRESUPUESTO ───────────────────────────────────────────────────────
-    match_cuenta = re.search(r'cuenta\s+presupuestaria\s+N[°o]?\s*([\d\.]+)', full_text, re.IGNORECASE)
-    if match_cuenta:
-        data['budget_account'] = match_cuenta.group(1).strip()
+    # ── 6. SUBPROGRAMA ─────────────────────────────────────────────────────
+    match_sub = _try_match(full_text, [
+        r'subprograma\s+([^,\.]+)',
+    ])
+    if match_sub:
+        data['sub_program'] = match_sub.group(1).strip()
 
-    match_centro = re.search(r'centro\s+de\s+costo\s+([\d\.]+)', full_text, re.IGNORECASE)
+    # ── 7. DEPARTAMENTO ────────────────────────────────────────────────────
+    match_dept = _try_match(full_text, [
+        r'de\s+la\s+(ADMINISTRACI[ÓO]N\s+MUNICIPAL)',
+        r'(?:dependiente\s+de\s+la|de\s+la)\s+((?:DIRECCI[ÓO]N|UNIDAD)\s+DE\s+[A-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ]+)*)',
+        r'(?:dependiente\s+de\s+la|de\s+la)\s+((?:Dirección|Unidad)\s+de\s+[A-Za-záéíóúñ]+(?:\s+[A-Za-záéíóúñ]+)*)',
+    ])
+    if match_dept:
+        data['department_name'] = match_dept.group(1).strip().title()
+
+    # ── 8. CARGO / POSICIÓN ────────────────────────────────────────────────
+    match_pos = _try_match(full_text, [
+        r'servicio\s+de\s+([^,\.]+?)(?:,|\s+para\s+)',
+        r'(?:cargo|puesto)\s+(?:de\s+)?([^,\.]+)',
+    ])
+    if match_pos:
+        data['position_title'] = match_pos.group(1).strip().capitalize()
+
+    # ── 9. PRESUPUESTO ─────────────────────────────────────────────────────
+    match_budget = _try_match(full_text, [
+        r'[ÍI]tem\s+([\d\.]+)\s+del\s+Presupuesto',
+        r'cuenta\s+presupuestaria\s+(?:N?[°oº\.]*\s*)?([\d\.\-]+)',
+        r'imputaci[óo]n\s+presupuestaria[^\d]*([\d\.\-]+)',
+    ])
+    if match_budget:
+        data['budget_account'] = match_budget.group(1).strip()
+
+    match_centro = _try_match(full_text, [
+        r'centro\s+de\s+costo\s+(?:N?[°oº\.]*\s*)?([\d\.\-]+)',
+    ])
     if match_centro:
         data['cost_center'] = match_centro.group(1).strip()
 
-    # ── 5. FECHAS ────────────────────────────────────────────────────────────
-    # Fecha de Firma
-    match_firma = re.search(r'Fecha\s+de\s+firma:\s*([\d\-]{10})', full_text, re.IGNORECASE)
-    if match_firma:
-        data['contract_date'] = match_firma.group(1)
-
-    # Fechas de Vigencia (Inicio y Término)
-    match_vigencia = re.search(
-        r'duración\s+desde\s+el\s+([\d\-]{10})\s+hasta\s+el\s+([\d\-]{10})',
-        full_text,
-        re.IGNORECASE
-    )
+    # ── 10. VIGENCIA (fechas inicio y término) ─────────────────────────────
+    match_vigencia = _try_match(full_text, [
+        # "regirá desde 01 de julio de 2026 al 31 de diciembre de 2026"
+        r'(?:regir[áa]|vigencia|duraci[óo]n|regir[áa])\s+desde\s+(?:el\s+)?(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})\s+(?:hasta\s+(?:el\s+)?|al\s+)(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
+        # "duración desde el 2026-01-01 hasta el 2026-12-31"
+        r'(?:regir[áa]|vigencia|duraci[óo]n)\s+desde\s+(?:el\s+)?([\d\-/]{8,12})\s+(?:hasta\s+(?:el\s+)?|al\s+)([\d\-/]{8,12})',
+        # "desde 01 de julio de 2026 hasta 31 de diciembre de 2026" (sin palabra clave)
+        r'desde\s+(?:el\s+)?(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})\s+(?:hasta\s+(?:el\s+)?|al\s+)(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})',
+    ])
     if match_vigencia:
-        data['start_date'] = match_vigencia.group(1)
-        data['end_date'] = match_vigencia.group(2)
+        data['start_date'] = _parse_any_date(match_vigencia.group(1))
+        data['end_date'] = _parse_any_date(match_vigencia.group(2))
 
-    # ── 6. MONTOS (Sin errores de decimales flotantes) ──────────────────────
-    match_monto = re.search(r'renta\s+bruta\s+mensual[^\$]*\$\s*([\d\.]+)', full_text, re.IGNORECASE)
-    if match_monto:
-        # Remueve el .0 al final en caso de venir del PDF
-        raw_val = match_monto.group(1).split('.')[0]
-        try:
-            data['monthly_amount_gross'] = int(raw_val)
-        except ValueError:
-            pass
-
-    match_total = re.search(r'monto\s+total\s+del\s+contrato[^\$]*\$\s*([\d\.]+)', full_text, re.IGNORECASE)
+    # ── 11. MONTOS ─────────────────────────────────────────────────────────
+    # Total: "suma única y total de $5.481.000", "monto total del contrato $X"
+    match_total = _try_match(full_text, [
+        r'suma\s+(?:[úu]nica\s+y\s+)?total\s+(?:de\s+)?\$\s*([\d\.\,]+)',
+        r'monto\s+total\s+(?:del\s+)?contrato[^\$]*\$\s*([\d\.\,]+)',
+        r'(?:monto|valor)\s+total[^\$]*\$\s*([\d\.\,]+)',
+    ])
     if match_total:
-        raw_total = match_total.group(1).split('.')[0]
-        try:
-            data['total_contract_amount'] = int(raw_total)
-        except ValueError:
-            pass
+        data['total_contract_amount'] = _normalize_amount(match_total.group(1))
 
+    # Mensual: "6 cuota(s) Mensual sucesiva(s) de $913.500", "renta bruta mensual $X"
+    match_monto = _try_match(full_text, [
+        r'\d+\s*cuota[^\$]*\$\s*([\d\.\,]+)',
+        r'renta\s+bruta\s+mensual[^\$]*\$\s*([\d\.\,]+)',
+        r'(?:monto|honorario)\s+(?:bruto\s+)?mensual[^\$]*\$\s*([\d\.\,]+)',
+    ])
+    if match_monto:
+        data['monthly_amount_gross'] = _normalize_amount(match_monto.group(1))
+
+    # Modalidad
     if 'producto o servicio entregado' in full_text.lower():
         data['payment_modality'] = 'POR_PRODUCTO'
 
-    # ── 7. FUNCIONES ESPECÍFICAS (Aisladas de la Cláusula Quinta) ─────────────
+    # ── 12. FUNCIONES ──────────────────────────────────────────────────────
     data['functions'] = extract_functions(full_text)
+
+    # ── DEBUG: Log de campos extraídos ─────────────────────────────────────
+    extracted_fields = {k: v for k, v in data.items() if v is not None and k not in ('raw_text', 'functions')}
+    logging.info(f"OCR Parser: {len(extracted_fields)} campos extraídos: {list(extracted_fields.keys())}")
+    if data['functions']:
+        logging.info(f"OCR Parser: {len(data['functions'])} funciones extraídas")
 
     return data
 
 
 def _parse_date_string(date_str: str) -> str:
     """Helper interno para convertir cualquier variante de fecha a ISO YYYY-MM-DD."""
-    if not date_str:
-        return None
-    date_str = date_str.strip()
-
-    # Si ya es ISO (2026-06-19)
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return date_str
-
-    # Formato text "19 de junio de 2026"
-    match_text = re.search(r'(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})', date_str, re.IGNORECASE)
-    if match_text:
-        day, month_name, year = match_text.groups()
-        month = _MONTHS_ES.get(month_name.lower(), 1)
-        return f"{int(year):04d}-{month:02d}-{int(day):02d}"
-
-    # Formato DD/MM/YYYY
-    match_slash = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
-    if match_slash:
-        day, month, year = match_slash.groups()
-        return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
-
-    return date_str
+    return _parse_any_date(date_str)
 
 
 def extract_functions(text: str) -> list:
+    """
+    Extrae funciones/cometidos del contrato.
+    V3: Soporta listas numeradas (1. 2. 3.), con guiones (- item),
+    y bullets (• item). Maneja items multi-línea.
+    """
     functions = []
-    # Busca únicamente el bloque numerado entre "siguientes:" y "El Prestador se obliga"
-    match_sec = re.search(
-        r'Serán\s+funciones\s+específicas\s+del\s+Prestador\s+las\s+siguientes:\s*(.*?)(?=El\s+Prestador\s+se\s+obliga|SEXTO:|$)',
-        text,
-        re.DOTALL | re.IGNORECASE
-    )
+
+    # Buscar bloque de funciones con múltiples encabezados posibles
+    match_sec = _try_match(text, [
+        # "Serán funciones específicas del Prestador las siguientes:"
+        r'(?:Ser[áa]n\s+)?funciones\s+(?:espec[íi]ficas\s+)?(?:del\s+Prestador\s+)?las\s+siguientes\s*:\s*(.*?)(?:El\s+Prestador\s+se\s+obliga|TERCERO|CUARTO|SEXTO|S[EÉ]PTIMO|CL[AÁ]USULA|ESTADO\s+DE\s+PAGO)',
+        # "en las siguientes funciones:"
+        r'en\s+las\s+siguientes\s+funciones\s*:\s*(.*?)(?:ESTADO\s+DE\s+PAGO|TERCERO|CUARTO|Modalidad)',
+        # "Cometidos específicos:" (con dos puntos)
+        r'Cometidos\s+espec[íi]ficos\s*:\s*(.*?)(?:TERCERO|CUARTO|ESTADO\s+DE\s+PAGO|Modalidad)',
+        # "funciones:" (genérico)
+        r'funciones\s*:\s*(.*?)(?:TERCERO|CUARTO|ESTADO\s+DE\s+PAGO|Modalidad)',
+    ], flags=re.DOTALL | re.IGNORECASE)
+
     if match_sec:
         block = match_sec.group(1)
-        # Extrae las líneas numeradas tipo 1. 2. 3.
-        matches = re.findall(r'^\s*\d+[\.\)]\s*(.+)$', block, re.MULTILINE)
-        for m in matches:
-            clean = m.strip()
-            if clean:
-                functions.append(clean)
+
+        # Intentar extraer items numerados primero (1. texto / 1) texto)
+        numbered = re.findall(
+            r'(?:^|\n)\s*\d+[\.\)]\s+(.+?)(?=\n\s*\d+[\.\)]|\s*$)',
+            block, re.MULTILINE
+        )
+        if numbered:
+            for m in numbered:
+                clean = re.sub(r'\s+', ' ', m.strip())
+                if clean and len(clean) > 5:
+                    functions.append(clean)
+        else:
+            # Extraer items con guion/bullet (manejo multi-línea)
+            lines = block.split('\n')
+            current_item = []
+            for line in lines:
+                stripped = line.strip()
+                if re.match(r'^[-•*]\s*', stripped):
+                    # Nuevo item: guardar el anterior si existe
+                    if current_item:
+                        clean = re.sub(r'\s+', ' ', ' '.join(current_item).strip())
+                        if clean and len(clean) > 5:
+                            functions.append(clean)
+                    # Iniciar nuevo item (quitar el guion/bullet)
+                    current_item = [re.sub(r'^[-•*]\s*', '', stripped)]
+                elif current_item and stripped:
+                    # Continuación multi-línea del item actual
+                    current_item.append(stripped)
+                elif not current_item and stripped and functions and len(stripped) > 15:
+                    # Línea sin guion entre funciones detectadas
+                    # (posible item con guion faltante por error de OCR)
+                    if not re.match(r'^(?:ESTADO|TERCERO|CUARTO|Modalidad|La Municipalidad|MUNICIPALIDAD)', stripped, re.IGNORECASE):
+                        functions.append(stripped)
+
+            # Guardar último item
+            if current_item:
+                clean = re.sub(r'\s+', ' ', ' '.join(current_item).strip())
+                if clean and len(clean) > 5:
+                    functions.append(clean)
+
+    # Fallback: buscar líneas con palabras clave de función
+    if not functions:
+        for line in text.split('\n'):
+            line = line.strip()
+            if any(k in line.lower() for k in ['función', 'cometido', 'deber', 'tarea']):
+                m = re.match(r'^\s*(?:\d+[\.\)]\s*|[a-z][\.\)]\s*|[-•]\s*)(.+)$', line)
+                if m:
+                    clean = m.group(1).strip()
+                    if clean and len(clean) > 10:
+                        functions.append(clean)
+
     return functions

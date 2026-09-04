@@ -847,48 +847,70 @@ function processOcrFile(file) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Autofill desde OCR (ACTUALIZADO: +nuevos campos)
+// Autofill desde OCR (CORREGIDO: +total_contract_amount, +debug logging)
 // ═══════════════════════════════════════════════════════════════════════
 function autofillForm(parsed, providerMatch, deptMatch) {
+    // ── Debug: ver qué llegó del backend ──
+    console.log('[OCR Autofill] parsed:', parsed);
+    console.log('[OCR Autofill] provider_match:', providerMatch);
+    console.log('[OCR Autofill] department_match:', deptMatch);
+
+    // ── Prestador ──
     const providerHint = document.getElementById('ocr_provider_hint');
     if (providerMatch && providerMatch.id) {
         const select = document.getElementById('provider_select');
         let found = false;
-        for (let i = 0; i < select.options.length; i++) { if (select.options[i].value == providerMatch.id) { select.selectedIndex = i; found = true; break; } }
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value == providerMatch.id) { select.selectedIndex = i; found = true; break; }
+        }
         if (!found) {
             const opt = new Option(providerMatch.name + ' (' + providerMatch.rut + ')', providerMatch.id, true, true);
-            opt.setAttribute('data-rut', providerMatch.rut); opt.setAttribute('data-name', providerMatch.name); select.add(opt);
+            opt.setAttribute('data-rut', providerMatch.rut);
+            opt.setAttribute('data-name', providerMatch.name);
+            select.add(opt);
         }
         select.dispatchEvent(new Event('change'));
         if (providerMatch.auto_created) {
             providerHint.textContent = '✅ Prestador "' + providerMatch.name + '" (' + providerMatch.rut + ') registrado automáticamente.';
             providerHint.className = 'mt-2 text-[11px] text-green-700 bg-green-50 px-2.5 py-1.5 rounded-md border border-green-200';
-        } else { providerHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border'; }
+        } else {
+            providerHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
+        }
     } else if (parsed.full_name) {
-        providerHint.textContent = '⚠️ No se pudo detectar el RUT del prestador "' + parsed.full_name + '".';
+        providerHint.textContent = '⚠️ No se pudo detectar el RUT del prestador "' + parsed.full_name + '". Selecciónelo manualmente.';
         providerHint.className = 'mt-2 text-[11px] text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-md border border-amber-200';
-    } else { providerHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border'; }
+    } else {
+        providerHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
+    }
 
+    // ── Departamento ──
     const deptHint = document.getElementById('ocr_dept_hint');
     if (deptMatch && deptMatch.id) {
         const select = document.getElementById('department_select');
         let found = false;
-        for (let i = 0; i < select.options.length; i++) { if (select.options[i].value == deptMatch.id) { select.selectedIndex = i; found = true; break; } }
+        for (let i = 0; i < select.options.length; i++) {
+            if (select.options[i].value == deptMatch.id) { select.selectedIndex = i; found = true; break; }
+        }
         if (!found) {
             const opt = new Option(deptMatch.code + ' — ' + deptMatch.name, deptMatch.id, true, true);
-            opt.setAttribute('data-name', deptMatch.name); select.add(opt);
+            opt.setAttribute('data-name', deptMatch.name);
+            select.add(opt);
         }
         select.dispatchEvent(new Event('change'));
         if (deptMatch.auto_created) {
             deptHint.textContent = '✅ Departamento "' + deptMatch.name + '" (' + deptMatch.code + ') registrado automáticamente.';
             deptHint.className = 'mt-2 text-[11px] text-green-700 bg-green-50 px-2.5 py-1.5 rounded-md border border-green-200';
-        } else { deptHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border'; }
+        } else {
+            deptHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
+        }
     } else if (parsed.department_name) {
-        deptHint.textContent = '⚠️ Departamento detectado: "' + parsed.department_name + '".';
+        deptHint.textContent = '⚠️ Departamento detectado: "' + parsed.department_name + '". Selecciónelo manualmente.';
         deptHint.className = 'mt-2 text-[11px] text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-md border border-amber-200';
-    } else { deptHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border'; }
+    } else {
+        deptHint.className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
+    }
 
-    // Mapping de campos (incluye los 5 campos nuevos)
+    // ── Mapping de campos (CORREGIDO: +total_contract_amount) ──
     const fieldMap = {
         'contract_number': parsed.contract_number,
         'contract_date': parsed.contract_date,
@@ -901,16 +923,28 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         'cost_center': parsed.cost_center,
         'payment_modality': parsed.payment_modality,
         'monthly_amount_gross': parsed.monthly_amount_gross,
+        'total_contract_amount': parsed.total_contract_amount,   // ← ESTE FALTABA
         'start_date': parsed.start_date,
         'end_date': parsed.end_date
     };
+
+    let filledCount = 0;
     for (const [fieldId, value] of Object.entries(fieldMap)) {
         if (value !== null && value !== undefined && value !== '') {
             const el = document.getElementById(fieldId);
-            if (el) { el.value = value; el.dispatchEvent(new Event('change')); }
+            if (el) {
+                el.value = value;
+                el.dispatchEvent(new Event('change'));
+                filledCount++;
+                console.log('[OCR Autofill] ✓ ' + fieldId + ' = ' + value);
+            } else {
+                console.warn('[OCR Autofill] ✗ Elemento no encontrado: #' + fieldId);
+            }
         }
     }
+    console.log('[OCR Autofill] Total: ' + filledCount + ' campos rellenados de ' + Object.keys(fieldMap).length);
 
+    // ── Funciones ──
     if (parsed.functions && parsed.functions.length > 0) {
         const container = document.getElementById('functions_container');
         container.innerHTML = '';
@@ -924,6 +958,7 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         });
         reindexFunctions();
         attachPreviewListeners();
+        console.log('[OCR Autofill] ✓ ' + parsed.functions.length + ' funciones cargadas');
     }
 }
 
