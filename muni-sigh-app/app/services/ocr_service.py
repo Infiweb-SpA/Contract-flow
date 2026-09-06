@@ -1,41 +1,52 @@
 import os
-# Configuración compatible con PaddleOCR/PaddlePaddle en Railway (CPU).
-# Desactivamos PIR y oneDNN para evitar errores de compatibilidad del runtime.
-os.environ['FLAGS_enable_pir_in_executor'] = '0'
-os.environ['FLAGS_enable_pir_api'] = '0'
-os.environ['FLAGS_use_mkldnn'] = '0'
-
+import platform
 import re
 import io
 import logging
 from datetime import datetime
 
+# ============================================================
+# COMPATIBILIDAD WINDOWS
+# ============================================================
+# Estos flags son necesarios solamente para el entorno Windows
+# utilizado durante desarrollo.
+if platform.system() == "Windows":
+    os.environ["FLAGS_enable_pir_in_executor"] = "0"
+    os.environ["FLAGS_enable_pir_api"] = "0"
+
+
 import pdfplumber
-import fitz  # PyMuPDF
+import fitz
 from PIL import Image
 import numpy as np
 from paddleocr import PaddleOCR
 
 
-# =============================================================================
+# ============================================================
 # EXCEPCIÓN DE CANCELACIÓN
-# =============================================================================
+# ============================================================
 
 class OCRCancelledException(Exception):
     """Se lanza cuando el procesamiento OCR es cancelado por el usuario."""
     pass
 
 
-# Desactivar oneDNN/MKLDNN.
-# En Railway esto evita el error:
-# ConvertPirAttribute2RuntimeAttribute not support
-# [pir::ArrayAttribute<pir::DoubleAttribute>]
+# ============================================================
+# MOTOR OCR OPTIMIZADO PARA CPU / RAILWAY
+# ============================================================
+
 ocr_engine = PaddleOCR(
-    lang='es',
+    lang="es",
+
+    # Desactivamos componentes que no necesitamos para contratos
     use_textline_orientation=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
-    enable_mkldnn=False,
+
+    # Activar aceleración CPU
+    enable_mkldnn=True,
+
+    # Controlar consumo de CPU
     cpu_threads=4,
 )
 
