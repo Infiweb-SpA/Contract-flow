@@ -1,7 +1,9 @@
 import os
-# 1. Estas variables deben ir ANTES de importar paddleocr para desactivar el modo que crashea en Windows
+# Configuración compatible con PaddleOCR/PaddlePaddle en Railway (CPU).
+# Desactivamos PIR y oneDNN para evitar errores de compatibilidad del runtime.
 os.environ['FLAGS_enable_pir_in_executor'] = '0'
 os.environ['FLAGS_enable_pir_api'] = '0'
+os.environ['FLAGS_use_mkldnn'] = '0'
 
 import re
 import io
@@ -24,13 +26,16 @@ class OCRCancelledException(Exception):
     pass
 
 
-# 2. Desactivar oneDNN (enable_mkldnn=False)
+# Desactivar oneDNN/MKLDNN.
+# En Railway esto evita el error:
+# ConvertPirAttribute2RuntimeAttribute not support
+# [pir::ArrayAttribute<pir::DoubleAttribute>]
 ocr_engine = PaddleOCR(
     lang='es',
     use_textline_orientation=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
-    enable_mkldnn=True,
+    enable_mkldnn=False,
     cpu_threads=4,
 )
 
