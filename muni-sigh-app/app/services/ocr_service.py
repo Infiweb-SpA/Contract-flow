@@ -1,7 +1,7 @@
 import os
 # 1. Estas variables deben ir ANTES de importar paddleocr para desactivar el modo que crashea en Windows
-# os.environ['FLAGS_enable_pir_in_executor'] = '0'
-# os.environ['FLAGS_enable_pir_api'] = '0'
+os.environ['FLAGS_enable_pir_in_executor'] = '0'
+os.environ['FLAGS_enable_pir_api'] = '0'
 
 import re
 import io
