@@ -1,52 +1,59 @@
 import os
-import platform
+# Configuración compatible con PaddleOCR/PaddlePaddle en Railway (CPU).
+# Desactivamos PIR y oneDNN para evitar errores de compatibilidad del runtime.
+os.environ['FLAGS_enable_pir_in_executor'] = '0'
+os.environ['FLAGS_enable_pir_api'] = '0'
+os.environ['FLAGS_use_mkldnn'] = '0'
+
+# Evita que PaddleX se quede comprobando los servidores de modelos al iniciar.
+os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
+
+# Limitar hilos evita saturar el CPU de Railway durante la inferencia.
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['MKL_NUM_THREADS'] = '2'
+
 import re
 import io
 import logging
 from datetime import datetime
 
-# ============================================================
-# COMPATIBILIDAD WINDOWS
-# ============================================================
-
-if platform.system() == "Windows":
-    os.environ["FLAGS_enable_pir_in_executor"] = "0"
-    os.environ["FLAGS_enable_pir_api"] = "0"
-
-
 import pdfplumber
-import fitz
+import fitz  # PyMuPDF
 from PIL import Image
 import numpy as np
 from paddleocr import PaddleOCR
 
 
-# ============================================================
+# =============================================================================
 # EXCEPCIÓN DE CANCELACIÓN
-# ============================================================
+# =============================================================================
 
 class OCRCancelledException(Exception):
     """Se lanza cuando el procesamiento OCR es cancelado por el usuario."""
     pass
 
 
-# ============================================================
-# MOTOR OCR
-# ============================================================
-
+# Desactivar oneDNN/MKLDNN.
+# En Railway esto evita el error:
+# ConvertPirAttribute2RuntimeAttribute not support
+# [pir::ArrayAttribute<pir::DoubleAttribute>]
 ocr_engine = PaddleOCR(
-    lang="es",
+    lang='es',
+    # Modelos mobile: mucho más apropiados para CPU/Railway
+    # que los modelos medium/server que estaban cargándose.
+    text_detection_model_name='PP-OCRv5_mobile_det',
+    text_recognition_model_name='PP-OCRv5_mobile_rec',
 
     use_textline_orientation=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
 
-    # Desactivado por incompatibilidad PIR + oneDNN
-    # detectada en el entorno actual de Railway.
+    # Desactivado para evitar el error PIR/oneDNN observado en Railway.
     enable_mkldnn=False,
 
-    # Limitar consumo de CPU.
-    cpu_threads=4,
+    # Railway normalmente dispone de CPU limitada.
+    cpu_threads=2,
+    device='cpu',
 )
 
 
@@ -105,7 +112,7 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
         return ""
 
     total_pages = len(doc)
-    print(f"--> Iniciando OCR para {total_pages} páginas...")
+    print(f"--> Iniciando OCR para {total_pages} páginas...", flush=True)
 
     try:
         for page_index in range(total_pages):
@@ -118,12 +125,24 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
                     f"Procesamiento OCR cancelado en página {page_index + 1} de {total_pages}"
                 )
 
-            print(f"    - Procesando página {page_index + 1}/{total_pages}...")
+            print(f"    - Procesando página {page_index + 1}/{total_pages}...", flush=True)
             try:
                 page = doc.load_page(page_index)
-                zoom = 1.5
+                # 1.25 reduce bastante el costo de CPU/RAM sin degradar
+                # demasiado la lectura de contratos escaneados.
+                zoom = 1.25
                 mat = fitz.Matrix(zoom, zoom)
+
+                print(
+                    f"      [OCR] Renderizando página {page_index + 1}...",
+                    flush=True
+                )
                 pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                print(
+                    f"      [OCR] Imagen: {pix.width}x{pix.height}",
+                    flush=True
+                )
 
                 #img_data = pix.tobytes("png")
                 #pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
@@ -131,7 +150,17 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
                 #result_gen = ocr_engine.predict(input=img_array)
                 img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
 
+                print(
+                    f"      [OCR] Ejecutando PaddleOCR en página {page_index + 1}...",
+                    flush=True
+                )
+
                 result_gen = ocr_engine.predict(input=img_array)
+
+                print(
+                    f"      [OCR] PaddleOCR terminó página {page_index + 1}.",
+                    flush=True
+                )
 
                 if not isinstance(result_gen, list):
                     results = list(result_gen)
@@ -152,14 +181,19 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
                         if t and t.strip():
                             ocr_text += t.strip() + "\n"
                             lines_count += 1
-                    print(f"      ✓ Texto extraído en página {page_index + 1}: {lines_count} líneas")
+                    print(
+                        f"      ✓ Texto extraído en página {page_index + 1}: {lines_count} líneas",
+                        flush=True
+                    )
 
             except OCRCancelledException:
                 raise
             except Exception as page_err:
-                logging.error(f"Error OCR en página {page_index}: {page_err}")
+                logging.exception(
+                    f"Error OCR en página {page_index + 1}: {page_err}"
+                )
                 continue
-        print("--> OCR finalizado.")
+        print("--> OCR finalizado.", flush=True)
     finally:
         # Cerrar el documento de forma segura (puede ya estar cerrado)
         try:
