@@ -8,8 +8,7 @@ from datetime import datetime
 # ============================================================
 # COMPATIBILIDAD WINDOWS
 # ============================================================
-# Estos flags son necesarios solamente para el entorno Windows
-# utilizado durante desarrollo.
+
 if platform.system() == "Windows":
     os.environ["FLAGS_enable_pir_in_executor"] = "0"
     os.environ["FLAGS_enable_pir_api"] = "0"
@@ -32,21 +31,21 @@ class OCRCancelledException(Exception):
 
 
 # ============================================================
-# MOTOR OCR OPTIMIZADO PARA CPU / RAILWAY
+# MOTOR OCR
 # ============================================================
 
 ocr_engine = PaddleOCR(
     lang="es",
 
-    # Desactivamos componentes que no necesitamos para contratos
     use_textline_orientation=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
 
-    # Activar aceleración CPU
-    enable_mkldnn=True,
+    # Desactivado por incompatibilidad PIR + oneDNN
+    # detectada en el entorno actual de Railway.
+    enable_mkldnn=False,
 
-    # Controlar consumo de CPU
+    # Limitar consumo de CPU.
     cpu_threads=4,
 )
 
