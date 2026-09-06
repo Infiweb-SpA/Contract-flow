@@ -1,7 +1,7 @@
 import os
 # 1. Estas variables deben ir ANTES de importar paddleocr para desactivar el modo que crashea en Windows
-os.environ['FLAGS_enable_pir_in_executor'] = '0'
-os.environ['FLAGS_enable_pir_api'] = '0'
+# os.environ['FLAGS_enable_pir_in_executor'] = '0'
+# os.environ['FLAGS_enable_pir_api'] = '0'
 
 import re
 import io
@@ -30,7 +30,8 @@ ocr_engine = PaddleOCR(
     use_textline_orientation=False,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
-    enable_mkldnn=False
+    enable_mkldnn=True,
+    cpu_threads=4,
 )
 
 
@@ -109,9 +110,11 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat, alpha=False)
 
-                img_data = pix.tobytes("png")
-                pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
-                img_array = np.array(pil_img)
+                #img_data = pix.tobytes("png")
+                #pil_img = Image.open(io.BytesIO(img_data)).convert("RGB")
+                #img_array = np.array(pil_img)
+                #result_gen = ocr_engine.predict(input=img_array)
+                img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
 
                 result_gen = ocr_engine.predict(input=img_array)
 

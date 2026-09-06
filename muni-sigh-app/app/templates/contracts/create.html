@@ -108,6 +108,115 @@
     .ocr-cancel-btn:hover {
         transform: scale(1.02);
     }
+    /* ── OCR Progress Bar (estilo imagen institucional) ── */
+    .ocr-progress-container {
+        width: 100%;
+        max-width: 320px;
+        margin: 0 auto 12px auto;
+    }
+    .ocr-progress-labels {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .ocr-progress-labels .lbl-left {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #1e3a8a;
+    }
+    .ocr-progress-labels .lbl-right {
+        font-size: 11px;
+        font-weight: 700;
+        color: #1e3a8a;
+        font-variant-numeric: tabular-nums;
+    }
+    .ocr-progress-track {
+        height: 16px;
+        border-radius: 9999px;
+        border: 2px solid #1e3a8a;
+        background: #ffffff;
+        padding: 2px;
+        position: relative;
+        overflow: hidden;
+    }
+    .ocr-progress-fill {
+        height: 100%;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, #0f265c 0%, #1e3a8a 50%, #2563eb 100%);
+        transition: width 0.25s ease-out;
+        width: 0%;
+        position: relative;
+    }
+    .ocr-progress-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+        animation: ocr-progress-shimmer 1.5s infinite;
+    }
+    @keyframes ocr-progress-shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+    }
+
+        /* ── OCR Progress Bar ── */
+    .ocr-progress-container {
+        width: 100%;
+        max-width: 320px;
+        margin: 0 auto 12px auto;
+    }
+    .ocr-progress-labels {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .ocr-progress-labels .lbl-left {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #1e3a8a;
+    }
+    .ocr-progress-labels .lbl-right {
+        font-size: 11px;
+        font-weight: 700;
+        color: #1e3a8a;
+        font-variant-numeric: tabular-nums;
+    }
+    .ocr-progress-track {
+        height: 16px;
+        border-radius: 9999px;
+        border: 2px solid #1e3a8a;
+        background: #ffffff;
+        padding: 2px;
+        position: relative;
+        overflow: hidden;
+    }
+    .ocr-progress-fill {
+        height: 100%;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, #0f265c 0%, #1e3a8a 50%, #2563eb 100%);
+        transition: width 0.25s ease-out;
+        width: 0%;
+        position: relative;
+    }
+    .ocr-progress-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+        animation: ocr-progress-shimmer 1.5s infinite;
+    }
+    @keyframes ocr-progress-shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+    }
 </style>
 
 <!-- Fuentes institucionales -->
@@ -186,9 +295,18 @@
                             <p class="text-xs font-semibold text-slate-700">Arrastre un PDF o haga clic para seleccionar</p>
                             <p class="text-[11px] text-slate-400 mt-1">El sistema extraerá automáticamente los datos mediante OCR</p>
                         </div>
-                        <div id="ocr_loading_state" class="hidden">
-                            <div class="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-[#1e3a8a] mx-auto mb-2"></div>
-                            <p class="text-xs font-semibold text-slate-700">Procesando documento...</p>
+                                                <div id="ocr_loading_state" class="hidden">
+                            <!-- BARRA DE PROGRESO OCR -->
+                            <div class="ocr-progress-container">
+                                <div class="ocr-progress-labels">
+                                    <span class="lbl-left" id="ocr_progress_text">PROCESANDO...</span>
+                                    <span class="lbl-right" id="ocr_progress_percent">0%</span>
+                                </div>
+                                <div class="ocr-progress-track">
+                                    <div id="ocr_progress_bar" class="ocr-progress-fill" style="width:0%"></div>
+                                </div>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-700 mt-2">Procesando documento...</p>
                             <p class="text-[11px] text-slate-400 mt-1">Extrayendo texto y estructurando datos</p>
                             <!-- BOTÓN CANCELAR OCR -->
                             <button type="button" id="ocr_cancel_btn" onclick="cancelOcrProcess()"
@@ -756,6 +874,52 @@ let ocrAbortController = null;
 let ocrCancelToken = null;
 let ocrIsProcessing = false;
 
+// ── Estado de barra de progreso OCR ──
+let ocrProgressInterval = null;
+let ocrProgressValue = 0;
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Barra de Progreso OCR
+// ═══════════════════════════════════════════════════════════════════════
+function startOcrProgress() {
+    ocrProgressValue = 0;
+    updateOcrProgressUI();
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    ocrProgressInterval = setInterval(() => {
+        if (ocrProgressValue < 92) {
+            const remaining = 92 - ocrProgressValue;
+            const increment = Math.max(0.3, remaining / 25);
+            ocrProgressValue = Math.min(92, ocrProgressValue + increment);
+            updateOcrProgressUI();
+        }
+    }, 180);
+}
+
+function completeOcrProgress() {
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    ocrProgressValue = 100;
+    updateOcrProgressUI();
+}
+
+function resetOcrProgress() {
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    ocrProgressValue = 0;
+    updateOcrProgressUI();
+}
+
+function updateOcrProgressUI() {
+    const bar = document.getElementById('ocr_progress_bar');
+    const pct = document.getElementById('ocr_progress_percent');
+    const txt = document.getElementById('ocr_progress_text');
+    if (bar) bar.style.width = ocrProgressValue + '%';
+    if (pct) pct.textContent = Math.round(ocrProgressValue) + '%';
+    if (txt) {
+        if (ocrProgressValue >= 100) txt.textContent = 'COMPLETADO';
+        else txt.textContent = 'PROCESANDO...';
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Toggle OCR Banner
 // ═══════════════════════════════════════════════════════════════════════
@@ -804,6 +968,7 @@ function resetOcrZone() {
     ocrAbortController = null;
     ocrCancelToken = null;
     ocrIsProcessing = false;
+    resetOcrProgress();
     setOcrState('idle');
 }
 
@@ -840,8 +1005,9 @@ function cancelOcrProcess() {
         console.log('[OCR Cancel] Fetch abortado.');
     }
 
-    // 3. Limpiar token y actualizar UI
+    // 3. Limpiar token, barra de progreso y actualizar UI
     ocrCancelToken = null;
+    resetOcrProgress();
     setOcrState('cancelled');
 }
 
@@ -860,6 +1026,7 @@ function processOcrFile(file) {
 
     setOcrState('loading');
     ocrIsProcessing = true;
+    startOcrProgress();   // ← Iniciar barra de progreso
 
     // ── Generar cancel_token en el frontend ANTES de enviar ──
     ocrCancelToken = crypto.randomUUID();
@@ -882,6 +1049,7 @@ function processOcrFile(file) {
     })
     .then(({ status, data }) => {
         ocrIsProcessing = false;
+        completeOcrProgress();   // ← Completar barra al 100%
 
         if (data.success) {
             ocrCancelToken = null;
@@ -899,6 +1067,7 @@ function processOcrFile(file) {
     })
     .catch(err => {
         ocrIsProcessing = false;
+        resetOcrProgress();   // ← Resetear barra en error
 
         if (err.name === 'AbortError') {
             console.log('[OCR] Request abortada por el usuario.');
