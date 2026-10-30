@@ -603,67 +603,153 @@
             <div class="max-w-[210mm] mx-auto">
                 <div class="paper-sheet rounded-sm relative">
                     <div class="watermark">PREVISTA</div>
-                    <div class="p-[25mm] relative z-20">
-                        <div class="text-center border-b-2 border-slate-800 pb-4 mb-6 doc-header">
-                            <p class="text-[11px] font-bold tracking-widest text-slate-800 uppercase">República de Chile</p>
-                            <p class="text-lg font-bold text-slate-900 mt-0.5 tracking-tight">{{ g.municipio_nombre | default('Municipalidad de Temuco') }}</p>
-                            <p class="text-[10px] text-slate-500 mt-1 italic">{{ g.municipio_nombre | default('Ilustre Municipalidad') }} — {{ g.municipio_region | default('Región de La Araucanía') }}</p>
-                            <div class="mt-3 flex justify-center">
-                                <div class="w-16 h-16 rounded-full border-2 border-slate-300 flex items-center justify-center bg-slate-50">
-                                    <svg class="w-8 h-8 text-slate-400" viewBox="0 0 48 48" fill="none"><path d="M24 4L6 14v20c0 8.8 7.2 16 16 16h4c8.8 0 16-7.2 16-16V14L24 4z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                    <div class="p-[25mm] relative z-20" style="font-family: 'Times New Roman', 'Merriweather', Georgia, serif; font-size: 11pt; line-height: 1.6; color: #000; text-align: justify;">
+                        <!-- Membrete institucional -->
+                        <div class="text-center mb-6" style="border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px;">
+                            <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-06.png') }}" alt="Logo Cunco" style="width: 70px; height: 70px; margin: 0 auto 8px; display: block;">
+                            <div style="font-size: 10pt; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px;">REPÚBLICA DE CHILE</div>
+                            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">Ilustre Municipalidad de Temuco</div>
+                            <div style="font-size: 9pt; font-weight: normal; font-style: italic; color: #333;">Región de La Araucanía</div>
+                            <div style="font-size: 8pt; margin-top: 6px; color: #333; line-height: 1.4;">
+                                Arturo Prat N° 550, Temuco — RUT: 81.234.567-8<br>
+                                Teléfono: (45) 2 334 500 — www.temuco.cl
+                            </div>
+                        </div>
+
+                        <!-- Título, número y fecha -->
+                        <div class="text-center" style="font-size: 13pt; font-weight: bold; margin: 20px 0 5px; text-transform: uppercase; letter-spacing: 0.5px;">Contrato de Prestación de Servicios a Honorarios</div>
+                        <div class="text-center" style="font-size: 11pt; margin-bottom: 4px; font-weight: bold;">N° <span id="preview_contract_number">CT-2026-___</span></div>
+                        <div class="text-center" style="font-size: 10pt; margin-bottom: 20px; color: #333;">Fecha de firma: <span id="preview_contract_date">___ de ___ de 2026</span></div>
+
+                        <!-- Constitución -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span>En Temuco, a <span style="font-weight: bold;" id="preview_sign_date">___ de ___ de 2026</span>, comparecen:</span>
+                        </div>
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <strong>Por una parte,</strong> la <span style="font-weight: bold; text-transform: uppercase;">Ilustre Municipalidad de Temuco</span>, persona jurídica de derecho público, Rol Único Tributario N° <span style="font-weight: bold;">81.234.567-8</span>, con domicilio en Arturo Prat N° 550, Temuco, representada por su Alcalde <span style="font-weight: bold;">don {{ g.mayor_name | default('_______________________') }}</span>, cédula de identidad N° <span style="font-weight: bold;">{{ g.mayor_rut | default('__.___.___-_') }}</span>, en ejercicio de las facultades que le confiere el artículo 32° de la Ley Orgánica Constitucional N° 18.695 de Municipalidades, en adelante <span style="font-weight: bold;">"La Municipalidad"</span>;
+                        </div>
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <strong>Y por la otra parte,</strong> <span style="font-weight: bold;">don(ña) <span id="preview_provider_name">_______________________</span></span>, cédula de identidad N° <span style="font-weight: bold;"><span id="preview_provider_rut">__.___.___-_</span></span><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, con domicilio en <span style="font-weight: bold;">_______________________</span>, en adelante <span style="font-weight: bold;">"El Prestador"</span>;
+                        </div>
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            Quienes manifiestan tener la capacidad legal necesaria para contratar y celebrar el presente contrato de prestación de servicios a honorarios, conforme a las siguientes cláusulas:
+                        </div>
+
+                        <!-- Cláusulas -->
+                        <!-- PRIMERO -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;">Primero: Antecedentes</span><br>
+                            <span id="clausula_antecedentes">Por Decreto Alcaldicio N° <span style="font-weight: bold;" id="preview_decline_number">_________</span>, se aprobó la contratación del servicio de <span style="font-weight: bold;" id="preview_position">_______________________</span>, para el programa municipal <span style="font-style: italic;" id="preview_program">_______________________</span><span id="preview_sub_program_wrapper">, subprograma <span style="font-style: italic;" id="preview_sub_program">_______________________</span></span>, dependiente de la <span style="font-weight: bold;" id="preview_department">_______________________</span>.</span>
+                        </div>
+
+                        <!-- SEGUNDO (condicional) -->
+                        <div style="margin-bottom: 14px; text-align: justify;" id="preview_budget_section">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;">Segundo: Imputación Presupuestaria</span><br>
+                            <span>Para efectos presupuestarios, el presente contrato se imputará a la cuenta presupuestaria <span style="font-weight: bold;" id="preview_budget_account">_________</span> y centro de costo <span style="font-weight: bold;" id="preview_cost_center">_________</span>.</span>
+                        </div>
+
+                        <!-- TERCERO / SEGUNDO: OBJETO -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_objeto_titulo">Tercero: Objeto</span><br>
+                            El objeto del presente contrato es la prestación de servicios profesionales consistentes en el desempeño del cargo de <span style="font-weight: bold;" id="preview_position2">_______________________</span>, de acuerdo a las funciones y cometidos que se detallan en la cláusula siguiente.
+                        </div>
+
+                        <!-- CUARTO / TERCERO: NATURALEZA JURÍDICA -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_naturaleza_titulo">Cuarto: Naturaleza Jurídica del Contrato</span><br>
+                            El Prestador declara conocer que el presente contrato se regula por las normas del Código Civil y la Ley N° 19.880 sobre Bases de Procedimiento Administrativo, <span style="font-weight: bold;">no generando entre las partes relación laboral alguna</span>, ni otorgando derechos previsionales, indemnización por años de servicio, feriado legal, aguinaldo ni cualquier otro beneficio propio de la legislación laboral. El Prestador actuará por cuenta propia, con autonomía técnica y sin subordinación jerárquica respecto de La Municipalidad.
+                        </div>
+
+                        <!-- QUINTO / CUARTO: OBLIGACIONES -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_obligaciones_titulo">Quinto: Obligaciones y Funciones Específicas</span><br>
+                            Serán funciones específicas del Prestador las siguientes:
+                            <ol style="margin: 8px 0 8px 30px; padding-left: 0; list-style-type: decimal;" id="preview_functions">
+                                <li style="margin-bottom: 5px; text-align: justify;">___________________________________________________________</li>
+                            </ol>
+                            El Prestador se obliga a ejecutar dichas funciones con la diligencia, profesionalismo y calidad que el servicio requiere, de acuerdo a las instrucciones que le imparta el Jefe del Departamento de <span style="font-weight: bold;" id="preview_department2">_______________________</span> o quien éste designe.
+                        </div>
+
+                        <!-- SEXTO / QUINTO: PLAZO -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_plazo_titulo">Sexto: Plazo de Duración</span><br>
+                            El presente contrato tendrá una duración desde el <span style="font-weight: bold;" id="preview_start_date">_________</span> hasta el <span style="font-weight: bold;" id="preview_end_date">_________</span>, ambas fechas inclusive. Vencido el plazo, el contrato terminará de pleno derecho, sin perjuicio de lo dispuesto en la cláusula de terminación anticipada.
+                        </div>
+
+                        <!-- SÉPTIMO / SEXTO: RETRIBUCIÓN -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_retribucion_titulo">Séptimo: Retribución</span><br>
+                            La renta bruta mensual acordada por los servicios prestados es de <span style="font-weight: bold;" id="preview_amount">$_________</span> pesos chilenos ($CLP), <span id="preview_payment_modality_text">pagadera según modalidad acordada</span>, previa presentación del informe de actividades correspondiente y la boleta de honorarios respectiva.
+                        </div>
+
+                        <!-- OCTAVO / SÉPTIMO: INFORME -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_informe_titulo">Octavo: Informe de Actividades</span><br>
+                            El Prestador deberá presentar mensualmente, y como requisito previo al pago de sus honorarios, un informe detallado de las actividades realizadas durante el período, el cual deberá ser visado por el Jefe del Departamento de <span style="font-weight: bold;">_______________________</span>. La omisión o retraso en la presentación de dicho informe será causal de suspensión del pago correspondiente hasta su regularización.
+                        </div>
+
+                        <!-- NOVENO / OCTAVO: DOMICILIO -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_domicilio_titulo">Noveno: Domicilio</span><br>
+                            Para todos los efectos del presente contrato, las partes señalan como sus domicilios los indicados en la frase de constitución, sin perjuicio de la facultad de cambiarlo mediante comunicación escrita a la otra parte.
+                        </div>
+
+                        <!-- DÉCIMO / NOVENO: TERMINACIÓN -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_terminacion_titulo">Décimo: Terminación Anticipada</span><br>
+                            Cualquiera de las partes podrá poner término anticipado al presente contrato mediante comunicación escrita con una anticipación no inferior a quince (15) días corridos. En caso de terminación anticipada por parte de La Municipalidad, se pagarán los honorarios proporcionales hasta la fecha de término efectivo. En caso de terminación por parte del Prestador, éste deberá entregar la documentación e informes pendientes.
+                        </div>
+
+                        <!-- DÉCIMO PRIMERO / DÉCIMO: JURISDICCIÓN -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_jurisdiccion_titulo">Décimo Primero: Jurisdicción</span><br>
+                            Para la resolución de cualquier controversia derivada del presente contrato, las partes se someten a la jurisdicción de los Tribunales Ordinarios de Justicia de la ciudad de Temuco, renunciando a cualquier otro fuero que pudiera corresponderles.
+                        </div>
+
+                        <!-- DÉCIMO SEGUNDO / DÉCIMO PRIMERO: NOTIFICACIONES -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_notificaciones_titulo">Décimo Segundo: Notificaciones</span><br>
+                            Toda comunicación o notificación entre las partes deberá realizarse por escrito, ya sea por correo certificado, correo electrónico con acuse de recibo, o entrega personal en los domicilios señalados en la cláusula de domicilio.
+                            <span id="preview_email_wrapper">{% if g.provider_email %}Para efectos de notificaciones electrónicas, el Prestador señala el correo electrónico: <span style="font-weight: bold;" id="preview_provider_email">{{ g.provider_email }}</span>.{% endif %}</span>
+                        </div>
+
+                        <!-- DÉCIMO TERCERO / DÉCIMO SEGUNDO: DISPOSICIONES -->
+                        <div style="margin-bottom: 14px; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_disposiciones_titulo">Décimo Tercero: Disposiciones Finales</span><br>
+                            <span id="clausula_disposiciones_texto">En todo lo no previsto expresamente en el presente contrato, las partes se estarán a lo dispuesto en la Ley N° 19.880 sobre Bases de Procedimiento Administrativo, el Código Civil y demás normativa aplicable.</span>
+                        </div>
+
+                        <!-- Datos Bancarios (condicional) -->
+                        <div style="margin-bottom: 14px; text-align: justify;" id="preview_bank_section" style="display:none;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;">Datos Bancarios del Prestador</span><br>
+                            <span>Para efectos del pago de honorarios, el Prestador señala los siguientes datos bancarios: <span id="preview_bank_details"></span></span>
+                        </div>
+
+                        <!-- Testimonio -->
+                        <div style="margin-top: 30px; font-size: 10.5pt; text-align: justify; font-style: italic;">
+                            En testimonio de lo cual, y en conformidad al Decreto Alcaldicio N° <span style="font-weight: bold;">_________</span>, las partes firman el presente contrato en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte, en la ciudad de Temuco, a <span style="font-weight: bold;">___ de ___ de 2026</span>.
+                        </div>
+
+                        <!-- Firmas -->
+                        <div style="margin-top: 60px; page-break-inside: avoid;">
+                            <div style="display: flex; justify-content: space-between; margin-top: 50px;">
+                                <div style="text-align: center; width: 42%;">
+                                    <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
+                                        <div style="font-weight: bold; font-size: 10.5pt;">{{ g.mayor_name | default('_______________________') }}</div>
+                                        <div style="font-size: 9.5pt; color: #222;">Alcalde de Temuco</div>
+                                        <div style="font-size: 9.5pt; color: #222;">RUT: {{ g.mayor_rut | default('__.___.___-_' ) }}</div>
+                                    </div>
+                                    <div style="margin-top: 8px; font-size: 9pt; color: #444; font-weight: bold;">POR LA I. MUNICIPALIDAD DE TEMUCO</div>
+                                </div>
+                                <div style="text-align: center; width: 42%;">
+                                    <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
+                                        <div style="font-weight: bold; font-size: 10.5pt;" id="preview_provider_sign">_______________________</div>
+                                        <div style="font-size: 9.5pt; color: #222;">RUT: <span id="preview_provider_rut2">__.___.___-_</span></div>
+                                        <span id="preview_provider_profession_firma"></span>
+                                    </div>
+                                    <div style="margin-top: 8px; font-size: 9pt; color: #444; font-weight: bold;">POR EL PRESTADOR</div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="text-center mb-6 doc-header">
-                            <h1 class="text-sm font-bold text-slate-900 uppercase tracking-wide">Contrato de Prestación de Servicios a Honorarios</h1>
-                            <p class="text-[11px] text-slate-600 mt-1">N° <span id="preview_contract_number">CT-2026-___</span></p>
-                            <p class="text-[10px] text-slate-500 mt-0.5">Fecha: <span id="preview_contract_date">___ de ___ de 2026</span></p>
-                        </div>
-                        <div class="space-y-4 text-[11px] leading-relaxed text-slate-800 doc-header">
-                            <p class="text-justify">
-                                <strong>En Temuco,</strong> a <span id="preview_sign_date">___ de ___ de 2026</span>, entre la <strong>{{ g.municipio_nombre | default('Ilustre Municipalidad') }}</strong>, representada por su Alcalde, don <strong>{{ g.mayor_name | default('Alcalde Municipal') }}</strong>, RUT <strong>{{ g.mayor_rut | default('__.___.___-_') }}</strong>, denominado en adelante <strong>"La Municipalidad"</strong>, y don(ña) <strong id="preview_provider_name">_______________________</strong>, RUT <strong id="preview_provider_rut">__.___.___-_</strong><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, denominado(a) en adelante <strong>"El Prestador"</strong>, se ha convenido el siguiente contrato de prestación de servicios a honorarios:
-                            </p>
-                            <div class="mt-4">
-                                <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">PRIMERO: ANTECEDENTES</p>
-                                <p class="text-justify">Por Decreto Alcaldicio N° <span id="preview_decline_number">_________</span> de fecha <span id="preview_decline_date">_________</span>, se aprobó la contratación del servicio de <strong id="preview_position">_______________________</strong>, para el programa <span id="preview_program">_______________________</span><span id="preview_sub_program_wrapper">, subprograma <strong id="preview_sub_program">_______________________</strong></span>, dependiente de la <strong id="preview_department">_______________________</strong>.</p>
-                            </div>
-                            <div class="mt-4" id="preview_budget_section">
-                                <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">SEGUNDO: IMPUTACIÓN PRESUPUESTARIA</p>
-                                <p class="text-justify">Para efectos presupuestarios, el presente contrato se imputará a la cuenta presupuestaria <strong id="preview_budget_account">_________</strong> y centro de costo <strong id="preview_cost_center">_________</strong>.</p>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">TERCERO: OBJETO</p>
-                                <p class="text-justify">El objeto del presente contrato es la prestación de servicios profesionales consistentes en <strong id="preview_position2">_______________________</strong>, de acuerdo a las funciones y cometidos que se detallan a continuación:</p>
-                                <ol class="mt-2 ml-4 space-y-1 list-decimal list-outside" id="preview_functions">
-                                    <li class="text-justify">___________________________________________________________</li>
-                                </ol>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-bold text-slate-900 uppercase text-[10px] tracking-wide mb-1">CUARTO: DURACIÓN Y MONTO</p>
-                                <p class="text-justify">El presente contrato tendrá una duración desde el <strong id="preview_start_date">_________</strong> hasta el <strong id="preview_end_date">_________</strong>, con un monto mensual bruto de <strong id="preview_amount">$_________</strong> (pesos chilenos), pagadero <span id="preview_payment_modality">según modalidad acordada</span>, previa presentación de boleta de honorarios.</p>
-                            </div>
-                            <div class="mt-8 pt-6 border-t border-slate-300">
-                                <div class="grid grid-cols-2 gap-8 text-center">
-                                    <div>
-                                        <p class="text-[10px] text-slate-500 mb-8">Por la Municipalidad</p>
-                                        <div class="border-t border-slate-400 pt-1 mx-4">
-                                            <p class="font-bold text-slate-900">{{ g.mayor_name | default('Alcalde Municipal') }}</p>
-                                            <p class="text-[10px] text-slate-500">Alcalde Municipal</p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] text-slate-500 mb-8">El Prestador</p>
-                                        <div class="border-t border-slate-400 pt-1 mx-4">
-                                            <p class="font-bold text-slate-900" id="preview_provider_sign">_______________________</p>
-                                            <p class="text-[10px] text-slate-500">RUT: <span id="preview_provider_rut2">__.___.___-_</span></p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-3 border-t border-slate-200 text-center">
-                            <p class="text-[9px] text-slate-400 doc-header">Documento generado por SIGH-MUNI — Sistema Integrado de Gestión de Honorarios Municipales</p>
-                            <p class="text-[9px] text-slate-400 doc-header">{{ g.municipio_nombre | default('Municipalidad de Temuco') }} — Región de La Araucanía, Chile</p>
                         </div>
                     </div>
                 </div>
@@ -1067,8 +1153,12 @@ function processOcrFile(file) {
     })
     .catch(err => {
         ocrIsProcessing = false;
-        resetOcrProgress();   // ← Resetear barra en error
-
+        resetOcrProgress();
+        const rawText = document.getElementById('ocr_raw_text')?.textContent || '';
+        if (rawText.trim().length > 0) {
+            setOcrState('success');
+            return;
+        }
         if (err.name === 'AbortError') {
             console.log('[OCR] Request abortada por el usuario.');
             setOcrState('cancelled');
@@ -1287,6 +1377,24 @@ function updatePreview() {
     const providerSelect = document.getElementById('provider_select');
     const deptSelect = document.getElementById('department_select');
 
+    // Numeración dinámica de cláusulas según presupuesto
+    const hasBudget = (document.getElementById('budget_account')?.value || document.getElementById('cost_center')?.value) ? true : false;
+    const budgetSection = document.getElementById('preview_budget_section');
+    if (budgetSection) budgetSection.style.display = hasBudget ? '' : 'none';
+
+    // Actualizar títulos dinámicos de cláusulas
+    document.getElementById('clausula_objeto_titulo').textContent = hasBudget ? 'Tercero: Objeto' : 'Segundo: Objeto';
+    document.getElementById('clausula_naturaleza_titulo').textContent = hasBudget ? 'Cuarto: Naturaleza Jurídica del Contrato' : 'Tercero: Naturaleza Jurídica del Contrato';
+    document.getElementById('clausula_obligaciones_titulo').textContent = hasBudget ? 'Quinto: Obligaciones y Funciones Específicas' : 'Cuarto: Obligaciones y Funciones Específicas';
+    document.getElementById('clausula_plazo_titulo').textContent = hasBudget ? 'Sexto: Plazo de Duración' : 'Quinto: Plazo de Duración';
+    document.getElementById('clausula_retribucion_titulo').textContent = hasBudget ? 'Séptimo: Retribución' : 'Sexto: Retribución';
+    document.getElementById('clausula_informe_titulo').textContent = hasBudget ? 'Octavo: Informe de Actividades' : 'Séptimo: Informe de Actividades';
+    document.getElementById('clausula_domicilio_titulo').textContent = hasBudget ? 'Noveno: Domicilio' : 'Octavo: Domicilio';
+    document.getElementById('clausula_terminacion_titulo').textContent = hasBudget ? 'Décimo: Terminación Anticipada' : 'Noveno: Terminación Anticipada';
+    document.getElementById('clausula_jurisdiccion_titulo').textContent = hasBudget ? 'Décimo Primero: Jurisdicción' : 'Décimo: Jurisdicción';
+    document.getElementById('clausula_notificaciones_titulo').textContent = hasBudget ? 'Décimo Segundo: Notificaciones' : 'Décimo Primero: Notificaciones';
+    document.getElementById('clausula_disposiciones_titulo').textContent = hasBudget ? 'Décimo Tercero: Disposiciones Finales' : 'Décimo Segundo: Disposiciones Finales';
+
     if (providerSelect.selectedIndex > 0) {
         const opt = providerSelect.options[providerSelect.selectedIndex];
         const name = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
@@ -1304,6 +1412,14 @@ function updatePreview() {
             document.getElementById('preview_provider_profession').textContent = providerDesc;
             extWrapper.style.display = '';
         } else { extWrapper.style.display = 'none'; }
+        const profFirmaEl = document.getElementById('preview_provider_profession_firma');
+        if (profFirmaEl) {
+            if (selectedProviderExtended.profession_or_trade) {
+                profFirmaEl.innerHTML = '<div style="font-size: 9.5pt; color: #222;">' + selectedProviderExtended.profession_or_trade + '</div>';
+            } else {
+                profFirmaEl.innerHTML = '';
+            }
+        }
     } else {
         document.getElementById('preview_provider_name').textContent = '_______________________';
         document.getElementById('preview_provider_sign').textContent = '_______________________';
@@ -1313,8 +1429,15 @@ function updatePreview() {
     }
 
     if (deptSelect.selectedIndex > 0) {
-        document.getElementById('preview_department').textContent = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
-    } else { document.getElementById('preview_department').textContent = '_______________________'; }
+        const deptName = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
+        document.getElementById('preview_department').textContent = deptName;
+        const dept2El = document.getElementById('preview_department2');
+        if (dept2El) dept2El.textContent = deptName;
+    } else {
+        document.getElementById('preview_department').textContent = '_______________________';
+        const dept2El = document.getElementById('preview_department2');
+        if (dept2El) dept2El.textContent = '_______________________';
+    }
 
     const contractDateVal = document.getElementById('contract_date')?.value;
     const contractDateFormatted = contractDateVal ? formatDateLong(contractDateVal) : '___ de ___ de 2026';
@@ -1335,6 +1458,8 @@ function updatePreview() {
 
     const paymentVal = document.getElementById('payment_modality')?.value || '';
     document.getElementById('preview_payment_modality').textContent = getPaymentModalityText(paymentVal);
+    const paymentTextEl = document.getElementById('preview_payment_modality_text');
+    if (paymentTextEl) paymentTextEl.textContent = getPaymentModalityText(paymentVal);
 
     const fieldMap = {
         'contract_number': { id: 'preview_contract_number', prefix: 'N° ', fallback: 'CT-2026-___' },
