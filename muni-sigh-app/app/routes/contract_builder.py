@@ -56,6 +56,57 @@ def _unregister_cancel_token(token):
 
 
 # =============================================================================
+# REGISTRY DE PROGRESO OCR (thread-safe)
+# =============================================================================
+# Almacena el progreso real del procesamiento OCR (0-100) por token,
+# de modo que el frontend pueda consultarlo vía polling mientras el
+# servidor extrae el texto página a página.
+_ocr_progress_registry = {}
+_ocr_progress_lock = threading.Lock()
+
+
+def _register_ocr_progress(token):
+    """Registra un token con progreso inicial 0%."""
+    with _ocr_progress_lock:
+        _ocr_progress_registry[token] = {
+            'progress': 0,
+            'status': 'processing',
+            'total_pages': 0,
+            'current_page': 0,
+        }
+
+
+def _update_ocr_progress(token, progress=None, status=None,
+                          total_pages=None, current_page=None):
+    """Actualiza el progreso real de un token en curso."""
+    with _ocr_progress_lock:
+        entry = _ocr_progress_registry.get(token)
+        if entry is None:
+            return
+        if progress is not None:
+            entry['progress'] = max(0, min(100, int(progress)))
+        if status is not None:
+            entry['status'] = status
+        if total_pages is not None:
+            entry['total_pages'] = int(total_pages)
+        if current_page is not None:
+            entry['current_page'] = int(current_page)
+
+
+def _get_ocr_progress(token):
+    """Devuelve el estado de progreso de un token (o None si no existe)."""
+    with _ocr_progress_lock:
+        entry = _ocr_progress_registry.get(token)
+        return dict(entry) if entry else None
+
+
+def _unregister_ocr_progress(token):
+    """Limpia el progreso de un token (proceso finalizado)."""
+    with _ocr_progress_lock:
+        _ocr_progress_registry.pop(token, None)
+
+
+# =============================================================================
 # CREAR CONTRATO
 # =============================================================================
 @contract_builder_bp.route('/create', methods=['GET', 'POST'])
@@ -475,9 +526,19 @@ def api_ocr_extract():
         cancel_token = uuid.uuid4().hex  # Fallback por seguridad
 
     _register_cancel_token(cancel_token)
+    _register_ocr_progress(cancel_token)
 
     def is_cancelled():
         return _is_token_cancelled(cancel_token)
+
+    def on_progress(info):
+        """Reporta el progreso real del procesamiento OCR."""
+        _update_ocr_progress(
+            cancel_token,
+            progress=info.get('progress'),
+            total_pages=info.get('total_pages'),
+            current_page=info.get('current_page'),
+        )
 
     temp_path = None
     try:
@@ -486,8 +547,14 @@ def api_ocr_extract():
         temp_path = os.path.join(temp_dir, temp_filename)
         file.save(temp_path)
 
-        extracted_text = extract_text_from_pdf(temp_path, is_cancelled=is_cancelled)
+        _update_ocr_progress(cancel_token, progress=2, status='processing')
+
+        extracted_text = extract_text_from_pdf(temp_path, is_cancelled=is_cancelled,
+                                               on_progress=on_progress)
+
+        _update_ocr_progress(cancel_token, progress=96, status='parsing')
         parsed = parse_contract_data(extracted_text)
+        _update_ocr_progress(cancel_token, progress=99, status='parsing')
 
         # ── Buscar o AUTO-CREAR prestador ──
         provider_match = None
@@ -577,6 +644,8 @@ def api_ocr_extract():
                     'auto_created': dept_was_created
                 }
 
+        _update_ocr_progress(cancel_token, progress=100, status='done')
+
         return jsonify({
             'success': True,
             'cancel_token': cancel_token,
@@ -588,6 +657,7 @@ def api_ocr_extract():
 
     except OCRCancelledException:
         current_app.logger.info(f"OCR cancelado por el usuario (token: {cancel_token[:8]}...)")
+        _update_ocr_progress(cancel_token, status='cancelled')
         return jsonify({
             'success': False,
             'status_text': 'cancelled',
@@ -596,6 +666,7 @@ def api_ocr_extract():
 
     except Exception as e:
         current_app.logger.error(f"Error OCR extract: {e}")
+        _update_ocr_progress(cancel_token, status='error')
         return jsonify({'success': False, 'message': str(e)}), 500
 
     finally:
@@ -605,6 +676,42 @@ def api_ocr_extract():
             except:
                 pass
         _unregister_cancel_token(cancel_token)
+        _unregister_ocr_progress(cancel_token)
+
+
+# =============================================================================
+# API: PROGRESO REAL DEL PROCESAMIENTO OCR (polling)
+# =============================================================================
+@contract_builder_bp.route('/api/ocr-progress', methods=['GET'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO')
+def api_ocr_progress():
+    """
+    Devuelve el progreso real (0-100) del procesamiento OCR en curso.
+    El frontend lo consulta por polling mientras el servidor extrae el texto.
+    """
+    token = (request.args.get('token') or '').strip()
+    if not token:
+        return jsonify({'success': False, 'message': 'Token no proporcionado.'}), 400
+
+    progress = _get_ocr_progress(token)
+    if progress is None:
+        # El proceso ya terminó (o nunca existió): no es un error para el cliente.
+        return jsonify({
+            'success': True,
+            'found': False,
+            'progress': 100,
+            'status': 'done'
+        })
+
+    return jsonify({
+        'success': True,
+        'found': True,
+        'progress': progress.get('progress', 0),
+        'status': progress.get('status', 'processing'),
+        'total_pages': progress.get('total_pages', 0),
+        'current_page': progress.get('current_page', 0),
+    })
 
 
 # =============================================================================

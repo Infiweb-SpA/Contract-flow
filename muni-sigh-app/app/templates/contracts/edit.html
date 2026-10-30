@@ -74,6 +74,16 @@
         border-bottom: 1px solid #f1f5f9;
     }
 
+    /* ── OCR Progress Bar ── */
+    .ocr-progress-container { width: 100%; max-width: 320px; margin: 0 auto 12px auto; }
+    .ocr-progress-labels { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .ocr-progress-labels .lbl-left { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #1e3a8a; }
+    .ocr-progress-labels .lbl-right { font-size: 11px; font-weight: 700; color: #1e3a8a; font-variant-numeric: tabular-nums; }
+    .ocr-progress-track { height: 16px; border-radius: 9999px; border: 2px solid #1e3a8a; background: #ffffff; padding: 2px; position: relative; overflow: hidden; }
+    .ocr-progress-fill { height: 100%; border-radius: 9999px; background: linear-gradient(90deg, #0f265c 0%, #1e3a8a 50%, #2563eb 100%); transition: width 0.25s ease-out; width: 0%; position: relative; }
+    .ocr-progress-fill::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%); animation: ocr-progress-shimmer 1.5s infinite; }
+    @keyframes ocr-progress-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+
     @media (max-width: 1280px) {
         .split-container { flex-direction: column; }
         .panel-left { width: 100% !important; height: auto; }
@@ -158,8 +168,16 @@
                             <p class="text-[11px] text-slate-400 mt-1">El sistema extraerá automáticamente los datos mediante OCR</p>
                         </div>
                         <div id="ocr_loading_state" class="hidden">
-                            <div class="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-[#1e3a8a] mx-auto mb-2"></div>
-                            <p class="text-xs font-semibold text-slate-700">Procesando documento...</p>
+                            <div class="ocr-progress-container">
+                                <div class="ocr-progress-labels">
+                                    <span class="lbl-left" id="ocr_progress_text">PROCESANDO...</span>
+                                    <span class="lbl-right" id="ocr_progress_percent">0%</span>
+                                </div>
+                                <div class="ocr-progress-track">
+                                    <div id="ocr_progress_bar" class="ocr-progress-fill" style="width:0%"></div>
+                                </div>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-700 mt-2">Procesando documento...</p>
                             <p class="text-[11px] text-slate-400 mt-1">Extrayendo texto y estructurando datos</p>
                         </div>
                         <div id="ocr_success_state" class="hidden">
@@ -844,39 +862,185 @@ function setOcrState(state) {
     else { badge.classList.add('hidden'); }
 }
 function showOcrError(msg) { document.getElementById('ocr_error_msg').textContent = msg; setOcrState('error'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Barra de Progreso OCR — PROGRESO REAL
+//  · 0-25%  → subida real del archivo (xhr.upload.onprogress)
+//  · 25-99% → progreso real del backend vía polling a /api/ocr-progress
+//  · 100%   → respuesta final del servidor
+// ═══════════════════════════════════════════════════════════════════════
+let ocrProgressInterval = null;
+let ocrProgressPollTimer = null;
+let ocrProgressValue = 0;
+let ocrProgressPhase = '';
+let ocrCancelToken = null;
+
+function startOcrProgress() {
+    ocrProgressValue = 0;
+    ocrProgressPhase = '';
+    updateOcrProgressUI();
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressInterval = null;
+    ocrProgressPollTimer = null;
+}
+function setOcrProgress(value, phase) {
+    const newValue = Math.max(0, Math.min(100, Math.round(value)));
+    if (newValue > ocrProgressValue) {
+        ocrProgressValue = newValue;
+        if (phase) ocrProgressPhase = phase;
+        updateOcrProgressUI();
+    }
+}
+function completeOcrProgress() {
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressInterval = null;
+    ocrProgressPollTimer = null;
+    ocrProgressValue = 100;
+    updateOcrProgressUI();
+}
+function resetOcrProgress() {
+    if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressInterval = null;
+    ocrProgressPollTimer = null;
+    ocrProgressValue = 0;
+    ocrProgressPhase = '';
+    updateOcrProgressUI();
+}
+function updateOcrProgressUI() {
+    const bar = document.getElementById('ocr_progress_bar');
+    const pct = document.getElementById('ocr_progress_percent');
+    const txt = document.getElementById('ocr_progress_text');
+    if (bar) bar.style.width = ocrProgressValue + '%';
+    if (pct) pct.textContent = Math.round(ocrProgressValue) + '%';
+    if (txt) {
+        if (ocrProgressValue >= 100) txt.textContent = 'COMPLETADO';
+        else if (ocrProgressPhase) txt.textContent = ocrProgressPhase;
+        else txt.textContent = 'PROCESANDO...';
+    }
+}
+/** Consulta periódicamente el progreso REAL del procesamiento en el servidor. */
+function pollOcrProgress(token, attempt) {
+    if (!token) return;
+    attempt = attempt || 0;
+    if (attempt > 60) return; // seguridad: no consultar indefinidamente
+    fetch("{{ url_for('contract_builder.api_ocr_progress') }}" + '?token=' + encodeURIComponent(token), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+        if (!data || !data.success) return;
+        if (data.found === false) {
+            ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 400);
+            return;
+        }
+        const pct = Number(data.progress) || 0;
+        let phase = 'PROCESANDO...';
+        if (data.status === 'parsing') phase = 'ANALIZANDO DATOS...';
+        else if (data.status === 'ocr') {
+            const cp = data.current_page || 0;
+            const tp = data.total_pages || 0;
+            phase = tp ? `OCR PÁGINA ${cp}/${tp}` : 'OCR EN CURSO...';
+        } else if (data.status === 'reading') phase = 'LEYENDO DOCUMENTO...';
+        else if (data.status === 'done') phase = 'COMPLETADO';
+        const scaled = 25 + (pct * 74) / 100;
+        setOcrProgress(scaled, phase);
+        if (data.status !== 'done' && data.status !== 'error' && data.status !== 'cancelled') {
+            ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 500);
+        }
+    })
+    .catch(() => {
+        ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 800);
+    });
+}
+
 function resetOcrZone() {
     fileInput.value = '';
     document.getElementById('ocr_raw_text_container').classList.add('hidden');
     document.getElementById('ocr_raw_text').textContent = '';
     document.getElementById('ocr_provider_hint').classList.add('hidden');
     document.getElementById('ocr_dept_hint').classList.add('hidden');
+    if (window.ocrXhr) { try { window.ocrXhr.abort(); } catch (e) { /* noop */ } window.ocrXhr = null; }
+    ocrCancelToken = null;
+    resetOcrProgress();
     setOcrState('idle');
 }
 function processOcrFile(file) {
     if (!file.name.toLowerCase().endsWith('.pdf')) { showOcrError('El archivo debe ser un PDF.'); return; }
     setOcrState('loading');
+    startOcrProgress();
+
+    // ── Token de cancelación (necesario para consultar el progreso) ──
+    ocrCancelToken = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'ocr-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+
     const formData = new FormData();
     formData.append('contract_pdf', file);
-    fetch("{{ url_for('contract_builder.api_ocr_extract') }}", { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById('ocr_raw_text').textContent = data.extracted_text;
-            document.getElementById('ocr_raw_text_container').classList.remove('hidden');
-            autofillForm(data.parsed, data.provider_match, data.department_match);
-            setOcrState('success');
-            updatePreview();
-        } else { showOcrError(data.message || 'Error desconocido en el procesamiento.'); }
-    })
-    .catch(err => {
-        const rawText = document.getElementById('ocr_raw_text')?.textContent || '';
-        if (rawText.trim().length > 0) {
-            setOcrState('success');
+    formData.append('cancel_token', ocrCancelToken);
+
+    const xhr = new XMLHttpRequest();
+    window.ocrXhr = xhr;
+    xhr.open('POST', "{{ url_for('contract_builder.api_ocr_extract') }}", true);
+
+    // ── Progreso REAL de subida (0% → 25%) ──
+    xhr.upload.onprogress = function(event) {
+        if (event.lengthComputable) {
+            const uploadPct = (event.loaded / event.total) * 100;
+            setOcrProgress(uploadPct * 0.25, 'SUBIENDO ARCHIVO...');
+        }
+    };
+    // ── Al terminar la subida, consultar progreso REAL del servidor ──
+    xhr.upload.onload = function() {
+        setOcrProgress(25, 'PROCESANDO...');
+        pollOcrProgress(ocrCancelToken);
+    };
+
+    xhr.onload = function() {
+        if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
+
+        let data;
+        try {
+            data = JSON.parse(xhr.responseText);
+        } catch (e) {
+            console.error('OCR parse error:', e);
+            showOcrError('Respuesta inválida del servidor OCR.');
+            resetOcrProgress();
             return;
         }
-        console.error('OCR Error:', err);
+
+        if (xhr.status === 200 && data.success) {
+            completeOcrProgress();
+            ocrCancelToken = null;
+            document.getElementById('ocr_raw_text').textContent = data.extracted_text || '';
+            document.getElementById('ocr_raw_text_container').classList.remove('hidden');
+            // La extracción fue exitosa: un fallo al rellenar el formulario
+            // no debe mostrarse como error de OCR.
+            try {
+                autofillForm(data.parsed, data.provider_match, data.department_match);
+            } catch (e) {
+                console.error('OCR autofill error:', e);
+            }
+            setOcrState('success');
+            try {
+                updatePreview();
+            } catch (e) {
+                console.error('Preview update error:', e);
+            }
+        } else if (data.status_text === 'cancelled' || data.status === 'cancelled') {
+            setOcrState('cancelled');
+        } else {
+            showOcrError(data.message || 'Error desconocido en el procesamiento.');
+            resetOcrProgress();
+        }
+    };
+    xhr.onerror = function() {
+        if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
+        console.error('OCR Error:', 'Network error');
         showOcrError('Error de conexión al procesar el archivo.');
-    });
+        resetOcrProgress();
+    };
+    xhr.send(formData);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1009,45 +1173,56 @@ function schedulePreview() {
     previewTimeout = setTimeout(updatePreview, PREVIEW_DEBOUNCE_MS);
 }
 
+/** Escribe texto en un elemento del preview sin fallar si el ID no existe. */
+function setPreviewText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+/** Muestra/oculta un bloque del preview sin fallar si el ID no existe. */
+function setPreviewDisplay(id, display) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = display;
+}
+
 function updatePreview() {
     const providerSelect = document.getElementById('provider_select');
     const deptSelect = document.getElementById('department_select');
+    if (!providerSelect || !deptSelect) return;
 
     // Numeración dinámica de cláusulas según presupuesto
     const hasBudget = (document.getElementById('budget_account')?.value || document.getElementById('cost_center')?.value) ? true : false;
-    const budgetSection = document.getElementById('preview_budget_section');
-    if (budgetSection) budgetSection.style.display = hasBudget ? '' : 'none';
+    setPreviewDisplay('preview_budget_section', hasBudget ? '' : 'none');
 
-    document.getElementById('clausula_objeto_titulo').textContent = hasBudget ? 'Tercero: Objeto' : 'Segundo: Objeto';
-    document.getElementById('clausula_naturaleza_titulo').textContent = hasBudget ? 'Cuarto: Naturaleza Jurídica del Contrato' : 'Tercero: Naturaleza Jurídica del Contrato';
-    document.getElementById('clausula_obligaciones_titulo').textContent = hasBudget ? 'Quinto: Obligaciones y Funciones Específicas' : 'Cuarto: Obligaciones y Funciones Específicas';
-    document.getElementById('clausula_plazo_titulo').textContent = hasBudget ? 'Sexto: Plazo de Duración' : 'Quinto: Plazo de Duración';
-    document.getElementById('clausula_retribucion_titulo').textContent = hasBudget ? 'Séptimo: Retribución' : 'Sexto: Retribución';
-    document.getElementById('clausula_informe_titulo').textContent = hasBudget ? 'Octavo: Informe de Actividades' : 'Séptimo: Informe de Actividades';
-    document.getElementById('clausula_domicilio_titulo').textContent = hasBudget ? 'Noveno: Domicilio' : 'Octavo: Domicilio';
-    document.getElementById('clausula_terminacion_titulo').textContent = hasBudget ? 'Décimo: Terminación Anticipada' : 'Noveno: Terminación Anticipada';
-    document.getElementById('clausula_jurisdiccion_titulo').textContent = hasBudget ? 'Décimo Primero: Jurisdicción' : 'Décimo: Jurisdicción';
-    document.getElementById('clausula_notificaciones_titulo').textContent = hasBudget ? 'Décimo Segundo: Notificaciones' : 'Décimo Primero: Notificaciones';
-    document.getElementById('clausula_disposiciones_titulo').textContent = hasBudget ? 'Décimo Tercero: Disposiciones Finales' : 'Décimo Segundo: Disposiciones Finales';
+    setPreviewText('clausula_objeto_titulo', hasBudget ? 'Tercero: Objeto' : 'Segundo: Objeto');
+    setPreviewText('clausula_naturaleza_titulo', hasBudget ? 'Cuarto: Naturaleza Jurídica del Contrato' : 'Tercero: Naturaleza Jurídica del Contrato');
+    setPreviewText('clausula_obligaciones_titulo', hasBudget ? 'Quinto: Obligaciones y Funciones Específicas' : 'Cuarto: Obligaciones y Funciones Específicas');
+    setPreviewText('clausula_plazo_titulo', hasBudget ? 'Sexto: Plazo de Duración' : 'Quinto: Plazo de Duración');
+    setPreviewText('clausula_retribucion_titulo', hasBudget ? 'Séptimo: Retribución' : 'Sexto: Retribución');
+    setPreviewText('clausula_informe_titulo', hasBudget ? 'Octavo: Informe de Actividades' : 'Séptimo: Informe de Actividades');
+    setPreviewText('clausula_domicilio_titulo', hasBudget ? 'Noveno: Domicilio' : 'Octavo: Domicilio');
+    setPreviewText('clausula_terminacion_titulo', hasBudget ? 'Décimo: Terminación Anticipada' : 'Noveno: Terminación Anticipada');
+    setPreviewText('clausula_jurisdiccion_titulo', hasBudget ? 'Décimo Primero: Jurisdicción' : 'Décimo: Jurisdicción');
+    setPreviewText('clausula_notificaciones_titulo', hasBudget ? 'Décimo Segundo: Notificaciones' : 'Décimo Primero: Notificaciones');
+    setPreviewText('clausula_disposiciones_titulo', hasBudget ? 'Décimo Tercero: Disposiciones Finales' : 'Décimo Segundo: Disposiciones Finales');
 
     // Prestador
     if (providerSelect.selectedIndex > 0) {
         const opt = providerSelect.options[providerSelect.selectedIndex];
         const name = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
         const rut = opt.getAttribute('data-rut') || '__.___.___-_';
-        document.getElementById('preview_provider_name').textContent = name;
-        document.getElementById('preview_provider_sign').textContent = name;
-        document.getElementById('preview_provider_rut').textContent = rut;
-        document.getElementById('preview_provider_rut2').textContent = rut;
+        setPreviewText('preview_provider_name', name);
+        setPreviewText('preview_provider_sign', name);
+        setPreviewText('preview_provider_rut', rut);
+        setPreviewText('preview_provider_rut2', rut);
 
         let providerDesc = '';
         if (selectedProviderExtended.profession_or_trade) providerDesc = selectedProviderExtended.profession_or_trade;
         if (selectedProviderExtended.nationality) providerDesc += (providerDesc ? ', ' : '') + 'de nacionalidad ' + selectedProviderExtended.nationality;
-        const extWrapper = document.getElementById('preview_provider_ext_wrapper');
         if (providerDesc) {
-            document.getElementById('preview_provider_profession').textContent = providerDesc;
-            extWrapper.style.display = '';
-        } else { extWrapper.style.display = 'none'; }
+            setPreviewText('preview_provider_profession', providerDesc);
+            setPreviewDisplay('preview_provider_ext_wrapper', '');
+        } else { setPreviewDisplay('preview_provider_ext_wrapper', 'none'); }
         // Actualizar firma con profesión si aplica
         const profFirmaEl = document.getElementById('preview_provider_profession_firma');
         if (profFirmaEl) {
@@ -1058,50 +1233,47 @@ function updatePreview() {
             }
         }
     } else {
-        document.getElementById('preview_provider_name').textContent = '_______________________';
-        document.getElementById('preview_provider_sign').textContent = '_______________________';
-        document.getElementById('preview_provider_rut').textContent = '__.___.___-_';
-        document.getElementById('preview_provider_rut2').textContent = '__.___.___-_';
-        document.getElementById('preview_provider_ext_wrapper').style.display = 'none';
+        setPreviewText('preview_provider_name', '_______________________');
+        setPreviewText('preview_provider_sign', '_______________________');
+        setPreviewText('preview_provider_rut', '__.___.___-_');
+        setPreviewText('preview_provider_rut2', '__.___.___-_');
+        setPreviewDisplay('preview_provider_ext_wrapper', 'none');
     }
 
     // Departamento
     if (deptSelect.selectedIndex > 0) {
         const deptName = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
-        document.getElementById('preview_department').textContent = deptName;
-        const dept2El = document.getElementById('preview_department2');
-        if (dept2El) dept2El.textContent = deptName;
+        setPreviewText('preview_department', deptName);
+        setPreviewText('preview_department2', deptName);
     } else {
-        document.getElementById('preview_department').textContent = '_______________________';
-        const dept2El = document.getElementById('preview_department2');
-        if (dept2El) dept2El.textContent = '_______________________';
+        setPreviewText('preview_department', '_______________________');
+        setPreviewText('preview_department2', '_______________________');
     }
 
     // contract_date
     const contractDateVal = document.getElementById('contract_date')?.value;
     const contractDateFormatted = contractDateVal ? formatDateLong(contractDateVal) : '___ de ___ de 2026';
-    document.getElementById('preview_contract_date').textContent = contractDateFormatted;
-    document.getElementById('preview_sign_date').textContent = contractDateFormatted;
+    setPreviewText('preview_contract_date', contractDateFormatted);
+    setPreviewText('preview_sign_date', contractDateFormatted);
 
     // Subprograma
     const subProgramVal = document.getElementById('sub_program')?.value || '';
-    const subProgramWrapper = document.getElementById('preview_sub_program_wrapper');
     if (subProgramVal) {
-        document.getElementById('preview_sub_program').textContent = subProgramVal;
-        subProgramWrapper.style.display = '';
-    } else { subProgramWrapper.style.display = 'none'; }
+        setPreviewText('preview_sub_program', subProgramVal);
+        setPreviewDisplay('preview_sub_program_wrapper', '');
+    } else { setPreviewDisplay('preview_sub_program_wrapper', 'none'); }
 
     // Presupuesto
     const budgetVal = document.getElementById('budget_account')?.value || '';
     const costCenterVal = document.getElementById('cost_center')?.value || '';
-    document.getElementById('preview_budget_account').textContent = budgetVal || '_________';
-    document.getElementById('preview_cost_center').textContent = costCenterVal || '_________';
+    setPreviewText('preview_budget_account', budgetVal || '_________');
+    setPreviewText('preview_cost_center', costCenterVal || '_________');
 
     // Modalidad
     const paymentVal = document.getElementById('payment_modality')?.value || '';
-    document.getElementById('preview_payment_modality').textContent = getPaymentModalityText(paymentVal);
-    const paymentTextEl = document.getElementById('preview_payment_modality_text');
-    if (paymentTextEl) paymentTextEl.textContent = getPaymentModalityText(paymentVal);
+    const paymentText = getPaymentModalityText(paymentVal);
+    setPreviewText('preview_payment_modality', paymentText);
+    setPreviewText('preview_payment_modality_text', paymentText);
 
     // Campos directos
     const fieldMap = {
@@ -1126,14 +1298,17 @@ function updatePreview() {
     // Funciones
     const funcInputs = document.querySelectorAll('input[name="functions[]"]');
     const funcContainer = document.getElementById('preview_functions');
-    funcContainer.innerHTML = '';
-    let hasFunctions = false;
-    funcInputs.forEach((input) => {
-        if (input.value.trim()) { hasFunctions = true; const li = document.createElement('li'); li.className = 'text-justify'; li.textContent = input.value.trim(); funcContainer.appendChild(li); }
-    });
-    if (!hasFunctions) { funcContainer.innerHTML = '<li class="text-justify text-slate-400">___________________________________________________________</li>'; }
+    if (funcContainer) {
+        funcContainer.innerHTML = '';
+        let hasFunctions = false;
+        funcInputs.forEach((input) => {
+            if (input.value.trim()) { hasFunctions = true; const li = document.createElement('li'); li.style.marginBottom = '5px'; li.style.textAlign = 'justify'; li.textContent = input.value.trim(); funcContainer.appendChild(li); }
+        });
+        if (!hasFunctions) { funcContainer.innerHTML = '<li style="margin-bottom: 5px; text-align: justify;">___________________________________________________________</li>'; }
+    }
 
-    document.getElementById('preview_spinner').classList.add('hidden');
+    const spinner = document.getElementById('preview_spinner');
+    if (spinner) spinner.classList.add('hidden');
 }
 
 function attachPreviewListeners() {

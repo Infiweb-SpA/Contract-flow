@@ -57,7 +57,7 @@ ocr_engine = PaddleOCR(
 )
 
 
-def extract_text_from_pdf(file_path: str, is_cancelled=None) -> str:
+def extract_text_from_pdf(file_path: str, is_cancelled=None, on_progress=None) -> str:
     """
     Intenta extraer texto de un PDF de forma nativa.
     Si no encuentra texto suficiente (probablemente un documento escaneado),
@@ -67,23 +67,48 @@ def extract_text_from_pdf(file_path: str, is_cancelled=None) -> str:
         file_path: Ruta al archivo PDF.
         is_cancelled: Callable opcional que retorna True si el procesamiento
                       debe ser cancelado. Se verifica entre cada página del OCR.
+        on_progress: Callable opcional que recibe un diccionario con el
+                     progreso real: {'progress': int 0-100, 'phase': str,
+                     'total_pages': int, 'current_page': int}.
     """
     extracted_text = ""
     needs_ocr = False
 
+    def report(progress, phase, total_pages=0, current_page=0):
+        if on_progress:
+            try:
+                on_progress({
+                    'progress': progress,
+                    'phase': phase,
+                    'total_pages': total_pages,
+                    'current_page': current_page,
+                })
+            except Exception:
+                pass
+
     try:
         with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
+            total_pages = len(pdf.pages)
+            report(5, 'reading', total_pages, 0)
+            for idx, page in enumerate(pdf.pages):
+                if is_cancelled and is_cancelled():
+                    raise OCRCancelledException("Procesamiento cancelado durante la lectura")
                 text = page.extract_text()
                 if text:
                     extracted_text += text + "\n"
+                # Progreso real de lectura: 5% → 45%
+                report(5 + int(40 * (idx + 1) / max(total_pages, 1)),
+                       'reading', total_pages, idx + 1)
 
             # Si el texto extraído es muy corto, asumimos que es una imagen escaneada
             if len(extracted_text.strip()) < 50:
                 needs_ocr = True
 
         if needs_ocr:
-            extracted_text = _extract_via_ocr(file_path, is_cancelled=is_cancelled)
+            extracted_text = _extract_via_ocr(file_path, is_cancelled=is_cancelled,
+                                               on_progress=on_progress)
+        else:
+            report(95, 'parsing')
 
         return extracted_text.strip()
 
@@ -94,7 +119,7 @@ def extract_text_from_pdf(file_path: str, is_cancelled=None) -> str:
         raise e
 
 
-def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
+def _extract_via_ocr(file_path: str, is_cancelled=None, on_progress=None) -> str:
     """
     Aplica PaddleOCR 3.x convirtiendo el PDF en imágenes con PyMuPDF.
 
@@ -102,6 +127,7 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
         file_path: Ruta al archivo PDF.
         is_cancelled: Callable opcional que se invoca entre cada página.
                       Si retorna True, se detiene el procesamiento inmediatamente.
+        on_progress: Callable opcional que reporta el progreso real por página.
     """
     ocr_text = ""
 
@@ -113,6 +139,13 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
 
     total_pages = len(doc)
     print(f"--> Iniciando OCR para {total_pages} páginas...", flush=True)
+
+    if on_progress:
+        try:
+            on_progress({'progress': 45, 'phase': 'ocr', 'total_pages': total_pages,
+                         'current_page': 0})
+        except Exception:
+            pass
 
     try:
         for page_index in range(total_pages):
@@ -193,6 +226,20 @@ def _extract_via_ocr(file_path: str, is_cancelled=None) -> str:
                     f"Error OCR en página {page_index + 1}: {page_err}"
                 )
                 continue
+
+            # ── Reportar progreso real de la página procesada ──
+            if on_progress:
+                try:
+                    pct = 45 + int(50 * (page_index + 1) / max(total_pages, 1))
+                    on_progress({
+                        'progress': min(pct, 95),
+                        'phase': 'ocr',
+                        'total_pages': total_pages,
+                        'current_page': page_index + 1,
+                    })
+                except Exception:
+                    pass
+
         print("--> OCR finalizado.", flush=True)
     finally:
         # Cerrar el documento de forma segura (puede ya estar cerrado)

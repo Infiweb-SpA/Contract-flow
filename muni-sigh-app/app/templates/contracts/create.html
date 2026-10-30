@@ -954,6 +954,7 @@ let selectedProviderExtended = {
 const API_PROVIDER_DETAIL_URL = "{{ url_for('contract_builder.api_provider_detail', provider_id=0) }}".replace('/0', '/');
 const API_OCR_EXTRACT_URL = "{{ url_for('contract_builder.api_ocr_extract') }}";
 const API_OCR_CANCEL_URL = "{{ url_for('contract_builder.api_ocr_cancel') }}";
+const API_OCR_PROGRESS_URL = "{{ url_for('contract_builder.api_ocr_progress') }}";
 
 // ── Estado de cancelación OCR ──
 let ocrAbortController = null;
@@ -962,35 +963,53 @@ let ocrIsProcessing = false;
 
 // ── Estado de barra de progreso OCR ──
 let ocrProgressInterval = null;
+let ocrProgressPollTimer = null;
 let ocrProgressValue = 0;
+let ocrProgressPhase = '';
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// Barra de Progreso OCR
+// Barra de Progreso OCR — PROGRESO REAL
+//  · 0-25%  → subida real del archivo (xhr.upload.onprogress)
+//  · 25-99% → progreso real del backend vía polling a /api/ocr-progress
+//  · 100%   → respuesta final del servidor
 // ═══════════════════════════════════════════════════════════════════════
 function startOcrProgress() {
     ocrProgressValue = 0;
+    ocrProgressPhase = '';
     updateOcrProgressUI();
     if (ocrProgressInterval) clearInterval(ocrProgressInterval);
-    ocrProgressInterval = setInterval(() => {
-        if (ocrProgressValue < 92) {
-            const remaining = 92 - ocrProgressValue;
-            const increment = Math.max(0.3, remaining / 25);
-            ocrProgressValue = Math.min(92, ocrProgressValue + increment);
-            updateOcrProgressUI();
-        }
-    }, 180);
+    ocrProgressInterval = null;
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressPollTimer = null;
+}
+
+function setOcrProgress(value, phase) {
+    const newValue = Math.max(0, Math.min(100, Math.round(value)));
+    // La barra nunca retrocede
+    if (newValue > ocrProgressValue) {
+        ocrProgressValue = newValue;
+        if (phase) ocrProgressPhase = phase;
+        updateOcrProgressUI();
+    }
 }
 
 function completeOcrProgress() {
     if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressInterval = null;
+    ocrProgressPollTimer = null;
     ocrProgressValue = 100;
     updateOcrProgressUI();
 }
 
 function resetOcrProgress() {
     if (ocrProgressInterval) clearInterval(ocrProgressInterval);
+    if (ocrProgressPollTimer) clearTimeout(ocrProgressPollTimer);
+    ocrProgressInterval = null;
+    ocrProgressPollTimer = null;
     ocrProgressValue = 0;
+    ocrProgressPhase = '';
     updateOcrProgressUI();
 }
 
@@ -1001,9 +1020,57 @@ function updateOcrProgressUI() {
     if (bar) bar.style.width = ocrProgressValue + '%';
     if (pct) pct.textContent = Math.round(ocrProgressValue) + '%';
     if (txt) {
-        if (ocrProgressValue >= 100) txt.textContent = 'COMPLETADO';
-        else txt.textContent = 'PROCESANDO...';
+        if (ocrProgressValue >= 100) {
+            txt.textContent = 'COMPLETADO';
+        } else if (ocrProgressPhase) {
+            txt.textContent = ocrProgressPhase;
+        } else {
+            txt.textContent = 'PROCESANDO...';
+        }
     }
+}
+
+/**
+ * Consulta periódicamente el progreso REAL del procesamiento en el servidor.
+ * @param {string} token Token de cancelación generado en el frontend.
+ */
+function pollOcrProgress(token, attempt) {
+    if (!token) return;
+    attempt = attempt || 0;
+    if (attempt > 60) return; // seguridad: no consultar indefinidamente
+    fetch(API_OCR_PROGRESS_URL + '?token=' + encodeURIComponent(token), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+        if (!data || !data.success) return;
+        if (data.found === false) {
+            // El proceso puede haber terminado entre polls: se reintenta una vez.
+            ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 400);
+            return;
+        }
+        const pct = Number(data.progress) || 0;
+        let phase = 'PROCESANDO...';
+        if (data.status === 'parsing') phase = 'ANALIZANDO DATOS...';
+        else if (data.status === 'ocr') {
+            const cp = data.current_page || 0;
+            const tp = data.total_pages || 0;
+            phase = tp ? `OCR PÁGINA ${cp}/${tp}` : 'OCR EN CURSO...';
+        } else if (data.status === 'reading') phase = 'LEYENDO DOCUMENTO...';
+        else if (data.status === 'done') phase = 'COMPLETADO';
+
+        // El backend reporta 0-100 del procesamiento → se escala a 25-99
+        const scaled = 25 + (pct * 74) / 100;
+        setOcrProgress(scaled, phase);
+
+        if (data.status !== 'done' && data.status !== 'error' && data.status !== 'cancelled') {
+            ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 500);
+        }
+    })
+    .catch(() => {
+        // Fallo de red al consultar: se reintenta sin romper el flujo.
+        ocrProgressPollTimer = setTimeout(() => pollOcrProgress(token, attempt + 1), 800);
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1084,12 +1151,19 @@ function cancelOcrProcess() {
         .catch(err => console.warn('[OCR Cancel] Error notificando al backend:', err));
     }
 
-    // 2. Abortar la request fetch del OCR inmediatamente
+    // 2. Abortar la request del OCR inmediatamente
     if (ocrAbortController) {
         ocrAbortController.abort();
         ocrAbortController = null;
         console.log('[OCR Cancel] Fetch abortado.');
     }
+    // Si hay un XMLHttpRequest en curso, abortarlo también
+    if (window.ocrXhr) {
+        try { window.ocrXhr.abort(); } catch (e) { /* noop */ }
+        window.ocrXhr = null;
+    }
+    // Detener el polling de progreso
+    if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
 
     // 3. Limpiar token, barra de progreso y actualizar UI
     ocrCancelToken = null;
@@ -1125,48 +1199,80 @@ function processOcrFile(file) {
     formData.append('contract_pdf', file);
     formData.append('cancel_token', ocrCancelToken);   // ← Se envía al backend
 
-    fetch(API_OCR_EXTRACT_URL, {
-        method: 'POST',
-        body: formData,
-        signal: ocrAbortController.signal
-    })
-    .then(res => {
-        return res.json().then(data => ({ status: res.status, data: data }));
-    })
-    .then(({ status, data }) => {
-        ocrIsProcessing = false;
-        completeOcrProgress();   // ← Completar barra al 100%
+    const xhr = new XMLHttpRequest();
+    window.ocrXhr = xhr;
+    xhr.open('POST', API_OCR_EXTRACT_URL, true);
 
-        if (data.success) {
+    // ── Progreso REAL de subida del archivo (0% → 25%) ──
+    xhr.upload.onprogress = function(event) {
+        if (event.lengthComputable) {
+            const uploadPct = (event.loaded / event.total) * 100;
+            setOcrProgress(uploadPct * 0.25, 'SUBIENDO ARCHIVO...');
+        }
+    };
+
+    // ── Al terminar la subida, consultar el progreso REAL del servidor ──
+    xhr.upload.onload = function() {
+        setOcrProgress(25, 'PROCESANDO...');
+        pollOcrProgress(ocrCancelToken);
+    };
+
+    xhr.onload = function() {
+        ocrIsProcessing = false;
+        if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
+
+        let data;
+        try {
+            data = JSON.parse(xhr.responseText);
+        } catch (e) {
+            console.error('OCR parse error:', e);
+            showOcrError('Respuesta inválida del servidor OCR.');
+            resetOcrProgress();
+            return;
+        }
+
+        if (xhr.status === 200 && data.success) {
+            completeOcrProgress();
             ocrCancelToken = null;
-            document.getElementById('ocr_raw_text').textContent = data.extracted_text;
+            document.getElementById('ocr_raw_text').textContent = data.extracted_text || '';
             document.getElementById('ocr_raw_text_container').classList.remove('hidden');
-            autofillForm(data.parsed, data.provider_match, data.department_match);
+            // La extracción fue exitosa: un fallo al rellenar el formulario
+            // no debe mostrarse como error de OCR.
+            try {
+                autofillForm(data.parsed, data.provider_match, data.department_match);
+            } catch (e) {
+                console.error('OCR autofill error:', e);
+            }
             setOcrState('success');
-            updatePreview();
+            try {
+                updatePreview();
+            } catch (e) {
+                console.error('Preview update error:', e);
+            }
         } else if (data.status === 'cancelled' || data.status_text === 'cancelled') {
             console.log('[OCR] Backend confirmó cancelación.');
             setOcrState('cancelled');
         } else {
             showOcrError(data.message || 'Error desconocido en el procesamiento.');
+            resetOcrProgress();
         }
-    })
-    .catch(err => {
+    };
+
+    xhr.onerror = function() {
         ocrIsProcessing = false;
+        if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
+        console.error('OCR Error:', 'Network error');
+        showOcrError('Error de conexión al procesar el archivo.');
         resetOcrProgress();
-        const rawText = document.getElementById('ocr_raw_text')?.textContent || '';
-        if (rawText.trim().length > 0) {
-            setOcrState('success');
-            return;
-        }
-        if (err.name === 'AbortError') {
-            console.log('[OCR] Request abortada por el usuario.');
-            setOcrState('cancelled');
-        } else {
-            console.error('OCR Error:', err);
-            showOcrError('Error de conexión al procesar el archivo.');
-        }
-    });
+    };
+
+    xhr.onabort = function() {
+        ocrIsProcessing = false;
+        if (ocrProgressPollTimer) { clearTimeout(ocrProgressPollTimer); ocrProgressPollTimer = null; }
+        setOcrState('cancelled');
+    };
+
+    xhr.send(formData);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1373,45 +1479,56 @@ function schedulePreview() {
     previewTimeout = setTimeout(updatePreview, PREVIEW_DEBOUNCE_MS);
 }
 
+/** Escribe texto en un elemento del preview sin fallar si el ID no existe. */
+function setPreviewText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+/** Muestra/oculta un bloque del preview sin fallar si el ID no existe. */
+function setPreviewDisplay(id, display) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = display;
+}
+
 function updatePreview() {
     const providerSelect = document.getElementById('provider_select');
     const deptSelect = document.getElementById('department_select');
+    if (!providerSelect || !deptSelect) return;
 
     // Numeración dinámica de cláusulas según presupuesto
     const hasBudget = (document.getElementById('budget_account')?.value || document.getElementById('cost_center')?.value) ? true : false;
-    const budgetSection = document.getElementById('preview_budget_section');
-    if (budgetSection) budgetSection.style.display = hasBudget ? '' : 'none';
+    setPreviewDisplay('preview_budget_section', hasBudget ? '' : 'none');
 
     // Actualizar títulos dinámicos de cláusulas
-    document.getElementById('clausula_objeto_titulo').textContent = hasBudget ? 'Tercero: Objeto' : 'Segundo: Objeto';
-    document.getElementById('clausula_naturaleza_titulo').textContent = hasBudget ? 'Cuarto: Naturaleza Jurídica del Contrato' : 'Tercero: Naturaleza Jurídica del Contrato';
-    document.getElementById('clausula_obligaciones_titulo').textContent = hasBudget ? 'Quinto: Obligaciones y Funciones Específicas' : 'Cuarto: Obligaciones y Funciones Específicas';
-    document.getElementById('clausula_plazo_titulo').textContent = hasBudget ? 'Sexto: Plazo de Duración' : 'Quinto: Plazo de Duración';
-    document.getElementById('clausula_retribucion_titulo').textContent = hasBudget ? 'Séptimo: Retribución' : 'Sexto: Retribución';
-    document.getElementById('clausula_informe_titulo').textContent = hasBudget ? 'Octavo: Informe de Actividades' : 'Séptimo: Informe de Actividades';
-    document.getElementById('clausula_domicilio_titulo').textContent = hasBudget ? 'Noveno: Domicilio' : 'Octavo: Domicilio';
-    document.getElementById('clausula_terminacion_titulo').textContent = hasBudget ? 'Décimo: Terminación Anticipada' : 'Noveno: Terminación Anticipada';
-    document.getElementById('clausula_jurisdiccion_titulo').textContent = hasBudget ? 'Décimo Primero: Jurisdicción' : 'Décimo: Jurisdicción';
-    document.getElementById('clausula_notificaciones_titulo').textContent = hasBudget ? 'Décimo Segundo: Notificaciones' : 'Décimo Primero: Notificaciones';
-    document.getElementById('clausula_disposiciones_titulo').textContent = hasBudget ? 'Décimo Tercero: Disposiciones Finales' : 'Décimo Segundo: Disposiciones Finales';
+    setPreviewText('clausula_objeto_titulo', hasBudget ? 'Tercero: Objeto' : 'Segundo: Objeto');
+    setPreviewText('clausula_naturaleza_titulo', hasBudget ? 'Cuarto: Naturaleza Jurídica del Contrato' : 'Tercero: Naturaleza Jurídica del Contrato');
+    setPreviewText('clausula_obligaciones_titulo', hasBudget ? 'Quinto: Obligaciones y Funciones Específicas' : 'Cuarto: Obligaciones y Funciones Específicas');
+    setPreviewText('clausula_plazo_titulo', hasBudget ? 'Sexto: Plazo de Duración' : 'Quinto: Plazo de Duración');
+    setPreviewText('clausula_retribucion_titulo', hasBudget ? 'Séptimo: Retribución' : 'Sexto: Retribución');
+    setPreviewText('clausula_informe_titulo', hasBudget ? 'Octavo: Informe de Actividades' : 'Séptimo: Informe de Actividades');
+    setPreviewText('clausula_domicilio_titulo', hasBudget ? 'Noveno: Domicilio' : 'Octavo: Domicilio');
+    setPreviewText('clausula_terminacion_titulo', hasBudget ? 'Décimo: Terminación Anticipada' : 'Noveno: Terminación Anticipada');
+    setPreviewText('clausula_jurisdiccion_titulo', hasBudget ? 'Décimo Primero: Jurisdicción' : 'Décimo: Jurisdicción');
+    setPreviewText('clausula_notificaciones_titulo', hasBudget ? 'Décimo Segundo: Notificaciones' : 'Décimo Primero: Notificaciones');
+    setPreviewText('clausula_disposiciones_titulo', hasBudget ? 'Décimo Tercero: Disposiciones Finales' : 'Décimo Segundo: Disposiciones Finales');
 
     if (providerSelect.selectedIndex > 0) {
         const opt = providerSelect.options[providerSelect.selectedIndex];
         const name = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
         const rut = opt.getAttribute('data-rut') || '__.___.___-_';
-        document.getElementById('preview_provider_name').textContent = name;
-        document.getElementById('preview_provider_sign').textContent = name;
-        document.getElementById('preview_provider_rut').textContent = rut;
-        document.getElementById('preview_provider_rut2').textContent = rut;
+        setPreviewText('preview_provider_name', name);
+        setPreviewText('preview_provider_sign', name);
+        setPreviewText('preview_provider_rut', rut);
+        setPreviewText('preview_provider_rut2', rut);
 
         let providerDesc = '';
         if (selectedProviderExtended.profession_or_trade) providerDesc = selectedProviderExtended.profession_or_trade;
         if (selectedProviderExtended.nationality) providerDesc += (providerDesc ? ', ' : '') + 'de nacionalidad ' + selectedProviderExtended.nationality;
-        const extWrapper = document.getElementById('preview_provider_ext_wrapper');
         if (providerDesc) {
-            document.getElementById('preview_provider_profession').textContent = providerDesc;
-            extWrapper.style.display = '';
-        } else { extWrapper.style.display = 'none'; }
+            setPreviewText('preview_provider_profession', providerDesc);
+            setPreviewDisplay('preview_provider_ext_wrapper', '');
+        } else { setPreviewDisplay('preview_provider_ext_wrapper', 'none'); }
         const profFirmaEl = document.getElementById('preview_provider_profession_firma');
         if (profFirmaEl) {
             if (selectedProviderExtended.profession_or_trade) {
@@ -1421,45 +1538,42 @@ function updatePreview() {
             }
         }
     } else {
-        document.getElementById('preview_provider_name').textContent = '_______________________';
-        document.getElementById('preview_provider_sign').textContent = '_______________________';
-        document.getElementById('preview_provider_rut').textContent = '__.___.___-_';
-        document.getElementById('preview_provider_rut2').textContent = '__.___.___-_';
-        document.getElementById('preview_provider_ext_wrapper').style.display = 'none';
+        setPreviewText('preview_provider_name', '_______________________');
+        setPreviewText('preview_provider_sign', '_______________________');
+        setPreviewText('preview_provider_rut', '__.___.___-_');
+        setPreviewText('preview_provider_rut2', '__.___.___-_');
+        setPreviewDisplay('preview_provider_ext_wrapper', 'none');
     }
 
     if (deptSelect.selectedIndex > 0) {
         const deptName = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
-        document.getElementById('preview_department').textContent = deptName;
-        const dept2El = document.getElementById('preview_department2');
-        if (dept2El) dept2El.textContent = deptName;
+        setPreviewText('preview_department', deptName);
+        setPreviewText('preview_department2', deptName);
     } else {
-        document.getElementById('preview_department').textContent = '_______________________';
-        const dept2El = document.getElementById('preview_department2');
-        if (dept2El) dept2El.textContent = '_______________________';
+        setPreviewText('preview_department', '_______________________');
+        setPreviewText('preview_department2', '_______________________');
     }
 
     const contractDateVal = document.getElementById('contract_date')?.value;
     const contractDateFormatted = contractDateVal ? formatDateLong(contractDateVal) : '___ de ___ de 2026';
-    document.getElementById('preview_contract_date').textContent = contractDateFormatted;
-    document.getElementById('preview_sign_date').textContent = contractDateFormatted;
+    setPreviewText('preview_contract_date', contractDateFormatted);
+    setPreviewText('preview_sign_date', contractDateFormatted);
 
     const subProgramVal = document.getElementById('sub_program')?.value || '';
-    const subProgramWrapper = document.getElementById('preview_sub_program_wrapper');
     if (subProgramVal) {
-        document.getElementById('preview_sub_program').textContent = subProgramVal;
-        subProgramWrapper.style.display = '';
-    } else { subProgramWrapper.style.display = 'none'; }
+        setPreviewText('preview_sub_program', subProgramVal);
+        setPreviewDisplay('preview_sub_program_wrapper', '');
+    } else { setPreviewDisplay('preview_sub_program_wrapper', 'none'); }
 
     const budgetVal = document.getElementById('budget_account')?.value || '';
     const costCenterVal = document.getElementById('cost_center')?.value || '';
-    document.getElementById('preview_budget_account').textContent = budgetVal || '_________';
-    document.getElementById('preview_cost_center').textContent = costCenterVal || '_________';
+    setPreviewText('preview_budget_account', budgetVal || '_________');
+    setPreviewText('preview_cost_center', costCenterVal || '_________');
 
     const paymentVal = document.getElementById('payment_modality')?.value || '';
-    document.getElementById('preview_payment_modality').textContent = getPaymentModalityText(paymentVal);
-    const paymentTextEl = document.getElementById('preview_payment_modality_text');
-    if (paymentTextEl) paymentTextEl.textContent = getPaymentModalityText(paymentVal);
+    const paymentText = getPaymentModalityText(paymentVal);
+    setPreviewText('preview_payment_modality', paymentText);
+    setPreviewText('preview_payment_modality_text', paymentText);
 
     const fieldMap = {
         'contract_number': { id: 'preview_contract_number', prefix: 'N° ', fallback: 'CT-2026-___' },
@@ -1482,14 +1596,17 @@ function updatePreview() {
 
     const funcInputs = document.querySelectorAll('input[name="functions[]"]');
     const funcContainer = document.getElementById('preview_functions');
-    funcContainer.innerHTML = '';
-    let hasFunctions = false;
-    funcInputs.forEach((input) => {
-        if (input.value.trim()) { hasFunctions = true; const li = document.createElement('li'); li.className = 'text-justify'; li.textContent = input.value.trim(); funcContainer.appendChild(li); }
-    });
-    if (!hasFunctions) { funcContainer.innerHTML = '<li class="text-justify text-slate-400">___________________________________________________________</li>'; }
+    if (funcContainer) {
+        funcContainer.innerHTML = '';
+        let hasFunctions = false;
+        funcInputs.forEach((input) => {
+            if (input.value.trim()) { hasFunctions = true; const li = document.createElement('li'); li.style.marginBottom = '5px'; li.style.textAlign = 'justify'; li.textContent = input.value.trim(); funcContainer.appendChild(li); }
+        });
+        if (!hasFunctions) { funcContainer.innerHTML = '<li style="margin-bottom: 5px; text-align: justify;">___________________________________________________________</li>'; }
+    }
 
-    document.getElementById('preview_spinner').classList.add('hidden');
+    const spinner = document.getElementById('preview_spinner');
+    if (spinner) spinner.classList.add('hidden');
 }
 
 function attachPreviewListeners() {
