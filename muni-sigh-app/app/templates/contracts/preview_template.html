@@ -25,43 +25,43 @@
 
         body {
             font-family: 'Times New Roman', Times, serif;
-            font-size: 12pt;
-            line-height: 1.7;
+            font-size: 11.5pt;
+            line-height: 1.65;
             margin: 0;
-            color: #000;
+            color: #1a1a2e;
             text-align: justify;
         }
 
         /* Membrete institucional */
         .membrete {
             text-align: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #000;
+            margin-bottom: 28px;
+            padding-bottom: 18px;
+            border-bottom: 2.5px solid #2563eb;
         }
         .membrete-escudo {
-            width: 55px;
-            height: 55px;
-            margin: 0 auto 8px;
-            border: 1.5px solid #333;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 10px;
+            border: none;
+            border-radius: 8px;
+            display: block;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.15);
         }
         .membrete-republica {
             font-size: 10pt;
             font-weight: bold;
-            letter-spacing: 2px;
+            letter-spacing: 2.5px;
             text-transform: uppercase;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+            color: #1e3a8a;
         }
         .membrete-muni {
             font-size: 14pt;
             font-weight: bold;
             text-transform: uppercase;
             margin-bottom: 4px;
+            color: #0F172A;
         }
         .membrete-sub {
             font-size: 9pt;
@@ -102,7 +102,9 @@
         /* Cláusulas */
         .clausula {
             margin-bottom: 14px;
+            padding-bottom: 14px;
             text-align: justify;
+            border-bottom: 1px dotted #cbd5e1;
         }
         .clausula-titulo {
             font-weight: bold;
@@ -202,6 +204,7 @@
     <base target="_blank">
 </head>
 <body>
+<div style="max-width: 210mm; margin: 0 auto; padding: 8mm; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;">
     <!-- Barra de acciones (solo visible en pantalla) -->
     <div class="print-bar">
         <div><strong>SIGH-MUNI</strong> — Vista previa del contrato</div>
@@ -216,7 +219,7 @@
     <!-- MEMBRETE INSTITUCIONAL (desde config.py)                       -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="membrete">
-        <div class="membrete-escudo">☖</div>
+        <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-06.png') }}" alt="Logo Cunco" class="membrete-escudo">
         <div class="membrete-republica">República de Chile</div>
         <div class="membrete-muni">{{ contract.municipality_name or 'Ilustre Municipalidad' }}</div>
         <div class="membrete-sub">{{ contract.municipality_region or '' }}</div>
@@ -419,5 +422,6 @@
         Documento generado mediante SIGH-MUNI — Sistema Integrado de Gestión de Honorarios Municipales<br>
         {{ contract.municipality_name or 'Municipalidad' }} — {{ contract.municipality_region or '' }}, República de Chile
     </div>
+</div>
 </body>
 </html>

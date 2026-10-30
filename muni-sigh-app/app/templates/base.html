@@ -4,53 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ g.municipio_nombre | default('SIGH-MUNI') }}{% endblock %} - Gestión de Honorarios</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800 flex flex-col font-sans">
+<body class="min-h-screen text-slate-800 flex flex-col font-sans bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-slate-900">
 
     <!-- Navegación Superior -->
-    <nav class="bg-blue-900 text-white shadow-md relative z-50">
+    <nav class="bg-slate-900 text-white shadow-lg relative z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
+            <div class="flex items-center justify-between h-[72px]">
                 <div class="flex items-center space-x-6">
-                    <a href="{{ url_for('dashboard.index') }}" class="flex items-center space-x-3">
-                        <span class="font-bold text-xl tracking-wide">{{ g.municipio_nombre | default('SIGH-MUNI') }}</span>
-                        <span class="text-xs bg-blue-700 px-2 py-1 rounded text-blue-100 font-mono">{{ g.municipio_region | default('Municipal') }}</span>
+                    <a href="{{ url_for('dashboard.index') }}" class="flex items-center space-x-3 group">
+                        <span class="font-extrabold text-[1.35rem] tracking-tight text-white leading-none">{{ g.municipio_nombre | default('SIGH-MUNI') }}</span>
                     </a>
-                    {% if session.get('user_id') %}
-                    <div class="hidden md:flex items-center space-x-1 text-sm">
-                        <a href="{{ url_for('dashboard.index') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">Dashboard</a>
-                        <a href="{{ url_for('contract_builder.create') }}" class="px-3 py-2 rounded hover:bg-blue-800 transition">+ Contrato</a>
-                        <!-- Pestaña "Pagos" ELIMINADA -->
-                    </div>
-                    {% endif %}
                 </div>
 
                 {% if session.get('user_id') %}
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center gap-6">
                     <!-- BUSCADOR GLOBAL OMNIPRESENTE -->
                     <div class="relative" id="global_search_container">
                         <div class="relative">
-                            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                             </svg>
                             <input type="text" id="global_search_input"
                                 placeholder="Buscar contrato o prestador..."
                                 autocomplete="off"
-                                class="w-56 lg:w-72 pl-9 pr-16 py-1.5 bg-blue-800 border border-blue-600 rounded-md text-sm text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-700 transition">
-                            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-blue-700 text-blue-300 px-1.5 py-0.5 rounded border border-blue-600 font-mono">Ctrl+K</kbd>
+                                class="w-56 lg:w-72 pl-9 pr-16 py-1.5 bg-white/10 border border-white/20 rounded-md text-sm text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition">
+                            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-white/10 text-white/70 px-1.5 py-0.5 rounded border border-white/20 font-mono">Ctrl+K</kbd>
                         </div>
                         <!-- Dropdown de resultados -->
                         <div id="global_search_dropdown" class="hidden absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50">
                         </div>
                     </div>
 
-                    <a href="{{ url_for('auth.profile') }}" class="text-sm font-medium hover:text-blue-200 transition">
+                    <a href="{{ url_for('auth.profile') }}" class="text-sm font-medium text-white hover:text-white/80 transition">
                         {{ session.get('user_name') }}
-                        <span class="text-xs text-blue-200">({{ session.get('user_role') }})</span>
+                        <span class="text-xs text-white/60">({{ session.get('user_role') }})</span>
                     </a>
-                    <a href="{{ url_for('auth.logout') }}" class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1.5 rounded transition">
-                        Cerrar Sesión
+                    <a href="{{ url_for('auth.logout') }}" class="text-white/70 hover:text-white text-xs font-medium transition flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        Cerrar sesión
                     </a>
                 </div>
                 {% endif %}
@@ -63,7 +57,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    {% set bg_color = 'bg-blue-100 border-blue-400 text-blue-700' %}
+                    {% set bg_color = 'bg-emerald-50 border-emerald-300 text-emerald-900' %}
                     {% if category == 'danger' %}{% set bg_color = 'bg-red-100 border-red-400 text-red-700' %}{% endif %}
                     {% if category == 'warning' %}{% set bg_color = 'bg-yellow-100 border-yellow-400 text-yellow-700' %}{% endif %}
                     {% if category == 'success' %}{% set bg_color = 'bg-green-100 border-green-400 text-green-700' %}{% endif %}
@@ -75,11 +69,11 @@
         {% endwith %}
     </div>
 
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="bg-gray-200 text-center py-4 text-xs text-gray-600 border-t border-gray-300">
+    <footer class="text-center py-4 text-xs text-slate-300 border-t border-white/10">
         {{ g.municipio_nombre | default('SIGH-MUNI') }} &copy; 2026 - Sistema Integrado de Gestión, Creación y Revisión de Honorarios Municipales
         {% if g.municipio_region %} &mdash; {{ g.municipio_region }}{% endif %}
     </footer>

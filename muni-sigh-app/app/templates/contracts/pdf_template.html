@@ -10,7 +10,7 @@
             size: A4;
             margin: 25mm 20mm 25mm 20mm;
             @top-center {
-                content: "I. Municipalidad de Temuco — República de Chile";
+                content: "Ilustre Municipalidad de Cunco — Región de La Araucanía";
                 font-size: 9pt;
                 color: #666;
                 font-family: 'Times New Roman', serif;
@@ -25,12 +25,15 @@
 
         body {
             font-family: 'Times New Roman', Times, serif;
-            font-size: 12pt;
-            line-height: 1.7;
+            font-size: 11pt;
+            line-height: 1.6;
             margin: 0;
             color: #000;
             text-align: justify;
+            overflow: hidden;
         }
+        table { width: 100%; border-collapse: collapse; font-size: 9pt; table-layout: fixed; }
+        td, th { padding: 4px 6px; word-break: break-word; vertical-align: top; }
 
         /* Membrete institucional */
         .membrete {
@@ -40,15 +43,10 @@
             border-bottom: 2px solid #000;
         }
         .membrete-escudo {
-            width: 55px;
-            height: 55px;
+            width: 70px;
+            height: 70px;
             margin: 0 auto 8px;
-            border: 1.5px solid #333;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
+            display: block;
         }
         .membrete-republica {
             font-size: 10pt;
@@ -216,7 +214,7 @@
     <!-- MEMBRETE INSTITUCIONAL                                         -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="membrete">
-        <div class="membrete-escudo">☖</div>
+        <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-06.png') }}" alt="Logo Cunco" class="membrete-escudo">
         <div class="membrete-republica">República de Chile</div>
         <div class="membrete-muni">Ilustre Municipalidad de Temuco</div>
         <div class="membrete-sub">Región de La Araucanía</div>

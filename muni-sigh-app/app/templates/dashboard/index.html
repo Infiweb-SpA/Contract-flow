@@ -6,12 +6,15 @@
 <div class="space-y-6">
     <!-- Encabezado -->
     <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">Panel de Control</h1>
-            <p class="text-sm text-gray-500">Gestión Integrada de Honorarios Municipales ({{ g.municipio_nombre | default('SIGH-MUNI') }})</p>
+        <div class="flex items-center gap-3">
+            <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-08.png') }}" alt="Logo Municipalidad de Cunco" class="h-10 w-auto">
+            <div>
+                <h1 class="text-2xl font-bold text-[#0F172A]">Panel de Control</h1>
+                <p class="text-sm text-gray-500">Gestión Integrada de Honorarios Municipales ({{ g.municipio_nombre | default('SIGH-MUNI') }})</p>
+            </div>
         </div>
         <div class="flex space-x-2">
-            <a href="{{ url_for('contract_builder.create') }}" class="bg-blue-800 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-md shadow text-sm transition">
+            <a href="{{ url_for('contract_builder.create') }}" class="bg-emerald-700 text-white hover:bg-emerald-800 text-xs font-medium px-3 py-1.5 rounded-md shadow transition">
                 + Armar Nuevo Contrato
             </a>
         </div>
@@ -19,16 +22,35 @@
 
     <!-- Indicadores (solo 2 tarjetas) -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-800">
-            <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Contratos Registrados</h3>
-            <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_contracts }}</p>
+        <div class="bg-white/95 backdrop-blur-sm p-8 rounded-xl shadow-sm border border-slate-200/80">
+            <h3 class="text-xs uppercase text-gray-400 font-bold tracking-widest">Contratos Registrados</h3>
+            <p class="text-5xl font-extrabold text-[#0F172A] mt-3 tracking-tight">{{ total_contracts }}</p>
             {% if selected_dept %}
-            <p class="text-xs text-gray-400 mt-1">Filtrados por departamento</p>
+            <p class="text-xs text-gray-400 mt-2">Filtrados por departamento</p>
             {% endif %}
         </div>
-        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-green-600">
-            <h3 class="text-xs uppercase text-gray-500 font-bold tracking-wider">Prestadores de Servicio</h3>
-            <p class="text-3xl font-extrabold text-gray-800 mt-2">{{ total_providers }}</p>
+        <div class="bg-white/95 backdrop-blur-sm p-8 rounded-xl shadow-sm border border-slate-200/80">
+            <h3 class="text-xs uppercase text-gray-400 font-bold tracking-widest">Prestadores de Servicio</h3>
+            <p class="text-5xl font-extrabold text-[#0F172A] mt-3 tracking-tight">{{ total_providers }}</p>
+        </div>
+    </div>
+
+    <!-- Gráficos Corporativos -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Gráfico 1: Comparativa por Departamento -->
+        <div class="bg-white/95 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/80 p-6">
+            <h3 class="text-sm font-bold text-[#0F172A] mb-4">Contratos por Departamento</h3>
+            <div class="relative h-56"><canvas id="chartDept"></canvas></div>
+        </div>
+        <!-- Gráfico 2: Distribución por Estado -->
+        <div class="bg-white/95 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/80 p-6">
+            <h3 class="text-sm font-bold text-[#0F172A] mb-4">Distribución por Estado</h3>
+            <div class="relative h-56"><canvas id="chartStatus"></canvas></div>
+        </div>
+        <!-- Gráfico 3: Duración Promedio -->
+        <div class="bg-white/95 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/80 p-6">
+            <h3 class="text-sm font-bold text-[#0F172A] mb-4">Duración Promedio (Meses)</h3>
+            <div class="relative h-56"><canvas id="chartDur"></canvas></div>
         </div>
     </div>
 
@@ -37,7 +59,7 @@
         <div class="px-6 py-4 border-b border-gray-200 font-bold text-gray-700 text-sm flex justify-between items-center">
             <span>Últimos Contratos Registrados</span>
             {% if selected_dept %}
-            <a href="{{ url_for('dashboard.index') }}" class="text-xs text-blue-600 hover:underline font-semibold">
+            <a href="{{ url_for('dashboard.index') }}" class="text-xs text-[#2563eb] hover:underline font-semibold">
                 ✕ Limpiar filtro
             </a>
             {% endif %}
@@ -50,7 +72,7 @@
                 <div class="relative">
                     <select id="dept_filter_select"
                         onchange="filterByDepartment(this.value)"
-                        class="pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition cursor-pointer appearance-none">
+                        class="pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] transition cursor-pointer appearance-none">
                         <option value="">Todos los departamentos</option>
                         {% for dept in departments %}
                         <option value="{{ dept.id }}" {% if selected_dept == dept.id|string %}selected{% endif %}>
@@ -74,13 +96,13 @@
                     <input type="text" id="table_filter_input"
                         placeholder="Filtrar por nombre o RUT..."
                         autocomplete="off"
-                        class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] transition">
                 </div>
             </div>
         </div>
 
         <table class="w-full text-left text-sm text-gray-600" id="contracts_table">
-            <thead class="bg-gray-50 text-xs uppercase text-gray-500 font-semibold border-b">
+            <thead class="text-xs text-gray-400 border-b">
                 <tr>
                     <th class="px-6 py-3">Correlativo</th>
                     <th class="px-6 py-3">Prestador</th>
@@ -93,19 +115,19 @@
             </thead>
             <tbody class="divide-y divide-gray-200">
                 {% for contract in recent_contracts %}
-                <tr class="hover:bg-gray-50 contract-row"
+                <tr class="hover:bg-gray-50 contract-row transition-colors duration-150"
                     data-search="{{ contract.provider.full_name | lower }} {{ contract.provider.rut | lower }} {{ contract.contract_number | lower }} {{ contract.position_title | lower }} {{ contract.department.code | lower }} {{ contract.department.name | lower }}">
-                    <td class="px-6 py-4 font-semibold text-gray-800">{{ contract.contract_number }}</td>
-                    <td class="px-6 py-4">{{ contract.provider.full_name }}</td>
-                    <td class="px-6 py-4">{{ contract.position_title }}</td>
-                    <td class="px-6 py-4">
-                        <span class="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded">{{ contract.department.code }}</span>
-                        <span class="text-xs text-gray-500 ml-1 hidden lg:inline">{{ contract.department.name }}</span>
+                    <td class="px-6 py-5 font-semibold text-[#0F172A]">{{ contract.contract_number }}</td>
+                    <td class="px-6 py-5">{{ contract.provider.full_name }}</td>
+                    <td class="px-6 py-5">{{ contract.position_title }}</td>
+                    <td class="px-6 py-5">
+                        <span class="text-xs font-mono text-gray-600 bg-gray-50 px-2.5 py-1 rounded-full">{{ contract.department.code }}</span>
+                        <span class="text-xs text-gray-400 ml-1 hidden lg:inline">{{ contract.department.name }}</span>
                     </td>
-                    <td class="px-6 py-4"><span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded font-mono">{{ contract.creation_type }}</span></td>
-                    <td class="px-6 py-4"><span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded font-semibold">{{ contract.status }}</span></td>
-                    <td class="px-6 py-4 flex space-x-3">
-                        <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-blue-600 hover:underline font-semibold text-xs">
+                    <td class="px-6 py-5"><span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-medium">{{ contract.creation_type }}</span></td>
+                    <td class="px-6 py-5"><span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-semibold">{{ contract.status }}</span></td>
+                    <td class="px-6 py-5 flex space-x-3">
+                        <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-[#2563eb] hover:underline font-semibold text-xs">
                             Ver Detalle
                         </a>
                         <a href="{{ url_for('contract_builder.preview', contract_id=contract.id) }}" target="_blank" class="text-gray-600 hover:underline font-semibold text-xs">
@@ -115,10 +137,10 @@
                 </tr>
                 {% else %}
                 <tr id="no_results_row" style="display:none;">
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>
+                    <td colspan="7" class="px-6 py-6 text-center text-gray-400 text-sm">No hay contratos que coincidan con el filtro.</td>
                 </tr>
                 <tr>
-                    <td colspan="7" class="px-6 py-4 text-center text-gray-400 text-sm">
+                    <td colspan="7" class="px-6 py-6 text-center text-gray-400 text-sm">
                         {% if selected_dept %}
                             No hay contratos registrados para este departamento.
                         {% else %}
@@ -183,6 +205,39 @@ function filterByDepartment(deptId) {
         });
 
         noResults.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
+    });
+})();
+
+(function() {
+    if (typeof Chart === 'undefined') return;
+    Chart.defaults.font.family = "'Inter', ui-sans-serif, system-ui, sans-serif";
+    Chart.defaults.color = '#334155';
+
+    new Chart(document.getElementById('chartDept'), {
+        type: 'bar',
+        data: {
+            labels: ['Alcaldía','Personal','Obras','Salud','Edu.','Cult.'],
+            datasets: [{ label: 'Contratos', data: [12, 8, 15, 5, 7, 3], backgroundColor: ['#0f172a','#2563eb','#047857','#b45309','#059669','#334155'], borderRadius: 8, borderSkipped: false }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } }
+    });
+
+    new Chart(document.getElementById('chartStatus'), {
+        type: 'doughnut',
+        data: {
+            labels: ['CREADO PARA FIRMA','BORRADOR','INGRESADO','EN EJECUCIÓN','FINALIZADO'],
+            datasets: [{ data: [18, 7, 12, 9, 4], backgroundColor: ['#047857','#b45309','#2563eb','#0f172a','#059669'], borderColor: '#ffffff', borderWidth: 2 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15 } } } }
+    });
+
+    new Chart(document.getElementById('chartDur'), {
+        type: 'line',
+        data: {
+            labels: ['Ene','Feb','Mar','Abr','May','Jun'],
+            datasets: [{ label: 'Duración (meses)', data: [3.2, 4.1, 2.8, 5.5, 3.9, 6.2], tension: 0.4, fill: true, backgroundColor: 'rgba(37,99,235,0.08)', borderColor: '#2563eb', pointBackgroundColor: '#2563eb', pointBorderColor: '#ffffff', pointRadius: 5, borderWidth: 2.5 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } }
     });
 })();
 </script>

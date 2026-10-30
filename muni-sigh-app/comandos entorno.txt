@@ -1,0 +1,5 @@
+# elegir una version especifica de python 
+ py -3.13 -m venv venv
+
+# activar el entorno
+ .\venv\Scripts\Activate.ps1

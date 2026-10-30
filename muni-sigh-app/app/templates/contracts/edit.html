@@ -134,8 +134,8 @@
             <div id="ocr_banner" class="ocr-banner collapsed mb-6 bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                 <div class="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors select-none" onclick="toggleOcrBanner()">
                     <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 rounded-md bg-blue-50 border border-blue-100 flex items-center justify-center">
-                            <svg class="w-3.5 h-3.5 text-[#1e3a8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <div class="w-7 h-7 rounded-md bg-[#4A2E1B]/10 border border-[#4A2E1B]/20 flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5 text-[#4A2E1B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         </div>
                         <div>
                             <p class="text-xs font-semibold text-slate-700">Carga inteligente desde documento digital</p>
@@ -148,11 +148,11 @@
                     </div>
                 </div>
                 <div class="ocr-body px-4 pb-4 border-t border-slate-100">
-                    <div id="ocr_dropzone" class="mt-3 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 p-5 text-center cursor-pointer hover:border-[#1e3a8a] hover:bg-blue-50/30 transition-all group relative">
+                    <div id="ocr_dropzone" class="mt-3 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 p-5 text-center cursor-pointer hover:border-[#2563eb] hover:bg-[#2563eb]/10 transition-all group relative">
                         <input type="file" id="ocr_file_input" accept=".pdf" class="hidden">
                         <div id="ocr_idle_state">
                             <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                                <svg class="w-5 h-5 text-slate-400 group-hover:text-[#1e3a8a] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <svg class="w-5 h-5 text-slate-400 group-hover:text-[#4A2E1B] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             </div>
                             <p class="text-xs font-semibold text-slate-700">Arrastre un PDF o haga clic para seleccionar</p>
                             <p class="text-[11px] text-slate-400 mt-1">El sistema extraerá automáticamente los datos mediante OCR</p>
@@ -168,14 +168,14 @@
                             </div>
                             <p class="text-xs font-semibold text-green-800">Documento procesado correctamente</p>
                             <p class="text-[11px] text-green-600 mt-1">Los campos han sido sobrescritos. Revise y ajuste.</p>
-                            <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#1e3a8a] hover:text-[#0f265c] underline font-medium">Procesar otro archivo</button>
+                            <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#4A2E1B] hover:text-[#0f265c] underline font-medium">Procesar otro archivo</button>
                         </div>
                         <div id="ocr_error_state" class="hidden">
                             <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-red-50 border border-red-200 flex items-center justify-center">
                                 <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
                             <p class="text-xs font-semibold text-red-800" id="ocr_error_msg">Error al procesar</p>
-                            <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#1e3a8a] hover:text-[#0f265c] underline font-medium">Reintentar</button>
+                            <button type="button" onclick="resetOcrZone(); event.stopPropagation();" class="mt-2 text-[11px] text-[#4A2E1B] hover:text-[#0f265c] underline font-medium">Reintentar</button>
                         </div>
                     </div>
                     <div id="ocr_raw_text_container" class="mt-2 hidden">
@@ -212,7 +212,7 @@
                                 <div>
                                     <div class="flex justify-between items-center mb-1.5">
                                         <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Prestador de Servicios <span class="text-red-500">*</span></label>
-                                        <button type="button" onclick="toggleProviderModal(true)" class="text-[11px] font-semibold text-[#1e3a8a] hover:text-[#0f265c] hover:underline transition-colors">+ Nuevo Prestador</button>
+                                        <button type="button" onclick="toggleProviderModal(true)" class="text-[11px] font-semibold text-[#4A2E1B] hover:text-[#0f265c] hover:underline transition-colors">+ Nuevo Prestador</button>
                                     </div>
                                     <select name="provider_id" id="provider_select" required
                                         class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional cursor-pointer">
@@ -228,7 +228,7 @@
                                 <div>
                                     <div class="flex justify-between items-center mb-1.5">
                                         <label class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Departamento Solicitante <span class="text-red-500">*</span></label>
-                                        <button type="button" onclick="toggleDeptModal(true)" class="text-[11px] font-semibold text-[#1e3a8a] hover:text-[#0f265c] hover:underline transition-colors">+ Nuevo Departamento</button>
+                                        <button type="button" onclick="toggleDeptModal(true)" class="text-[11px] font-semibold text-[#4A2E1B] hover:text-[#0f265c] hover:underline transition-colors">+ Nuevo Departamento</button>
                                     </div>
                                     <select name="department_id" id="department_select" required
                                         class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional cursor-pointer preview-trigger">
@@ -1092,8 +1092,8 @@ providerSearchInput.addEventListener('input', function() {
                         const contractInfo = hasContract
                             ? '<div class="text-xs text-slate-400 mt-0.5">Último: ' + escapeHtml(p.last_contract.contract_number) + ' — ' + escapeHtml(p.last_contract.position_title) + '</div>'
                             : '<div class="text-xs text-amber-500 mt-0.5">Sin contratos previos</div>';
-                        html += '<div class="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors" onclick="selectProviderByIndex(' + idx + ')">'
-                            + '<div class="flex justify-between items-center"><span class="font-bold text-sm text-slate-800">' + escapeHtml(p.full_name) + '</span><span class="text-xs font-mono text-[#1e3a8a]">' + p.rut + '</span></div>'
+                        html += '<div class="px-3 py-2 hover:bg-[#2563eb]/10 cursor-pointer border-b border-slate-100 last:border-0 transition-colors" onclick="selectProviderByIndex(' + idx + ')">'
+                            + '<div class="flex justify-between items-center"><span class="font-bold text-sm text-slate-800">' + escapeHtml(p.full_name) + '</span><span class="text-xs font-mono text-[#4A2E1B]">' + p.rut + '</span></div>'
                             + contractInfo + '</div>';
                     });
                     providerSearchDropdown.innerHTML = html; providerSearchDropdown.classList.remove('hidden');
@@ -1181,10 +1181,10 @@ function selectProviderFromSearch(provider) {
         }
 
         hint.textContent = '📋 Datos cargados del contrato ' + c.contract_number + '. Revise y ajuste los campos antes de guardar.';
-        hint.className = 'mt-2 text-[11px] text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-200';
+        hint.className = 'mt-2 text-[11px] text-[#2563eb] bg-[#2563eb]/10 px-2.5 py-1.5 rounded-md border border-[#2563eb]/30';
     } else {
         hint.textContent = '👤 Prestador seleccionado. No tiene contratos previos — complete los datos manualmente.';
-        hint.className = 'mt-2 text-[11px] text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-200';
+        hint.className = 'mt-2 text-[11px] text-[#4A2E1B] bg-[#2563eb]/10 px-2.5 py-1.5 rounded-md border border-[#2563eb]/30';
     }
 
     fetchProviderExtendedData(provider.id).then(() => schedulePreview());

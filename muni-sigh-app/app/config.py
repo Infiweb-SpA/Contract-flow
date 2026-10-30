@@ -19,15 +19,15 @@ class Config:
     # ── Datos Institucionales (Municipalidad) ──
     # Estas variables se inyectan en todas las plantillas vía context_processor.
     # Para desplegar en otra municipalidad, solo cambiar estos valores.
-    MUNICIPALITY_NAME = os.environ.get('MUNICIPALITY_NAME') or 'Ilustre Municipalidad de Freire'
-    MUNICIPALITY_SHORT = os.environ.get('MUNICIPALITY_SHORT') or 'Municipalidad de Freire'
-    MUNICIPALITY_RUT = os.environ.get('MUNICIPALITY_RUT') or '69.190.900-K'
-    MUNICIPALITY_ADDRESS = os.environ.get('MUNICIPALITY_ADDRESS') or 'Pedro Camalá N° 85, Freire'
+    MUNICIPALITY_NAME = os.environ.get('MUNICIPALITY_NAME') or 'Ilustre Municipalidad de Cunco'
+    MUNICIPALITY_SHORT = os.environ.get('MUNICIPALITY_SHORT') or 'Municipalidad de Cunco'
+    MUNICIPALITY_RUT = os.environ.get('MUNICIPALITY_RUT') or '69.191.000-8'
+    MUNICIPALITY_ADDRESS = os.environ.get('MUNICIPALITY_ADDRESS') or 'Pedro Aguirre Cerda 600, Cunco.'
     MUNICIPALITY_REGION = os.environ.get('MUNICIPALITY_REGION') or 'Región de La Araucanía'
-    MUNICIPALITY_PHONE = os.environ.get('MUNICIPALITY_PHONE') or '(45) 2 334 500'
-    MUNICIPALITY_EMAIL = os.environ.get('MUNICIPALITY_EMAIL') or 'personalmunicipal@munifreire.cl'
+    MUNICIPALITY_PHONE = os.environ.get('MUNICIPALITY_PHONE') or ' +56 45 2200101'
+    MUNICIPALITY_EMAIL = os.environ.get('MUNICIPALITY_EMAIL') or 'consulta@municipalidaddecunco.cl'
     MUNICIPALITY_UNIT_NAME = os.environ.get('MUNICIPALITY_UNIT_NAME') or 'Unidad de Personal Municipal'
 
     # ── Representante Legal (Alcalde) ──
-    MAYOR_NAME = os.environ.get('MAYOR_NAME') or 'José Antonio Colihuil Binimélis'
-    MAYOR_RUT = os.environ.get('MAYOR_RUT') or '13.965.066-2'
+    MAYOR_NAME = os.environ.get('MAYOR_NAME') or 'Cristian Moraga Lagos'
+    MAYOR_RUT = os.environ.get('MAYOR_RUT') or '15.260.138-7'

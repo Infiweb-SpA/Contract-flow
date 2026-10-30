@@ -9,14 +9,14 @@
         <div>
             <h1 class="text-xl font-bold text-gray-800">Revisión de Pago Mensual</h1>
             <p class="text-sm text-gray-500">
-                Contrato <span class="font-bold text-blue-700">{{ contract.contract_number }}</span> —
+                Contrato <span class="font-bold text-[#4A2E1B]">{{ contract.contract_number }}</span> —
                 Período: <span class="font-bold">{{ "%02d"|format(payment.payment_month) }}/{{ payment.payment_year }}</span> —
                 Prestador: {{ contract.provider.full_name }}
             </p>
         </div>
         <div class="flex space-x-3">
-            <a href="{{ url_for('payments.bandeja') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Bandeja</a>
-            <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">Ver Contrato</a>
+            <a href="{{ url_for('payments.bandeja') }}" class="text-sm text-gray-600 hover:text-[#2563eb] underline font-semibold">← Bandeja</a>
+            <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-sm text-gray-600 hover:text-[#2563eb] underline font-semibold">Ver Contrato</a>
         </div>
     </div>
 
@@ -54,14 +54,14 @@
                     {% if pdf_url %}
                     <div class="flex items-center space-x-2 mb-2">
                         <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-bold">📎 Informe adjunto</span>
-                        <a href="{{ pdf_url }}" target="_blank" class="text-xs text-blue-700 hover:underline">Ver PDF</a>
+                        <a href="{{ pdf_url }}" target="_blank" class="text-xs text-[#2563eb] hover:underline">Ver PDF</a>
                     </div>
                     {% endif %}
-                    <input type="file" name="report_file" accept=".pdf" class="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer">
+                    <input type="file" name="report_file" accept=".pdf" class="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#4A2E1B]/10 file:text-[#4A2E1B] hover:file:bg-[#2563eb]/20 cursor-pointer">
                 </div>
 
                 <div class="flex justify-end">
-                    <button type="submit" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-6 py-2 rounded font-semibold shadow transition">
+                    <button type="submit" class="bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs px-6 py-2 rounded font-semibold shadow transition">
                         💾 Guardar Checklist
                     </button>
                 </div>
@@ -127,7 +127,7 @@
                             <!-- Ícono del timeline -->
                             <div class="relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
                                 {% if 'CREATE' in entry.action %}bg-teal-100 text-teal-700
-                                {% elif 'VISADO' in entry.action %}bg-blue-100 text-blue-700
+                                {% elif 'VISADO' in entry.action %}bg-[#2563eb]/20 text-[#4A2E1B]
                                 {% elif 'APROBADO' in entry.action %}bg-green-100 text-green-700
                                 {% elif 'RECHAZADO' in entry.action %}bg-red-100 text-red-700
                                 {% elif 'OBSERVADO' in entry.action %}bg-orange-100 text-orange-700
@@ -236,7 +236,7 @@
                         </p>
                     </div>
                     <div class="pt-2 border-t border-gray-100">
-                        <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-xs text-blue-700 hover:underline font-semibold">Ver historial completo del contrato →</a>
+                        <a href="{{ url_for('contract_builder.detail', contract_id=contract.id) }}" class="text-xs text-[#2563eb] hover:underline font-semibold">Ver historial completo del contrato →</a>
                     </div>
                 </div>
             </div>

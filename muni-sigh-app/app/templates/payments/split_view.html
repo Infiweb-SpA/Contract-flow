@@ -8,9 +8,9 @@
     <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <div>
             <h1 class="text-xl font-bold text-gray-800">Módulo de Validación de Informes</h1>
-            <p class="text-sm text-gray-500">Contrato N° <span class="font-bold text-blue-700">{{ contract.contract_number }}</span> — Prestador: {{ contract.provider.full_name }}</p>
+            <p class="text-sm text-gray-500">Contrato N° <span class="font-bold text-[#4A2E1B]">{{ contract.contract_number }}</span> — Prestador: {{ contract.provider.full_name }}</p>
         </div>
-        <a href="{{ url_for('dashboard.index') }}" class="text-sm text-gray-600 hover:text-blue-700 underline font-semibold">← Volver al Dashboard</a>
+        <a href="{{ url_for('dashboard.index') }}" class="text-sm text-gray-600 hover:text-[#2563eb] underline font-semibold">← Volver al Dashboard</a>
     </div>
 
     <!-- Contenedor Split-View (Grid de 2 columnas) -->
@@ -23,8 +23,8 @@
                 
                 {% if not pdf_url %}
                 <form method="POST" enctype="multipart/form-data" class="flex items-center space-x-2">
-                    <input type="file" name="report_file" accept=".pdf" required class="text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 cursor-pointer">
-                    <button type="submit" class="bg-blue-800 text-white text-xs px-4 py-1.5 rounded font-bold shadow hover:bg-blue-900 transition">
+                    <input type="file" name="report_file" accept=".pdf" required class="text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#4A2E1B]/10 file:text-[#4A2E1B] hover:file:bg-[#2563eb]/20 cursor-pointer">
+                    <button type="submit" class="bg-[#2563eb] text-white text-xs px-4 py-1.5 rounded font-bold shadow hover:bg-[#1d4ed8] transition">
                         Subir y Extraer
                     </button>
                 </form>
@@ -56,20 +56,20 @@
                 
                 <!-- Sección 1: Resultado OCR -->
                 <div>
-                    <h3 class="text-xs font-bold text-blue-800 uppercase mb-2 border-b pb-1">Texto Extraído (Lectura / OCR)</h3>
+                    <h3 class="text-xs font-bold text-[#4A2E1B] uppercase mb-2 border-b pb-1">Texto Extraído (Lectura / OCR)</h3>
                     <div class="bg-gray-900 rounded-md p-4 text-gray-100 h-64 overflow-y-auto font-mono text-xs whitespace-pre-wrap shadow-inner">{% if extracted_text %}{{ extracted_text }}{% else %}<span class="text-gray-500 italic">El texto detectado en el PDF aparecerá en esta terminal una vez procesado el archivo. Útil para validar palabras clave de las funciones exigidas.</span>{% endif %}</div>
                 </div>
 
                 <!-- Sección 2: Checklist del Contrato -->
                 <div>
-                    <h3 class="text-xs font-bold text-blue-800 uppercase mb-3 border-b pb-1">Checklist: Funciones del Contrato</h3>
+                    <h3 class="text-xs font-bold text-[#4A2E1B] uppercase mb-3 border-b pb-1">Checklist: Funciones del Contrato</h3>
                     
                     {% if contract.functions %}
                     <div class="space-y-2 mb-4">
                         {% for func in contract.functions %}
-                        <label class="flex items-start space-x-3 p-3 border border-gray-200 rounded-md hover:bg-blue-50 cursor-pointer transition-colors duration-200">
+                        <label class="flex items-start space-x-3 p-3 border border-gray-200 rounded-md hover:bg-[#2563eb]/10 cursor-pointer transition-colors duration-200">
                             <div class="flex-shrink-0 pt-0.5">
-                                <input type="checkbox" checked disabled class="h-4 w-4 text-blue-600 border-gray-300 rounded cursor-not-allowed opacity-60">
+                                <input type="checkbox" checked disabled class="h-4 w-4 text-[#2563eb] border-gray-300 rounded cursor-not-allowed opacity-60">
                             </div>
                             <div>
                                 <p class="text-sm text-gray-800 font-medium">{{ func.function_description }}</p>
