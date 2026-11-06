@@ -24,7 +24,7 @@ def role_required(*allowed_roles):
                 return redirect(url_for('auth.login'))
             
             user_role = session.get('user_role')
-            if user_role not in allowed_roles and 'SUPERADMIN' not in allowed_roles and user_role != 'SUPERADMIN':
+            if user_role != 'SUPERADMIN' and user_role not in allowed_roles:
                 flash('No tienes permisos suficientes para acceder a este módulo.', 'danger')
                 return redirect(url_for('dashboard.index'))
             return f(*args, **kwargs)

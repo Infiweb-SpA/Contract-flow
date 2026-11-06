@@ -7,26 +7,47 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 ## FASE 1: Rediseño del Módulo de Decretos Previos y Vistos Buenos
 
 ### 1.1 Extensión de la Base de Datos para Decretos
-- [ ] Crear la tabla `preliminary_decrees` o `contract_decrees` en SQLite con la siguiente estructura:
+- [x] Crear la tabla `contract_decrees` en SQLite (instancias por contrato) junto a `decree_templates` (catálogo maestro), con la siguiente estructura:
   - `id`: INTEGER PRIMARY KEY
-  - `contract_id`: INTEGER (FK a `contracts`)
-  - `decree_type`: STRING (ej. `PRESUPUESTO_ANUAL`, `CONTRATO_ANTERIOR`, `FICHA_RRHH`, `PROGRAMA_MUNICIPAL`)
+  - `contract_id`: INTEGER (FK a `contracts`, cascade delete)
+  - `template_id`: INTEGER FK (trazabilidad de la plantilla de origen)
+  - `decree_type`: STRING (`PRESUPUESTO_ANUAL`, `CONTRATO_ANTERIOR`, `CONTRATO_ACTUAL`, `FICHA_RRHH`, `PROGRAMA_MUNICIPAL`, `SUBROGANCIA_ALCALDE`, `SUBROGANCIA_CONTROL`, `BASE_LEGAL`, `ANTECEDENTE_INSTITUCIONAL`, `OTRO`)
   - `decree_number`: STRING (ej. `Decreto Exento N° 3.580`)
   - `decree_date`: DATE
   - `description`: TEXT (Texto completo del visto/antecedente)
-  - `is_mandatory`: BOOLEAN (Flag para decretos estandarizados del año)
-  - `created_at`: DATETIME
+  - `origin`: STRING (`PLANTILLA` snapshot del catálogo | `MANUAL` ingreso del usuario)
+  - `display_order`, `created_at`
+- [x] Tabla `decree_templates`: plantillas fijas del año (`decree_type`, `decree_number`, `decree_date`, `description`, `year`, `is_active`, `created_at`)
 
 ### 1.2 Catálogo Maestro de Decretos Anuales Estandarizados
-- [ ] Implementar vista de administración para gestionar la **Plantilla Anual de Decretos Municipales** (Presupuesto vigente, desgloses, decretos de subrogancia de Alcalde y Dirección de Control).
-- [ ] Crear servicio en Flask que precargue automáticamente estos decretos fijos en cualquier borrador de contrato nuevo.
+- [x] Vista de administración `/decrees` (CRUD + activar/desactivar + filtros por tipo/año), exclusiva para `SUPERADMIN`.
+- [x] Servicio de precarga: `_save_contract_decrees()` copia las plantillas activas del año como snapshot (origin PLANTILLA) al crear/editar contratos; edición posterior de plantillas no altera contratos existentes.
 
 ### 1.3 Integración en Formulario y Split-View (`GET /contracts/create` & `/edit`)
-- [ ] Incorporar la sección **"Decretos y Antecedentes Previos (VISTOS)"** en el panel derecho del formulario.
-- [ ] Habilitar controles para:
-  - Seleccionar decretos fijos del año mediante checkboxes.
-  - Añadir de forma dinámica decretos/fichas específicas del prestador.
-- [ ] Actualizar el parser OCR (`pdfplumber` / `PaddleOCR`) en `/contracts/upload` para reconocer y extraer automáticamente el bloque de **VISTOS** del contrato escaneado.
+- [x] Sección **"Decretos y Antecedentes Previos (VISTOS)"** como Paso 4 del stepper, con checkboxes de plantillas fijas y filas dinámicas para decretos específicos del prestador.
+- [x] Bloque VISTOS renderizado en la hoja A4 del panel derecho (vista previa en vivo) y en el PDF oficial (`preview_template.html`).
+- [x] Parser OCR `extract_decrees_vistos()` en `/api/ocr-extract` y `/contracts/upload`: detecta el bloque VISTOS, une ítems multilínea, descarta sellos/timbres del scanner y clasifica tipo/número/fecha automáticamente. Calibrado contra el contrato escaneado real de la Municipalidad de Cunco (16/16 ítems extraídos correctamente).
+
+### 1.4 Refinamiento estructural "Cunco" (página 1 VISTOS + página 2 DECRETO)
+- [x] Nuevas columnas en `contracts` (migración idempotente `migrate_cunco_fields.py`): `provider_address`, `provider_comuna`, `hours_weekly` (defecto 44), `total_amount_words`.
+- [x] OCR ampliado (sección 4b): extrae domicilio del prestador, comuna y jornada semanal ("con una jornada de N horas") del contrato escaneado; el autofill no pisa campos editados manualmente (flag `dataset.manual`).
+- [x] Agrupación VISTOS/DECRETO en `models/decree.py`: `VISTOS_TYPE_ORDER` (orden canónico, OTRO al final), `order_vistos()`, tipos excluidos `BASE_LEGAL` (inyectado fijo en plantilla) y `CONTRATO_ACTUAL` (objeto del punto 1 del DECRETO). El tipo `OTRO` se conserva en VISTOS para no perder antecedentes ya cargados.
+- [x] `preview_template.html` con jerarquía 1:1 del decreto de Cunco:
+  - Página 1: bloque VISTOS con cabecera institucional fija (Fallo Tribunal Electoral 18-11-2024 + Acta Concejo 06-12-2024) + decretos dinámicos por `decree_type` + base legal nacional fija (Resolución CGR 15.700/2012, Oficio CGR 33.701/2014, Ley 18.695/1988).
+  - Página 2 (nueva, tras salto de página): **Decreto Alcaldicio N° {decline_number}** con REF, línea "DECRETO" y puntos 1 (APRUÉBASE dinámico: contrato, prestador con domicilio/comuna, programa, cargo, monto formateado y en letras, fechas y jornada semanal), 2 (fijo: contratos forman parte del decreto) y 3 (imputación al Ítem {budget_account} del Presupuesto Municipal año {budget_year}), remate "Anótese, tómese razón y comuníquese." y bloque de firma del Alcalde.
+- [x] Paso 4: textos institucionales fijos NO son seleccionables en el catálogo; `decree_templates` reacciona al año de presupuesto (`/api/decree-templates?year=YYYY` + JS en create/edit que recarga plantillas al cambiar `start_date` y conserva las marcadas de otro año con la etiqueta "(año distinto del vigente)").
+- [x] Formulario: campos nuevos — domicilio y comuna del prestador (Paso 1, precargados desde la ficha vía `/api/provider/<id>/detail`), jornada semanal (defecto 44) y monto total en palabras auto-generado (`numToWordsEs`, editable) — integrados en create y edit, con relleno por OCR y vista previa en vivo.
+- [x] `pdf_generator.py`: helper `order_vistos`, fechas en español, `format_money_cl`, `number_to_words_es` (fallback), `budget_year` (año de `start_date`), `hours_weekly` (defecto 44), `total_amount_formatted`.
+- [x] Prueba de integración (temporal, eliminada tras ejecutar): 38 verificaciones OK — orden VISTOS, exclusión BASE_LEGAL/CONTRATO_ACTUAL, disminución del catálogo por año, preview HTML y `api/preview` con página 2 completa, PDF generado y RBAC `/decrees`.
+
+### 1.5 Réplica visual 1:1 del documento de prueba en la vista en vivo + PDF (hojas 1/2/3+)
+- [x] Reestructuración del orden según el PDF escaneado real (verificado página por página con OCR): **Hoja 1 = DECRETO (VISTOS) → Hoja 2 = DECRETO (puntos resolutivos) → Hoja 3+ = CONTRATO**.
+- [x] `create.html` y `edit.html`: panel A4 del split-view ahora muestra las 3 hojas completas (3× `paper-sheet`), mismas tablas y orden que el borrador/PDF. `updateDecretoPreview()` actualiza en tiempo real el encabezado del decreto (N°/REF/fecha, ambas hojas), punto 1 (fecha, nombre/RUT/domicilio/comuna del prestador, programa, monto formateado + palabras, vigencia desde-al, jornada semanal) y punto 3 (ítem + año de presupuesto); conectada en `updatePreview()` (debounce) y en la inicialización.
+- [x] VISTOS en Hoja 1 con ítem autogenerado "El Contrato a Prestación de Servicios de fecha … suscrito entre la {municipalidad} y don(ña) {prestador}" (ítem 13 del decreto real) + constantes JS `MUNI_NAME`/`MUNI_CITY` derivadas de la config.
+- [x] Hoja 2: "Anótese, comuníquese, regístrese y archívese.", firmas (Secretario Municipal izquierda en blanco + Alcalde derecha con nombre/RUT) y pie "DISTRIBUCIÓN: Interesado / Alcaldía / Archivo Dirección de Finanzas / Archivo Dirección de Control Interno / Oficina de Partes / Archivo de Personal". En Hoja 2 y borrador NO se repite el membrete completo (solo el encabezado del decreto), igual que el documento real → evita desbordar a una 4ª página.
+- [x] Hoja del contrato: comparecencia "En la comuna de {muni_city}", firma única del Alcalde y testimonio en tres ejemplares (el prestador no firma), datos de la municipalidad desde `g.*` (config).
+- [x] `pdf_generator.py`: `link_callback` para xhtml2pdf (resuelve `/static/logos_muni/...` → embebe el logo municipal en el PDF descargado).
+- [x] Verificación end-to-end ejecutada (scripts temporales, ya eliminados): GET `/contracts/create`(200), `/contracts/{id}/edit`(200) y `/contracts/{id}/preview`(200) con las 39 marcas de las 3 hojas presentes; `api/preview` 200; PDF descargado de 6 páginas en orden correcto (1 VISTOS / 2 DECRETO completo con firmas+distribución / 3-6 contrato), logo embebido y fechas en español; navegación real en navegador (login → create → edit) con el panel en vivo poblado desde los datos del contrato y reactividad confirmada (nº decreto, fechas e ítem presupuestario reflejados al instante), sin errores de consola.
 
 ---
 

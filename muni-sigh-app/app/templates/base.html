@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ g.municipio_nombre | default('SIGH-MUNI') }}{% endblock %} - Gestión de Honorarios</title>
+    {% block head %}{% endblock %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -37,6 +38,15 @@
                         <div id="global_search_dropdown" class="hidden absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50">
                         </div>
                     </div>
+
+                    {% if session.get('user_role') == 'SUPERADMIN' %}
+                    <a href="{{ url_for('decrees.index') }}"
+                        class="flex items-center gap-1.5 text-sm font-medium text-white/80 hover:text-white transition border border-white/20 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-md"
+                        title="Catálogo maestro de decretos anuales (VISTOS)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+                        Catálogo de Decretos
+                    </a>
+                    {% endif %}
 
                     <a href="{{ url_for('auth.profile') }}" class="text-sm font-medium text-white hover:text-white/80 transition">
                         {{ session.get('user_name') }}

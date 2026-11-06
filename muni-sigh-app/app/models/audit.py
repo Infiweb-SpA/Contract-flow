@@ -32,6 +32,10 @@ class AuditLog(db.Model):
         'PROVIDER_AUTO_CREATE': 'Prestador creado automáticamente (OCR)',
         'DEPARTMENT_CREATE': 'Departamento creado',
         'DEPARTMENT_AUTO_CREATE': 'Departamento creado automáticamente (OCR)',
+        'DECREE_TEMPLATE_CREATE': 'Plantilla de decreto creada',
+        'DECREE_TEMPLATE_UPDATE': 'Plantilla de decreto modificada',
+        'DECREE_TEMPLATE_DELETE': 'Plantilla de decreto eliminada',
+        'CONTRACT_DECREE_UPDATE': 'Decretos/VISTOS del contrato actualizados',
     }
 
     @property

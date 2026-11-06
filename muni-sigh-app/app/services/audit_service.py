@@ -110,6 +110,24 @@ def _format_payload(action: str, payload: dict) -> str:
         if payload.get('code') and payload.get('name'):
             parts.append(f"{payload['code']} — {payload['name']} (vía OCR)")
 
+    elif action == 'DECREE_TEMPLATE_CREATE':
+        if payload.get('decree_number'):
+            parts.append(f"Decreto {payload['decree_number']}")
+
+    elif action == 'DECREE_TEMPLATE_UPDATE':
+        if payload.get('decree_number'):
+            parts.append(f"Decreto {payload['decree_number']}")
+
+    elif action == 'DECREE_TEMPLATE_DELETE':
+        if payload.get('decree_number'):
+            parts.append(f"Decreto {payload['decree_number']} eliminado del catálogo")
+
+    elif action == 'CONTRACT_DECREE_UPDATE':
+        templates = payload.get('templates', 0)
+        manual = payload.get('manual', 0)
+        if templates or manual:
+            parts.append(f"{templates} de plantilla y {manual} manual(es)")
+
     return ' — '.join(parts) if parts else ''
 
 

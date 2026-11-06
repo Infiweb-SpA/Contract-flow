@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Editar Plantilla de Decreto' if template else 'Nueva Plantilla de Decreto' }} — SIGH-MUNI{% endblock %}
+
+{% block head %}
+<style>
+    .microcopy { font-size: 11px; line-height: 1.4; color: #64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- Encabezado -->
+    <div class="flex items-center gap-3">
+        <a href="{{ url_for('decrees.index') }}" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-slate-800">
+                {% if template %}Editar Plantilla de Decreto{% else %}Nueva Plantilla de Decreto{% endif %}
+            </h1>
+            <p class="text-xs text-slate-400 mt-0.5">Catálogo maestro de VISTOS estandarizados del año municipal</p>
+        </div>
+    </div>
+
+    <form method="POST"
+        action="{{ url_for('decrees.create') if not template else url_for('decrees.edit', template_id=template.id) }}"
+        class="bg-white rounded-lg border border-slate-200 shadow-sm p-6 space-y-5">
+
+        <!-- Tipo -->
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Tipo de Decreto / Antecedente <span class="text-red-500">*</span></label>
+            <select name="decree_type" required
+                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white">
+                <option value="">— Seleccione Tipo —</option>
+                {% for code, label in available_types.items() %}
+                <option value="{{ code }}" {% if template and template.decree_type == code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <p class="microcopy mt-1">Define la naturaleza del antecedente que se referenciará en los VISTOS. Nota: los tipos <strong>"Base Legal (CGR / Leyes)"</strong> y <strong>"Contrato Actual"</strong> se inyectan como texto fijo en el documento (cabecera/punto 1 del DECRETO), por lo que sus plantillas no aparecen como casillas seleccionables en el Paso 4 del stepper.</p>
+        </div>
+
+        <!-- N° y fecha -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">N° Decreto</label>
+                <input type="text" name="decree_number" value="{{ template.decree_number or '' if template else '' }}"
+                    placeholder="Ej: Decreto Exento N° 3.580"
+                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white placeholder:text-slate-400">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Fecha</label>
+                <input type="date" name="decree_date" value="{{ template.decree_date.strftime('%Y-%m-%d') if template and template.decree_date else '' }}"
+                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white text-slate-600">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Año de Vigencia</label>
+                <select name="year" class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if template and template.year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <p class="microcopy mt-1">Solo el año vigente se precarga en nuevos contratos</p>
+            </div>
+        </div>
+
+        <!-- Texto del VISTO -->
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Texto Completo del VISTO <span class="text-red-500">*</span></label>
+            <textarea name="description" rows="4" required
+                placeholder="Ej: El Decreto Exento N° 3.580 de fecha 11 de diciembre de 2025, que aprueba Programas Municipales por área de gestión del presupuesto municipal el año 2026."
+                class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white placeholder:text-slate-400">{{ template.description if template else '' }}</textarea>
+            <p class="microcopy mt-1">Texto textual tal como aparecerá referenciado en el bloque VISTOS del decreto</p>
+        </div>
+
+        <!-- Activa -->
+        <div class="flex items-center gap-2.5">
+            <input type="checkbox" name="is_active" id="is_active" {% if not template or template.is_active %}checked{% endif %}
+                class="w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]">
+            <label for="is_active" class="text-sm font-medium text-slate-700">Plantilla activa (se precarga en los borradores nuevos)</label>
+        </div>
+
+        <!-- Acciones -->
+        <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
+            <a href="{{ url_for('decrees.index') }}" class="text-sm font-semibold text-slate-500 hover:text-slate-700 px-4 py-2.5">Cancelar</a>
+            <button type="submit"
+                class="bg-[#0f265c] hover:bg-[#1e3a8a] text-white text-sm font-semibold px-5 py-2.5 rounded-md shadow-sm transition-all active:scale-95">
+                {{ 'Guardar Cambios' if template else 'Registrar Plantilla' }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

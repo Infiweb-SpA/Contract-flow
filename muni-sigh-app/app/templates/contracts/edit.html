@@ -259,6 +259,28 @@
                                     <div id="ocr_dept_hint" class="hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border"></div>
                                 </div>
                             </div>
+
+                            <!-- ── Datos para el Decreto Alcaldicio (domicilio prestador) ── -->
+                            <div>
+                                <p class="subsection-label">Domicilio del Prestador (Decreto Alcaldicio)</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="sm:col-span-2">
+                                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Domicilio</label>
+                                        <input type="text" name="provider_address" id="provider_address"
+                                            value="{{ contract.provider_address or '' }}"
+                                            placeholder="Ej: Segundo Nahuelcura 1234"
+                                            class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional placeholder:text-slate-400 preview-trigger">
+                                        <p class="microcopy mt-1">"...con domicilio en ___, en adelante 'El Prestador'" — se precarga desde la ficha y puede editarse</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Comuna</label>
+                                        <input type="text" name="provider_comuna" id="provider_comuna" value="{{ contract.provider_comuna or '' }}" placeholder="Ej: Cunco"
+                                            class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional placeholder:text-slate-400 preview-trigger">
+                                        <p class="microcopy mt-1">"..., comuna de ___" (punto 1 del DECRETO)</p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Estado administrativo (solo en edición) -->
                             <div>
                                 <p class="subsection-label">Estado del Contrato</p>
@@ -408,6 +430,20 @@
                                             class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional text-slate-600 preview-trigger">
                                     </div>
                                 </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Jornada (Horas Semanales)</label>
+                                        <input type="number" name="hours_weekly" id="hours_weekly" value="{{ contract.hours_weekly or 44 }}" min="1" max="60"
+                                            class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional preview-trigger">
+                                        <p class="microcopy mt-1">"con una jornada de ___ horas semanales" (DECRETO, punto 1)</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">Monto Total en Palabras</label>
+                                        <input type="text" name="total_amount_words" id="total_amount_words" value="{{ contract.total_amount_words or '' }}" placeholder="Auto: cinco millones cuatrocientos ochenta y un mil"
+                                            class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white input-institucional placeholder:text-slate-400 preview-trigger">
+                                        <p class="microcopy mt-1">Se completa automáticamente; puede editar la redacción</p>
+                                    </div>
+                                </div>
                             </div>
 
                         </div>
@@ -418,6 +454,7 @@
                 <!-- PASO 3: CLÁUSULAS, FUNCIONES Y COMETIDOS               -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-4">
+                    <div class="stepper-line"></div>
                     <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">3</div>
                     <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                         <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
@@ -459,6 +496,72 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- PASO 4: DECRETOS Y ANTECEDENTES PREVIOS (VISTOS)       -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div class="stepper-item relative pl-8 pb-4">
+                    <div class="stepper-line"></div>
+                    <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">4</div>
+                    <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xs font-bold text-[#0f265c] uppercase tracking-wider">Decretos y Antecedentes Previos (VISTOS)</h2>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Decretos fijos del año municipal y antecedentes específicos del prestador</p>
+                            </div>
+                            <button type="button" onclick="addDecreeRow()"
+                                class="bg-[#1e3a8a] hover:bg-[#0f265c] text-white text-[11px] font-semibold px-3 py-2 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                Agregar Decreto Manual
+                            </button>
+                        </div>
+                        <div class="p-5 space-y-5">
+
+                            <!-- ── Decretos fijos del catálogo anual ── -->
+                            <div>
+                                <p class="subsection-label">Decretos Fijos del Año (Catálogo Municipal)</p>
+                                <div id="decree_templates_list" class="space-y-2">
+                                    {% set contract_template_ids = (contract.decrees | selectattr('template_id') | map(attribute='template_id') | list) if contract.decrees else [] %}
+                                    {% for t in decree_templates %}
+                                    <label class="decree-template-row flex items-start gap-3 bg-white border border-slate-200 rounded-md px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors" title="{{ t.description }}">
+                                        <input type="checkbox" name="decree_template_ids" value="{{ t.id }}" {% if t.id in contract_template_ids %}checked{% endif %}
+                                            class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"
+                                            data-type="{{ t.decree_type }}" data-number="{{ t.decree_number or '' }}"
+                                            data-date="{{ t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '' }}" data-desc="{{ t.description }}">
+                                        <div class="flex-grow min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">{{ t.decree_type_label }}</span>
+                                                {% if t.decree_number %}<span class="text-xs font-mono text-slate-500">{{ t.decree_number }}</span>{% endif %}
+                                                {% if t.decree_date %}<span class="text-[10px] text-slate-400">{{ t.decree_date.strftime('%d-%m-%Y') }}</span>{% endif %}
+                                            </div>
+                                            <p class="text-xs text-slate-600 mt-1 truncate">{{ t.description }}</p>
+                                        </div>
+                                    </label>
+                                    {% endfor %}
+                                    {% if not decree_templates %}
+                                    <div class="text-xs text-slate-400 border border-dashed border-slate-200 rounded-md px-3 py-4 text-center">
+                                        No hay plantillas de decretos activas en el catálogo anual.
+                                        {% if session.get('user_role') == 'SUPERADMIN' %}
+                                        <a href="{{ url_for('decrees.index') }}" class="text-[#1e3a8a] font-semibold hover:underline">Configurar catálogo</a>
+                                        {% else %}
+                                        Solicite al administrador del sistema registrar la plantilla anual.
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- ── Decretos/Fichas específicos del prestador ── -->
+                            <div>
+                                <p class="subsection-label">Decretos y Fichas Específicas del Prestador</p>
+                                <div id="decrees_container" class="space-y-3">
+                                    <!-- filas dinámicas via addDecreeRow() (renderizadas en init) -->
+                                </div>
+                                <p class="microcopy mt-3">Añada decretos anteriores del prestador, fichas de ingreso de RRHH u otros antecedentes registrados para este contrato.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </form>
 
             <!-- Footer -->
@@ -494,7 +597,11 @@
             </div>
         </div>
         <div class="flex-grow overflow-y-auto p-6 lg:p-8 bg-slate-100/80 sigh-scroll">
+            {% set muni_city_js = (g.municipio_nombre | replace('Ilustre ', '') | replace('Municipalidad de ', '') | replace('municipalidad de ', '')) %}
             <div class="max-w-[210mm] mx-auto">
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- HOJA 1: DECRETO ALCALDICIO — VISTOS (orden real Cunco)  -->
+                <!-- ══════════════════════════════════════════════════════ -->
                 <div class="paper-sheet rounded-sm relative">
                     <div class="watermark">PREVISTA</div>
                     <div class="p-[25mm] relative z-20" style="font-family: 'Times New Roman', 'Merriweather', Georgia, serif; font-size: 11pt; line-height: 1.6; color: #000; text-align: justify;">
@@ -502,26 +609,127 @@
                         <div class="text-center mb-6" style="border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px;">
                             <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-06.png') }}" alt="Logo Cunco" style="width: 70px; height: 70px; margin: 0 auto 8px; display: block;">
                             <div style="font-size: 10pt; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px;">REPÚBLICA DE CHILE</div>
-                            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">Ilustre Municipalidad de Temuco</div>
-                            <div style="font-size: 9pt; font-weight: normal; font-style: italic; color: #333;">Región de La Araucanía</div>
+                            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">{{ g.municipio_nombre }}</div>
+                            <div style="font-size: 9pt; font-weight: normal; font-style: italic; color: #333;">{{ g.municipio_region }}</div>
                             <div style="font-size: 8pt; margin-top: 6px; color: #333; line-height: 1.4;">
-                                Arturo Prat N° 550, Temuco — RUT: 81.234.567-8<br>
-                                Teléfono: (45) 2 334 500 — www.temuco.cl
+                                {{ g.municipio_direccion }} — RUT: {{ g.municipio_rut }}<br>
+                                Teléfono: {{ g.municipio_telefono }} — {{ g.municipio_email }}
+                            </div>
+                        </div>
+
+                        <!-- Título del decreto -->
+                        <div class="text-center" style="font-size: 13pt; font-weight: bold; margin: 20px 0 5px; text-transform: uppercase; letter-spacing: 0.5px;">Decreto Alcaldicio N° <span id="pg2_decline_number">{{ contract.decline_number or '__________' }}</span></div>
+                        <div class="text-center" style="font-size: 11pt; margin-bottom: 4px; font-weight: bold;">REF: APRUEBA CONTRATO A PRESTACIÓN DE SERVICIOS.</div>
+                        <div class="text-center" style="font-size: 10pt; margin-bottom: 20px; color: #333;"><span id="pg2_city">{{ muni_city_js }}</span>, <span id="pg2_date">___ de ___ de 2026</span></div>
+
+                        <!-- VISTOS -->
+                        <div style="margin-bottom: 14px; text-align: justify;" id="preview_vistos_section">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;">VISTOS</span>
+                            <ol style="margin: 8px 0 14px 30px; padding-left: 0; list-style-type: decimal;" id="preview_vistos_list">
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- HOJA 2: DECRETO ALCALDICIO — PARTE RESOLUTIVA           -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div class="paper-sheet rounded-sm relative" style="margin-top: 24px;">
+                    <div class="watermark">PREVISTA</div>
+                    <div class="p-[25mm] relative z-20" style="font-family: 'Times New Roman', 'Merriweather', Georgia, serif; font-size: 11pt; line-height: 1.6; color: #000; text-align: justify;">
+                        {# Hoja 2: solo repite el encabezado del decreto (sin membrete), igual que el documento real #}
+                        <!-- Título del decreto (repetido como en el documento real) -->
+                        <div class="text-center" style="font-size: 13pt; font-weight: bold; margin: 20px 0 5px; text-transform: uppercase; letter-spacing: 0.5px;">Decreto Alcaldicio N° <span id="pg2_decline_number2">{{ contract.decline_number or '__________' }}</span></div>
+                        <div class="text-center" style="font-size: 11pt; margin-bottom: 4px; font-weight: bold;">REF: APRUEBA CONTRATO A PRESTACIÓN DE SERVICIOS.</div>
+                        <div class="text-center" style="font-size: 10pt; margin-bottom: 20px; color: #333;"><span id="pg2_city2">{{ muni_city_js }}</span>, <span id="pg2_date2">___ de ___ de 2026</span></div>
+
+                        <div style="margin: 18px 0 10px 0; text-align: justify;">
+                            <span style="font-weight: bold; text-transform: uppercase; font-size: 11.5pt;">DECRETO</span>
+                        </div>
+
+                        <!-- Punto 1 (dinámico): aprobación — texto calibrado con el decreto real -->
+                        <div style="margin: 0 0 12px 0; text-align: justify;">
+                            <strong>1.</strong> APRUÉBASE, el Contrato a Prestación de Servicios a Honorarios de <span style="font-weight: bold;" id="pg1_contract_date">___ de ___ de 2026</span>, suscrito entre la <span style="font-weight: bold;">{{ g.municipio_nombre }}</span> y don(ña) <span style="font-weight: bold;" id="pg1_p_name">{{ contract.provider.full_name if contract.provider else '_______________________' }}</span>, R.U.T.: <span style="font-weight: bold;" id="pg1_p_rut">{{ contract.provider.rut if contract.provider else '__.___.___-_' }}</span>, domiciliado(a) en <span style="font-weight: bold;" id="pg1_p_address">{{ contract.provider_address or '__________' }}</span>, comuna <span style="font-weight: bold;" id="pg1_p_comuna">{{ contract.provider_comuna or '__________' }}</span>, para prestar servicios en el programa <span style="font-weight: bold;" id="pg1_program">{{ contract.program_name or '__________' }}</span>. Sus honorarios serán la suma total <span style="font-weight: bold;" id="pg1_amount">$__________</span> (<span style="font-weight: bold;" id="pg1_words">{{ contract.total_amount_words or '__________' }}</span>). El presente contrato regirá desde <span style="font-weight: bold;" id="pg1_start">__________</span> al <span style="font-weight: bold;" id="pg1_end">__________</span>, con una jornada de <span style="font-weight: bold;" id="pg1_hours">{{ contract.hours_weekly or '44' }}</span> horas semanales.
+                        </div>
+
+                        <!-- Punto 2 (fijo) -->
+                        <div style="margin: 0 0 12px 0; text-align: justify;">
+                            <strong>2.</strong> Los Contratos a Prestación de Servicios a Honorarios se entienden forman parte integrante del presente Decreto.
+                        </div>
+
+                        <!-- Punto 3 (dinámico): imputación presupuestaria -->
+                        <div style="margin: 0 0 12px 0; text-align: justify;">
+                            <strong>3.</strong> Los gastos que se deriven del presente Decreto se imputarán al Ítem <span style="font-weight: bold;" id="pg3_budget_account">{{ contract.budget_account or '__________' }}</span> del Presupuesto Municipal año <span style="font-weight: bold;" id="pg3_budget_year">{{ contract.start_date.year if contract.start_date else '__________' }}</span>.
+                        </div>
+
+                        <div style="margin-top: 45px; font-weight: bold; text-transform: uppercase;">
+                            Anótese, comuníquese, regístrese y archívese.
+                        </div>
+
+                        <!-- Firmas del decreto -->
+                        <div style="margin-top: 60px; page-break-inside: avoid;">
+                            <div style="display: flex; justify-content: space-between; margin-top: 50px;">
+                                <div style="text-align: center; width: 42%;">
+                                    <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
+                                        <div style="font-weight: bold; font-size: 10.5pt;">_______________________</div>
+                                        <div style="font-size: 9.5pt; color: #222;">Secretario Municipal</div>
+                                    </div>
+                                </div>
+                                <div style="text-align: center; width: 42%;">
+                                    <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
+                                        <div style="font-weight: bold; font-size: 10.5pt;">{{ g.mayor_name | default('_______________________') }}</div>
+                                        <div style="font-size: 9.5pt; color: #222;">{{ muni_city_js }} — Alcalde</div>
+                                        <div style="font-size: 9.5pt; color: #222;">RUT: {{ g.mayor_rut | default('__.___.___-_' ) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Distribución -->
+                        <div style="margin-top: 30px; font-size: 9pt; color: #222;">
+                            <strong>DISTRIBUCIÓN:</strong>
+                            <ul style="margin: 4px 0 0 20px; padding-left: 0;">
+                                <li>Interesado</li>
+                                <li>Alcaldía</li>
+                                <li>Archivo Dirección de Finanzas</li>
+                                <li>Archivo Dirección de Control Interno</li>
+                                <li>Oficina de Partes</li>
+                                <li>Archivo de Personal</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- HOJA 3+: CONTRATO DE PRESTACIÓN DE SERVICIOS            -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div class="paper-sheet rounded-sm relative" style="margin-top: 24px;">
+                    <div class="watermark">PREVISTA</div>
+                    <div class="p-[25mm] relative z-20" style="font-family: 'Times New Roman', 'Merriweather', Georgia, serif; font-size: 11pt; line-height: 1.6; color: #000; text-align: justify;">
+                        <!-- Membrete institucional -->
+                        <div class="text-center mb-6" style="border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px;">
+                            <img src="{{ url_for('static', filename='logos_muni/LOGO_CUNCO_Recuperado-06.png') }}" alt="Logo Cunco" style="width: 70px; height: 70px; margin: 0 auto 8px; display: block;">
+                            <div style="font-size: 10pt; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 2px;">REPÚBLICA DE CHILE</div>
+                            <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">{{ g.municipio_nombre }}</div>
+                            <div style="font-size: 9pt; font-weight: normal; font-style: italic; color: #333;">{{ g.municipio_region }}</div>
+                            <div style="font-size: 8pt; margin-top: 6px; color: #333; line-height: 1.4;">
+                                {{ g.municipio_direccion }} — RUT: {{ g.municipio_rut }}<br>
+                                Teléfono: {{ g.municipio_telefono }} — {{ g.municipio_email }}
                             </div>
                         </div>
 
                         <div class="text-center" style="font-size: 13pt; font-weight: bold; margin: 20px 0 5px; text-transform: uppercase; letter-spacing: 0.5px;">Contrato de Prestación de Servicios a Honorarios</div>
                         <div class="text-center" style="font-size: 11pt; margin-bottom: 4px; font-weight: bold;">N° <span id="preview_contract_number">{{ contract.contract_number }}</span></div>
-                        <div class="text-center" style="font-size: 10pt; margin-bottom: 20px; color: #333;">Fecha de firma: <span id="preview_contract_date">___ de ___ de 2026</span></div>
+                        <div class="text-center" style="font-size: 10pt; margin-bottom: 20px; color: #333;">Fecha de firma: <span id="preview_contract_date">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else '___ de ___ de 2026' }}</span></div>
 
                         <div style="margin-bottom: 14px; text-align: justify;">
-                            <span>En Temuco, a <span style="font-weight: bold;" id="preview_sign_date">___ de ___ de 2026</span>, comparecen:</span>
+                            <span>En la comuna de <span style="font-weight: bold;" id="preview_city">{{ muni_city_js }}</span>, a <span style="font-weight: bold;" id="preview_sign_date">___ de ___ de 2026</span>, comparecen:</span>
                         </div>
                         <div style="margin-bottom: 14px; text-align: justify;">
-                            <strong>Por una parte,</strong> la <span style="font-weight: bold; text-transform: uppercase;">Ilustre Municipalidad de Temuco</span>, persona jurídica de derecho público, Rol Único Tributario N° <span style="font-weight: bold;">81.234.567-8</span>, con domicilio en Arturo Prat N° 550, Temuco, representada por su Alcalde <span style="font-weight: bold;">don {{ g.mayor_name | default('_______________________') }}</span>, cédula de identidad N° <span style="font-weight: bold;">{{ g.mayor_rut | default('__.___.___-_') }}</span>, en ejercicio de las facultades que le confiere el artículo 32° de la Ley Orgánica Constitucional N° 18.695 de Municipalidades, en adelante <span style="font-weight: bold;">"La Municipalidad"</span>;
+                            <strong>Por una parte,</strong> la <span style="font-weight: bold; text-transform: uppercase;">{{ g.municipio_nombre }}</span>, corporación autónoma de derecho público, Rol Único Tributario N° <span style="font-weight: bold;">{{ g.municipio_rut }}</span>, con domicilio en {{ g.municipio_direccion }}, representada por su Alcalde <span style="font-weight: bold;">don {{ g.mayor_name | default('_______________________') }}</span>, cédula de identidad N° <span style="font-weight: bold;">{{ g.mayor_rut | default('__.___.___-_') }}</span>, en ejercicio de las facultades que le confiere el artículo 32° de la Ley Orgánica Constitucional N° 18.695 de Municipalidades, en adelante <span style="font-weight: bold;">"La Municipalidad"</span>;
                         </div>
                         <div style="margin-bottom: 14px; text-align: justify;">
-                            <strong>Y por la otra parte,</strong> <span style="font-weight: bold;">don(ña) <span id="preview_provider_name">_______________________</span></span>, cédula de identidad N° <span style="font-weight: bold;"><span id="preview_provider_rut">__.___.___-_</span></span><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, con domicilio en <span style="font-weight: bold;">_______________________</span>, en adelante <span style="font-weight: bold;">"El Prestador"</span>;
+                            <strong>Y por la otra parte,</strong> <span style="font-weight: bold;">don(ña) <span id="preview_provider_name">{{ contract.provider.full_name if contract.provider else '_______________________' }}</span></span>, cédula de identidad N° <span style="font-weight: bold;"><span id="preview_provider_rut">{{ contract.provider.rut if contract.provider else '__.___.___-_-' }}</span></span><span id="preview_provider_ext_wrapper">, <span id="preview_provider_profession"></span></span>, con domicilio en <span style="font-weight: bold;" id="preview_provider_address">{{ contract.provider_address or '_______________________' }}</span>, de la comuna de <span style="font-weight: bold;" id="preview_provider_comuna">{{ contract.provider_comuna or '_______________________' }}</span>, en adelante <span style="font-weight: bold;">"El Prestador"</span>;
                         </div>
                         <div style="margin-bottom: 14px; text-align: justify;">
                             Quienes manifiestan tener la capacidad legal necesaria para contratar y celebrar el presente contrato de prestación de servicios a honorarios, conforme a las siguientes cláusulas:
@@ -568,7 +776,7 @@
 
                         <div style="margin-bottom: 14px; text-align: justify;">
                             <span style="font-weight: bold; text-transform: uppercase; font-size: 11pt;" id="clausula_informe_titulo">Octavo: Informe de Actividades</span><br>
-                            El Prestador deberá presentar mensualmente, y como requisito previo al pago de sus honorarios, un informe detallado de las actividades realizadas durante el período, el cual deberá ser visado por el Jefe del Departamento de <span style="font-weight: bold;">_______________________</span>. La omisión o retraso en la presentación de dicho informe será causal de suspensión del pago correspondiente hasta su regularización.
+                            El Prestador deberá presentar mensualmente, y como requisito previo al pago de sus honorarios, un informe detallado de las actividades realizadas durante el período, el cual deberá ser visado por el Jefe del Departamento de <span style="font-weight: bold;" id="preview_department3">_______________________</span>. La omisión o retraso en la presentación de dicho informe será causal de suspensión del pago correspondiente hasta su regularización.
                         </div>
 
                         <div style="margin-bottom: 14px; text-align: justify;">
@@ -602,27 +810,21 @@
                             <span>Para efectos del pago de honorarios, el Prestador señala los siguientes datos bancarios: <span id="preview_bank_details"></span></span>
                         </div>
 
+                        <!-- Testimonio (conforme a la cláusula de ejemplares del documento real) -->
                         <div style="margin-top: 30px; font-size: 10.5pt; text-align: justify; font-style: italic;">
-                            En testimonio de lo cual, y en conformidad al Decreto Alcaldicio N° <span style="font-weight: bold;">{{ contract.decline_number or '_________' }}</span>, las partes firman el presente contrato en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte, en la ciudad de Temuco, a <span style="font-weight: bold;">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>.
+                            El presente contrato de prestación de servicios se suscribe por las partes en tres ejemplares de igual fecha y tenor, quedando una copia en poder del Prestador y dos copias en poder de la Municipalidad de {{ muni_city_js }}, en conformidad al Decreto Alcaldicio N° <span style="font-weight: bold;" id="preview_decline_number2">{{ contract.decline_number or '_________' }}</span>, a <span style="font-weight: bold;" id="preview_sign_date2">{{ contract.contract_date.strftime('%d de %B de %Y') if contract.contract_date else contract.start_date.strftime('%d de %B de %Y') }}</span>.
                         </div>
 
+                        <!-- Firmas del contrato (Alcalde, como en el documento real) -->
                         <div style="margin-top: 60px; page-break-inside: avoid;">
-                            <div style="display: flex; justify-content: space-between; margin-top: 50px;">
+                            <div style="display: flex; justify-content: center; margin-top: 50px;">
                                 <div style="text-align: center; width: 42%;">
                                     <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
-                                        <div style="font-weight: bold; font-size: 10.5pt;">{{ contract.mayor_name or '_______________________' }}</div>
-                                        <div style="font-size: 9.5pt; color: #222;">Alcalde de Temuco</div>
-                                        <div style="font-size: 9.5pt; color: #222;">RUT: {{ contract.mayor_rut or '__.___.___-_' }}</div>
+                                        <div style="font-weight: bold; font-size: 10.5pt;">{{ g.mayor_name | default('_______________________') }}</div>
+                                        <div style="font-size: 9.5pt; color: #222;">{{ muni_city_js }} — Alcalde</div>
+                                        <div style="font-size: 9.5pt; color: #222;">RUT: {{ g.mayor_rut | default('__.___.___-_' ) }}</div>
                                     </div>
-                                    <div style="margin-top: 8px; font-size: 9pt; color: #444; font-weight: bold;">POR LA I. MUNICIPALIDAD DE TEMUCO</div>
-                                </div>
-                                <div style="text-align: center; width: 42%;">
-                                    <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
-                                        <div style="font-weight: bold; font-size: 10.5pt;" id="preview_provider_sign">{{ contract.provider.full_name }}</div>
-                                        <div style="font-size: 9.5pt; color: #222;">RUT: <span id="preview_provider_rut2">{{ contract.provider.rut }}</span></div>
-                                        <span id="preview_provider_profession_firma">{% if contract.provider.profession_or_trade %}<div style="font-size: 9.5pt; color: #222;">{{ contract.provider.profession_or_trade }}</div>{% endif %}</span>
-                                    </div>
-                                    <div style="margin-top: 8px; font-size: 9pt; color: #444; font-weight: bold;">POR EL PRESTADOR</div>
+                                    <div style="margin-top: 8px; font-size: 9pt; color: #444; font-weight: bold;">ALCALDE — {{ g.municipio_nombre | upper }}</div>
                                 </div>
                             </div>
                         </div>
@@ -1092,7 +1294,9 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         'sub_program': parsed.sub_program, 'budget_account': parsed.budget_account,
         'cost_center': parsed.cost_center, 'payment_modality': parsed.payment_modality,
         'monthly_amount_gross': parsed.monthly_amount_gross, 'start_date': parsed.start_date,
-        'end_date': parsed.end_date
+        'end_date': parsed.end_date,
+        'provider_address': parsed.provider_address, 'provider_comuna': parsed.provider_comuna,
+        'hours_weekly': parsed.hours_weekly
     };
     for (const [fieldId, value] of Object.entries(fieldMap)) {
         if (value !== null && value !== undefined && value !== '') {
@@ -1100,6 +1304,8 @@ function autofillForm(parsed, providerMatch, deptMatch) {
             if (el) { el.value = value; el.dispatchEvent(new Event('change')); }
         }
     }
+    // Monto total en palabras derivado del total disponible
+    autoAmountWords();
 
     if (parsed.functions && parsed.functions.length > 0) {
         const container = document.getElementById('functions_container');
@@ -1115,9 +1321,329 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         reindexFunctions();
         attachPreviewListeners();
     }
+
+    // ── Decretos y Antecedentes Previos (VISTOS) detectados por OCR ──
+    if (parsed.decrees && parsed.decrees.length > 0) {
+        const decContainer = document.getElementById('decrees_container');
+        if (decContainer) {
+            decContainer.innerHTML = '';
+            parsed.decrees.forEach((dec) => {
+                addDecreeRow({
+                    decree_type: dec.decree_type,
+                    decree_number: dec.decree_number,
+                    decree_date: dec.decree_date,
+                    description: dec.description
+                });
+            });
+        }
+    }
 }
 
 function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════════════════
+// DECRETOS Y ANTECEDENTES PREVIOS (VISTOS)
+// ═══════════════════════════════════════════════════════════════════════
+const DECREE_TYPE_OPTIONS = {{ decree_type_options | tojson }};
+const DECREE_TYPE_OPTIONS_HTML = Object.entries(DECREE_TYPE_OPTIONS)
+    .map(([code, label]) => '<option value="' + code + '">' + label + '</option>')
+    .join('');
+
+// Antecedentes institucionales FIJOS (estructura Cunco, página 1 del decreto).
+// NO son seleccionables en el paso 4: se inyectan fijados aquí y en el PDF.
+const DECREE_FIXED_HEAD = [
+    'El fallo de Calificación y el Acta Complementaria de proclamación de fecha 18 de noviembre de 2024, emitida por el Tribunal Electoral Regional, IX Región de la Araucanía.',
+    'El Acta de la Sesión de Constitución e Instalación del Concejo Municipal, de fecha 06 de diciembre de 2024.'
+];
+// Base legal nacional fija (nunca cambia).
+const DECREE_FIXED_TAIL = [
+    'La Resolución N° 15.700 de fecha 16-03-2012 de la Contraloría General de la República.',
+    'Oficio N° 33.701 de fecha 14-05-2014 de la Contraloría General de la República, que imparte instrucciones sobre registro de Decretos Alcaldicios que aprueban contratos a honorarios.',
+    'Las facultades conferidas por la Ley 18.695 del año 1988, Ley Orgánica Constitucional de Municipalidades y sus modificaciones.'
+];
+
+const API_DECREE_TEMPLATES_URL = "{{ url_for('contract_builder.api_decree_templates') }}";
+
+// Nombre municipal y ciudad (derivada del nombre configurado) para el DECRETO.
+const MUNI_NAME = {{ g.municipio_nombre | tojson }};
+const MUNI_CITY = {{ (g.municipio_nombre | replace('Ilustre ', '') | replace('Municipalidad de ', '') | replace('municipalidad de ', '')) | tojson }};
+
+function addDecreeRow(data) {
+    // data: {decree_type, decree_number, decree_date, description} (opcional)
+    data = data || {};
+    const container = document.getElementById('decrees_container');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'decree-row bg-white border border-slate-200 rounded-md px-3 py-2.5 shadow-sm group';
+    row.innerHTML =
+        '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center decree-index-label">1</span>'
+        + '<select name="decree_type[]" class="decree-type-select flex-shrink-0 border border-slate-200 rounded-md text-[11px] bg-slate-50 px-2 py-1.5 text-slate-600">'
+        + DECREE_TYPE_OPTIONS_HTML
+        + '</select>'
+        + '<input type="text" name="decree_number[]" value="' + escapeHtml(data.decree_number || '') + '" placeholder="N° Decreto"'
+        + ' class="w-32 flex-shrink-0 border border-slate-200 rounded-md text-xs px-2 py-1.5 text-slate-600 placeholder:text-slate-300">'
+        + '<input type="date" name="decree_date[]" value="' + escapeHtml(data.decree_date || '') + '"'
+        + ' class="w-36 flex-shrink-0 border border-slate-200 rounded-md text-xs px-2 py-1.5 text-slate-500">'
+        + '<button type="button" onclick="removeDecreeRow(this)"'
+        + ' class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-auto w-6 h-6 rounded-md bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center text-xs font-bold">'
+        + '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+        + '</button>'
+        + '</div>'
+        + '<textarea name="decree_description[]" rows="2" placeholder="Texto completo del VISTO (ej: El Decreto Exento N° 3.580 de fecha 11 de diciembre de 2025...) "'
+        + ' class="mt-2 w-full border border-slate-200 rounded-md text-xs px-2.5 py-2 text-slate-700 placeholder:text-slate-300 resize-y">'
+        + escapeHtml(data.description || '')
+        + '</textarea>';
+    container.appendChild(row);
+
+    if (data.decree_type) row.querySelector('.decree-type-select').value = data.decree_type;
+    reindexDecrees();
+    attachPreviewListeners();
+    schedulePreview();
+    return row;
+}
+
+function removeDecreeRow(btn) {
+    const row = btn.closest('.decree-row');
+    if (row) { row.remove(); reindexDecrees(); schedulePreview(); }
+}
+
+function reindexDecrees() {
+    const container = document.getElementById('decrees_container');
+    if (!container) return;
+    container.querySelectorAll('.decree-index-label').forEach((badge, i) => { badge.textContent = i + 1; });
+}
+
+/** Recolecta los VISTOS (plantillas marcadas + filas manuales) para la vista previa. */
+function getDecreesForPreview() {
+    const decrees = [];
+
+    document.querySelectorAll('input.decree-template-check:checked').forEach((cb) => {
+        decrees.push({
+            type: cb.getAttribute('data-type') || 'OTRO',
+            number: cb.getAttribute('data-number') || '',
+            date: cb.getAttribute('data-date') || '',
+            desc: cb.getAttribute('data-desc') || ''
+        });
+    });
+
+    const container = document.getElementById('decrees_container');
+    if (container) {
+        container.querySelectorAll('.decree-row').forEach((row) => {
+            const desc = row.querySelector('textarea[name="decree_description[]"]');
+            const num = row.querySelector('input[name="decree_number[]"]');
+            const date = row.querySelector('input[name="decree_date[]"]');
+            if (desc && desc.value.trim()) {
+                decrees.push({ type: '', number: num ? num.value.trim() : '', date: date ? date.value : '', desc: desc.value.trim() });
+            }
+        });
+    }
+
+    return decrees;
+}
+
+/** Renderiza el bloque VISTOS en la hoja A4 del panel derecho. */
+function updateDecreePreview() {
+    const section = document.getElementById('preview_vistos_section');
+    const list = document.getElementById('preview_vistos_list');
+    if (!section || !list) return;
+
+    const decrees = getDecreesForPreview();
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+    list.innerHTML = '';
+
+    // ── Antecedentes institucionales fijos (Cabecera, estructura Cunco) ──
+    DECREE_FIXED_HEAD.forEach((text) => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '5px'; li.style.textAlign = 'justify';
+        li.textContent = text;
+        list.appendChild(li);
+    });
+
+    // ── Decretos dinámicos (catálogo del año + prestador) ──
+    decrees.forEach((d) => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '5px';
+        li.style.textAlign = 'justify';
+
+        let text = d.desc;
+        if (d.number && !text.includes(d.number)) {
+            text += ' (N° ' + d.number + ')';
+        }
+        if (d.date) {
+            const dt = new Date(d.date + 'T00:00:00');
+            if (!isNaN(dt) && !/\b\d{1,2} de \w+ de \d{4}\b/.test(text) && !/\d{2}\/\d{2}\/\d{4}/.test(text)) {
+                text += ', de fecha ' + dt.getDate() + ' de ' + meses[dt.getMonth()] + ' de ' + dt.getFullYear();
+            }
+        }
+        li.textContent = text;
+        list.appendChild(li);
+    });
+
+    // ── Antecedente del contrato actual (igual que item 13 del decreto real) ──
+    const contractDateVal = document.getElementById('contract_date')?.value || document.getElementById('start_date')?.value || '';
+    if (contractDateVal) {
+        const dtC = new Date(contractDateVal + 'T00:00:00');
+        if (!isNaN(dtC)) {
+            const pname = document.getElementById('preview_provider_name')?.textContent || '_______________________';
+            const liC = document.createElement('li');
+            liC.style.marginBottom = '5px';
+            liC.style.textAlign = 'justify';
+            liC.textContent = 'El Contrato a Prestación de Servicios de fecha ' + dtC.getDate() + ' de ' + meses[dtC.getMonth()] + ' de ' + dtC.getFullYear() + ' suscrito entre la ' + MUNI_NAME + ' y don(ña) ' + pname + '.';
+            list.appendChild(liC);
+        }
+    }
+
+    // ── Base legal nacional fija (Pie) ──
+    DECREE_FIXED_TAIL.forEach((text) => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '5px'; li.style.textAlign = 'justify';
+        li.textContent = text;
+        list.appendChild(li);
+    });
+
+    section.style.display = '';
+}
+
+/**
+ * Actualiza en tiempo real la HOJA 2 del panel (DECRETO — parte resolutiva):
+ * encabezado (N°/REF/fecha), punto 1 con los datos del contrato, punto 3
+ * (imputación) y punto 2 fijo.
+ */
+function updateDecretoPreview() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+    // ── Encabezado del decreto (ambas hojas) ──
+    const decline = document.getElementById('decline_number')?.value || '';
+    set('pg2_decline_number', decline || '__________');
+    set('pg2_decline_number2', decline || '__________');
+
+    const cdVal = document.getElementById('contract_date')?.value || document.getElementById('start_date')?.value || '';
+    const decretoFecha = cdVal ? formatDateLong(cdVal) : '___ de ___ de ' + new Date().getFullYear();
+    set('pg2_date', decretoFecha);
+    set('pg2_date2', decretoFecha);
+    set('pg1_contract_date', decretoFecha);
+
+    // ── Punto 1: aprobación del contrato ──
+    set('pg1_p_name', document.getElementById('preview_provider_name')?.textContent || '_______________________');
+    set('pg1_p_rut', document.getElementById('preview_provider_rut')?.textContent || '__.___.___-_');
+    set('pg1_p_address', document.getElementById('provider_address')?.value || '__________');
+    set('pg1_p_comuna', document.getElementById('provider_comuna')?.value || '__________');
+    set('pg1_program', document.getElementById('program_name')?.value || '__________');
+
+    const totalVal = document.getElementById('total_contract_amount')?.value || '';
+    let totalFmt = '$__________';
+    if (totalVal) {
+        const n = parseFloat(totalVal);
+        if (!isNaN(n)) totalFmt = '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 });
+    }
+    set('pg1_amount', totalFmt);
+    set('pg1_words', document.getElementById('total_amount_words')?.value || '__________');
+
+    const sdVal = document.getElementById('start_date')?.value || '';
+    const edVal = document.getElementById('end_date')?.value || '';
+    set('pg1_start', sdVal ? formatDateLong(sdVal) : '__________');
+    set('pg1_end', edVal ? formatDateLong(edVal) : '__________');
+    set('pg1_hours', document.getElementById('hours_weekly')?.value || '44');
+
+    // ── Punto 3: imputación presupuestaria (año derivado de la fecha de inicio) ──
+    set('pg3_budget_account', document.getElementById('budget_account')?.value || '__________');
+    let budgetYear = null;
+    if (sdVal) {
+        const y = parseInt(sdVal.substring(0, 4), 10);
+        if (!isNaN(y) && y >= 2000 && y <= 2100) budgetYear = y;
+    }
+    set('pg3_budget_year', budgetYear || '__________');
+}
+
+// Los checkboxes del catálogo disparan la vista previa (delegación global).
+document.addEventListener('change', function (e) {
+    if (e.target.classList && e.target.classList.contains('decree-template-check')) {
+        schedulePreview();
+    }
+});
+
+// ── Reactividad: el catálogo del paso 4 reacciona al año presupuestario ──
+// El año se deriva de la fecha de inicio; al cambiarla se recargan las
+// plantillas del catálogo activas para ese año (o sin año definido).
+let decreeLoadedYear = null;
+
+function currentBudgetYear() {
+    const sd = document.getElementById('start_date')?.value || '';
+    if (sd) {
+        const y = parseInt(sd.substring(0, 4), 10);
+        if (!isNaN(y) && y >= 2000 && y <= 2100) return y;
+    }
+    return new Date().getFullYear();
+}
+
+function renderDecreeTemplateRow(t) {
+    const row = document.createElement('label');
+    row.className = 'decree-template-row flex items-start gap-3 bg-white border border-slate-200 rounded-md px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors';
+    row.title = t.description;
+    row.innerHTML =
+        '<input type="checkbox" name="decree_template_ids" value="' + t.id + '" checked'
+        + ' class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"'
+        + ' data-type="' + escapeHtml(t.decree_type) + '" data-number="' + escapeHtml(t.decree_number || '') + '"'
+        + ' data-date="' + escapeHtml(t.decree_date || '') + '" data-desc="' + escapeHtml(t.description) + '">'
+        + '<div class="flex-grow min-w-0">'
+        + '<div class="flex flex-wrap items-center gap-2">'
+        + '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">' + escapeHtml(t.decree_type_label) + '</span>'
+        + (t.decree_number ? '<span class="text-xs font-mono text-slate-500">' + escapeHtml(t.decree_number) + '</span>' : '')
+        + (t.decree_date ? '<span class="text-[10px] text-slate-400">' + escapeHtml(t.decree_date) + '</span>' : '')
+        + '</div>'
+        + '<p class="text-xs text-slate-600 mt-1 truncate">' + escapeHtml(t.description) + '</p>'
+        + '</div>';
+    return row;
+}
+
+function refreshDecreeTemplates(force) {
+    const year = currentBudgetYear();
+    if (!force && year === decreeLoadedYear) return;
+    decreeLoadedYear = year;
+
+    // Conservar las plantillas marcadas que pudieran no venir en la nueva lista.
+    const checkedRows = [];
+    document.querySelectorAll('input.decree-template-check:checked').forEach((cb) => {
+        checkedRows.push(cb.closest('.decree-template-row'));
+    });
+
+    const url = API_DECREE_TEMPLATES_URL + '?year=' + encodeURIComponent(year);
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+            if (!data || !data.success) return;
+            const list = document.getElementById('decree_templates_list');
+            if (!list) return;
+
+            list.innerHTML = '';
+            data.templates.forEach((t) => list.appendChild(renderDecreeTemplateRow(t)));
+
+            // Re-agregar plantillas marcadas de otro año que ya no vienen en la lista.
+            checkedRows.forEach((node) => {
+                const cb = node.querySelector('input.decree-template-check');
+                const exists = list.querySelector('input.decree-template-check[value="' + cb.value + '"]');
+                if (!exists) {
+                    const clone = node.cloneNode(true);
+                    const descP = clone.querySelector('p');
+                    if (descP) {
+                        const tag = document.createElement('span');
+                        tag.className = 'text-[10px] text-amber-600 font-semibold ml-1';
+                        tag.textContent = '(año distinto del vigente)';
+                        descP.appendChild(tag);
+                    }
+                    list.appendChild(clone);
+                }
+            });
+
+            updateDecreePreview();
+        })
+        .catch(() => {});
+}
+
+document.getElementById('start_date')?.addEventListener('change', () => refreshDecreeTemplates());
 
 // ═══════════════════════════════════════════════════════════════════════
 // Helpers
@@ -1139,7 +1665,7 @@ function getPaymentModalityText(code) {
 // ═══════════════════════════════════════════════════════════════════════
 function fetchProviderExtendedData(providerId) {
     if (!providerId) {
-        selectedProviderExtended = { profession_or_trade: '', nationality: '', civil_status: '', birth_date: '', bank_name: '', account_type: '', account_number: '' };
+        selectedProviderExtended = { profession_or_trade: '', nationality: '', civil_status: '', birth_date: '', bank_name: '', account_type: '', account_number: '', address: '' };
         return Promise.resolve(selectedProviderExtended);
     }
     const url = API_PROVIDER_DETAIL_URL + providerId + '/detail';
@@ -1154,13 +1680,97 @@ function fetchProviderExtendedData(providerId) {
                     birth_date: data.provider.birth_date || '',
                     bank_name: data.provider.bank_name || '',
                     account_type: data.provider.account_type || '',
-                    account_number: data.provider.account_number || ''
+                    account_number: data.provider.account_number || '',
+                    address: data.provider.address || ''
                 };
             }
             return selectedProviderExtended;
         })
         .catch(() => selectedProviderExtended);
 }
+
+/**
+ * Precarga el domicilio del prestador (campo del Decreto Alcaldicio).
+ * No sobreescribe si el usuario editó manualmente el campo.
+ */
+function applyProviderAddress(extended) {
+    const input = document.getElementById('provider_address');
+    if (!input) return;
+    const manual = input.dataset.manual === 'true';
+    if (!manual && extended && extended.address) {
+        input.value = extended.address;
+        schedulePreview();
+    }
+}
+
+// Detecta edición manual para no pisar el dato del usuario en futuros autofills.
+(function () {
+    const input = document.getElementById('provider_address');
+    if (!input) return;
+    input.addEventListener('input', () => {
+        if (input.value.trim() && input.dataset.lastFill !== input.value) {
+            input.dataset.manual = 'true';
+        }
+        if (!input.value.trim()) input.dataset.manual = 'false';
+    });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// MONTO TOTAL EN PALABRAS (auto-calculado, editable)
+// ═══════════════════════════════════════════════════════════════════════
+const UNIDADES_ES = ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+const DECENAS_ES = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+const CIENTOS_ES = ['cero','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+
+function numToWordsEs(n) {
+    n = Math.floor(Math.abs(n));
+    if (n === 0) return 'cero';
+    if (n < 30) return UNIDADES_ES[n];
+    if (n < 100) {
+        const d = Math.floor(n / 10), u = n % 10;
+        return u === 0 ? DECENAS_ES[d] : DECENAS_ES[d] + ' y ' + UNIDADES_ES[u];
+    }
+    if (n === 100) return 'cien';
+    if (n < 1000) {
+        const c = Math.floor(n / 100), r = n % 100;
+        return CIENTOS_ES[c] + (r ? ' ' + numToWordsEs(r) : '');
+    }
+    if (n < 1000000) {
+        const m = Math.floor(n / 1000), r = n % 1000;
+        const head = m === 1 ? 'mil' : numToWordsEs(m).replace(/veintiun|veintiuno/g, 'veintiún').replace(/uno\b/g, 'un') + ' mil';
+        return head + (r ? ' ' + numToWordsEs(r) : '');
+    }
+    const mm = Math.floor(n / 1000000), r = n % 1000000;
+    const head = mm === 1 ? 'un millón' : numToWordsEs(mm).replace(/veintiun|veintiuno/g, 'veintiún').replace(/uno\b/g, 'un') + ' millones';
+    return head + (r ? ' ' + numToWordsEs(r) : '');
+}
+
+function totalAmountWordsEs(value) {
+    const n = parseFloat(value);
+    if (isNaN(n) || n < 0 || n >= 2000000000) return '';
+    return numToWordsEs(Math.floor(n));
+}
+
+/** Actualiza el campo "Monto Total en Palabras" salvo que el usuario lo haya editado. */
+function autoAmountWords() {
+    const wordsInput = document.getElementById('total_amount_words');
+    const totalInput = document.getElementById('total_contract_amount');
+    if (!wordsInput || !totalInput) return;
+    if (wordsInput.dataset.manual === 'true') return; // respeta la edición manual
+    const words = totalAmountWordsEs(totalInput.value);
+    if (words) wordsInput.value = words;
+}
+
+(function () {
+    const wordsInput = document.getElementById('total_amount_words');
+    if (!wordsInput) return;
+    wordsInput.addEventListener('input', () => {
+        wordsInput.dataset.manual = wordsInput.value.trim() ? 'true' : 'false';
+    });
+    document.getElementById('total_contract_amount')?.addEventListener('input', autoAmountWords);
+    // Primera generación automática si el total ya tiene valor y el campo está vacío
+    autoAmountWords();
+})();
 
 // ═══════════════════════════════════════════════════════════════════════
 // Preview Logic
@@ -1245,10 +1855,18 @@ function updatePreview() {
         const deptName = deptSelect.options[deptSelect.selectedIndex].getAttribute('data-name') || deptSelect.options[deptSelect.selectedIndex].text;
         setPreviewText('preview_department', deptName);
         setPreviewText('preview_department2', deptName);
+        setPreviewText('preview_department3', deptName);
     } else {
         setPreviewText('preview_department', '_______________________');
         setPreviewText('preview_department2', '_______________________');
+        setPreviewText('preview_department3', '_______________________');
     }
+
+    // Domicilio y comuna del prestador (cláusula de comparecencia)
+    const providerAddressVal = document.getElementById('provider_address')?.value || '';
+    setPreviewText('preview_provider_address', providerAddressVal || '_______________________');
+    const providerComunaVal = document.getElementById('provider_comuna')?.value || '';
+    setPreviewText('preview_provider_comuna', providerComunaVal || '_______________________');
 
     // contract_date
     const contractDateVal = document.getElementById('contract_date')?.value;
@@ -1278,7 +1896,7 @@ function updatePreview() {
     // Campos directos
     const fieldMap = {
         'contract_number': { id: 'preview_contract_number', prefix: '', fallback: 'CT-XXXX-XXX' },
-        'decline_number': { id: 'preview_decline_number', prefix: '', fallback: '_________' },
+        'decline_number': { id: ['preview_decline_number', 'preview_decline_number2'], prefix: '', fallback: '_________' },
         'decline_date': { id: 'preview_decline_date', prefix: '', fallback: '_________' },
         'position_title': { id: ['preview_position','preview_position2'], prefix: '', fallback: '_______________________' },
         'program_name': { id: 'preview_program', prefix: '', fallback: '_______________________' },
@@ -1307,6 +1925,10 @@ function updatePreview() {
         if (!hasFunctions) { funcContainer.innerHTML = '<li style="margin-bottom: 5px; text-align: justify;">___________________________________________________________</li>'; }
     }
 
+    // Decretos y Antecedentes Previos (VISTOS) + hojas del DECRETO
+    updateDecreePreview();
+    updateDecretoPreview();
+
     const spinner = document.getElementById('preview_spinner');
     if (spinner) spinner.classList.add('hidden');
 }
@@ -1329,10 +1951,13 @@ attachPreviewListeners();
 document.getElementById('provider_select').addEventListener('change', function() {
     const providerId = this.value;
     if (!providerId) {
-        selectedProviderExtended = { profession_or_trade: '', nationality: '', civil_status: '', birth_date: '', bank_name: '', account_type: '', account_number: '' };
+        selectedProviderExtended = { profession_or_trade: '', nationality: '', civil_status: '', birth_date: '', bank_name: '', account_type: '', account_number: '', address: '' };
         schedulePreview(); return;
     }
-    fetchProviderExtendedData(providerId).then(() => schedulePreview());
+    fetchProviderExtendedData(providerId).then((extended) => {
+        applyProviderAddress(extended);
+        schedulePreview();
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1457,7 +2082,10 @@ function selectProviderFromSearch(provider) {
         hint.className = 'mt-2 text-[11px] text-[#4A2E1B] bg-[#2563eb]/10 px-2.5 py-1.5 rounded-md border border-[#2563eb]/30';
     }
 
-    fetchProviderExtendedData(provider.id).then(() => schedulePreview());
+    fetchProviderExtendedData(provider.id).then((extended) => {
+        applyProviderAddress(extended);
+        schedulePreview();
+    });
     document.getElementById('ocr_dept_hint').className = 'hidden mt-2 text-[11px] px-2.5 py-1.5 rounded-md border';
 }
 
@@ -1513,8 +2141,10 @@ function saveQuickProvider() {
             selectedProviderExtended = {
                 profession_or_trade: data.profession_or_trade, nationality: data.nationality,
                 civil_status: data.civil_status, birth_date: data.birth_date,
-                bank_name: data.bank_name, account_type: data.account_type, account_number: data.account_number
+                bank_name: data.bank_name, account_type: data.account_type, account_number: data.account_number,
+                address: data.address || ''
             };
+            applyProviderAddress(selectedProviderExtended);
 
             select.dispatchEvent(new Event('change'));
             schedulePreview();
@@ -1591,5 +2221,26 @@ if (initialProviderId) {
 } else {
     updatePreview();
 }
+
+// ── Inicialización de la sección VISTOS: decretos manuales existentes ──
+(function initDecrees() {
+    const existing = [
+    {% for dec in contract.decrees if dec.origin == 'MANUAL' %}
+        {
+            decree_type: {{ dec.decree_type | tojson }},
+            decree_number: {{ (dec.decree_number or '') | tojson }},
+            decree_date: {{ (dec.decree_date.strftime('%Y-%m-%d') if dec.decree_date else '') | tojson }},
+            description: {{ dec.description | tojson }}
+        },
+    {% endfor %}
+    ];
+    const container = document.getElementById('decrees_container');
+    if (container && (existing.length > 0 || container.children.length === 0)) {
+        existing.forEach((dec) => addDecreeRow(dec));
+    }
+    refreshDecreeTemplates();
+    updateDecreePreview();
+    updateDecretoPreview();
+})();
 </script>
 {% endblock %}

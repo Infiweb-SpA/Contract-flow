@@ -32,6 +32,12 @@ class Contract(db.Model):
     cost_center = db.Column(db.String(30), nullable=True)
     payment_modality = db.Column(db.String(30), nullable=True, default='MENSUAL_FIJO')
 
+    # ── Datos del Decreto Alcaldicio (estructura Cunco, página 2) ──
+    provider_address = db.Column(db.String(255), nullable=True)      # Domicilio del prestador
+    provider_comuna = db.Column(db.String(100), nullable=True)       # Comuna de domicilio
+    hours_weekly = db.Column(db.Integer, nullable=True, default=44)  # Jornada horas semanales
+    total_amount_words = db.Column(db.String(255), nullable=True)    # Monto total en palabras
+
     pdf_file_path = db.Column(db.String(255), nullable=True)
     ocr_processed = db.Column(db.Integer, default=0)
     status = db.Column(db.String(30), default='BORRADOR')
@@ -47,6 +53,10 @@ class Contract(db.Model):
 
     functions = db.relationship('ContractFunction', backref='contract', cascade='all, delete-orphan', lazy=True,
                                 order_by='ContractFunction.function_order')
+
+    # ── Decretos y Antecedentes Previos (VISTOS) ──
+    decrees = db.relationship('ContractDecree', backref='contract', cascade='all, delete-orphan', lazy=True,
+                              order_by='ContractDecree.display_order')
 
     @property
     def status_label(self):

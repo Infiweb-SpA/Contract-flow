@@ -6,6 +6,8 @@ from app.auth.utils import login_required, role_required, get_current_user
 from app.models.user import Department
 from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction
+from app.models.decree import (DECREE_TYPE_LABELS, ContractDecree, DecreeTemplate,
+                               VISTOS_SELECTABLE_TYPES, order_vistos)
 from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
 from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es, OCRCancelledException
@@ -107,6 +109,114 @@ def _unregister_ocr_progress(token):
 
 
 # =============================================================================
+# DECRETOS / VISTOS PREVIOS (helpers compartidos create/edit)
+# =============================================================================
+def _load_templates_for_context(year=None):
+    """
+    Plantillas activas del catálogo para precargar el formulario.
+    Solo expone tipos seleccionables del bloque VISTOS (BASE_LEGAL y
+    CONTRATO_ACTUAL se inyectan fijados en la plantilla del documento).
+    Si se recibe `year`, filtra por ese año presupuestario (o plantillas
+    sin año, que aplican a todos los años).
+    """
+    target_year = year or datetime.now().year
+    return DecreeTemplate.query.filter(
+        DecreeTemplate.is_active.is_(True),
+        DecreeTemplate.decree_type.in_(list(VISTOS_SELECTABLE_TYPES)),
+        db.or_(DecreeTemplate.year == target_year, DecreeTemplate.year.is_(None))
+    ).order_by(DecreeTemplate.id).all()
+
+
+def _collect_decrees_from_form():
+    """
+    Lee los decretos del formulario (create/edit):
+      - decree_template_ids[]: plantillas del catálogo marcadas → copies.
+      - decree_type[]/decree_number[]/decree_date[]/decree_description[]:
+        filas manuales del prestador.
+    Retorna (templates_ids, manual_rows) donde manual_rows es una lista de
+    dicts {decree_type, decree_number, decree_date, description}.
+    """
+    template_ids = request.form.getlist('decree_template_ids')
+
+    manual_rows = []
+    types = request.form.getlist('decree_type[]')
+    numbers = request.form.getlist('decree_number[]')
+    dates = request.form.getlist('decree_date[]')
+    descs = request.form.getlist('decree_description[]')
+
+    for idx, desc in enumerate(descs):
+        clean_desc = desc.strip()
+        if not clean_desc:
+            continue
+
+        decree_type = types[idx] if idx < len(types) else 'OTRO'
+        if decree_type not in DECREE_TYPE_LABELS:
+            decree_type = 'OTRO'
+
+        number = numbers[idx].strip() if idx < len(numbers) else ''
+        decree_date = None
+        if idx < len(dates) and dates[idx]:
+            try:
+                decree_date = datetime.strptime(dates[idx], '%Y-%m-%d').date()
+            except ValueError:
+                decree_date = None
+
+        manual_rows.append({
+            'decree_type': decree_type,
+            'decree_number': number or None,
+            'decree_date': decree_date,
+            'description': clean_desc,
+        })
+
+    return template_ids, manual_rows
+
+
+def _save_contract_decrees(contract):
+    """
+    Reemplaza los decretos/VISTOS de un contrato según el formulario.
+    Las plantillas se COPIAN como snapshot (origin PLANTILLA); las filas
+    manuales se guardan con origin MANUAL en el orden de ingreso.
+    """
+    template_ids, manual_rows = _collect_decrees_from_form()
+
+    ContractDecree.query.filter_by(contract_id=contract.id).delete()
+
+    templates = []
+    if template_ids:
+        templates = DecreeTemplate.query.filter(
+            DecreeTemplate.id.in_([int(t) for t in template_ids if str(t).isdigit()])
+        ).filter_by(is_active=True).order_by(DecreeTemplate.id).all()
+
+    order = 0
+    for tpl in templates:
+        order += 1
+        db.session.add(ContractDecree(
+            contract_id=contract.id,
+            template_id=tpl.id,
+            decree_type=tpl.decree_type,
+            decree_number=tpl.decree_number,
+            decree_date=tpl.decree_date,
+            description=tpl.description,
+            origin='PLANTILLA',
+            display_order=order,
+        ))
+
+    for row in manual_rows:
+        order += 1
+        db.session.add(ContractDecree(
+            contract_id=contract.id,
+            decree_type=row['decree_type'],
+            decree_number=row['decree_number'],
+            decree_date=row['decree_date'],
+            description=row['description'],
+            origin='MANUAL',
+            display_order=order,
+        ))
+
+    return len(templates), len(manual_rows)
+
+
+# =============================================================================
 # CREAR CONTRATO
 # =============================================================================
 @contract_builder_bp.route('/create', methods=['GET', 'POST'])
@@ -136,6 +246,15 @@ def create():
             cost_center = request.form.get('cost_center', '').strip()
             payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
 
+            # ── Datos del Decreto Alcaldicio (estructura Cunco) ──
+            provider_address = request.form.get('provider_address', '').strip() or None
+            provider_comuna = request.form.get('provider_comuna', '').strip() or None
+            try:
+                hours_weekly = int(request.form.get('hours_weekly')) or None
+            except (TypeError, ValueError):
+                hours_weekly = None
+            total_amount_words = request.form.get('total_amount_words', '').strip() or None
+
             # ── Trazabilidad: registrar quién crea ──
             current_user = get_current_user()
 
@@ -157,6 +276,10 @@ def create():
                 sub_program=sub_program or None,
                 cost_center=cost_center or None,
                 payment_modality=payment_modality,
+                provider_address=provider_address,
+                provider_comuna=provider_comuna,
+                hours_weekly=hours_weekly,
+                total_amount_words=total_amount_words,
                 status='BORRADOR',
                 created_by_user_id=current_user.id if current_user else None,
                 last_modified_by_user_id=current_user.id if current_user else None,
@@ -175,6 +298,9 @@ def create():
                     )
                     db.session.add(func)
 
+            # ── Decretos y Antecedentes Previos (VISTOS) ──
+            tpl_count, manual_count = _save_contract_decrees(new_contract)
+
             db.session.commit()
 
             log_action(
@@ -183,6 +309,13 @@ def create():
                 entity_id=new_contract.id,
                 payload={'contract_number': contract_number, 'provider_id': provider_id}
             )
+            if tpl_count or manual_count:
+                log_action(
+                    action='CONTRACT_DECREE_UPDATE',
+                    entity_type='contract',
+                    entity_id=new_contract.id,
+                    payload={'templates': tpl_count, 'manual': manual_count}
+                )
 
             flash(f'Contrato N° {contract_number} creado exitosamente.', 'success')
             return redirect(url_for('contract_builder.detail', contract_id=new_contract.id))
@@ -193,8 +326,34 @@ def create():
 
     providers = ServiceProvider.query.order_by(ServiceProvider.paternal_last_name).all()
     departments = Department.query.filter_by(is_active=1).all()
+    return render_template('contracts/create.html', providers=providers, departments=departments,
+                           decree_templates=_load_templates_for_context(),
+                           decree_type_options=DECREE_TYPE_LABELS)
 
-    return render_template('contracts/create.html', providers=providers, departments=departments)
+
+# =============================================================================
+# API: PLANTILLAS DE DECRETOS POR AÑO (reactividad del paso 4 al año de inicio)
+# =============================================================================
+@contract_builder_bp.route('/api/decree-templates')
+@login_required
+def api_decree_templates():
+    year = request.args.get('year', type=int)
+    templates = _load_templates_for_context(year=year)
+    return jsonify({
+        'success': True,
+        'year': year,
+        'templates': [
+            {
+                'id': t.id,
+                'decree_type': t.decree_type,
+                'decree_type_label': t.decree_type_label,
+                'decree_number': t.decree_number or '',
+                'decree_date': t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '',
+                'description': t.description,
+            }
+            for t in templates
+        ]
+    })
 
 
 # =============================================================================
@@ -237,6 +396,13 @@ def edit(contract_id):
             contract.sub_program = request.form.get('sub_program', '').strip() or None
             contract.cost_center = request.form.get('cost_center', '').strip() or None
             contract.payment_modality = request.form.get('payment_modality', 'MENSUAL_FIJO').strip()
+            contract.provider_address = request.form.get('provider_address', '').strip() or None
+            contract.provider_comuna = request.form.get('provider_comuna', '').strip() or None
+            try:
+                contract.hours_weekly = int(request.form.get('hours_weekly')) or None
+            except (TypeError, ValueError):
+                contract.hours_weekly = None
+            contract.total_amount_words = request.form.get('total_amount_words', '').strip() or None
 
             current_user = get_current_user()
             contract.last_modified_by_user_id = current_user.id if current_user else None
@@ -252,8 +418,18 @@ def edit(contract_id):
                         function_description=clean_desc
                     ))
 
+            # ── Decretos y Antecedentes Previos (VISTOS) ──
+            tpl_count, manual_count = _save_contract_decrees(contract)
+
             db.session.commit()
             log_action('CONTRACT_UPDATE', 'contract', contract.id, {'contract_number': contract.contract_number})
+            if tpl_count or manual_count:
+                log_action(
+                    action='CONTRACT_DECREE_UPDATE',
+                    entity_type='contract',
+                    entity_id=contract.id,
+                    payload={'templates': tpl_count, 'manual': manual_count}
+                )
             flash('Contrato actualizado exitosamente.', 'success')
             return redirect(url_for('contract_builder.detail', contract_id=contract.id))
 
@@ -263,7 +439,11 @@ def edit(contract_id):
 
     providers = ServiceProvider.query.order_by(ServiceProvider.paternal_last_name).all()
     departments = Department.query.filter_by(is_active=1).all()
-    return render_template('contracts/edit.html', contract=contract, providers=providers, departments=departments)
+    return render_template('contracts/edit.html', contract=contract, providers=providers,
+                           departments=departments,
+                           decree_templates=_load_templates_for_context(
+                               year=contract.start_date.year if contract.start_date else None),
+                           decree_type_options=DECREE_TYPE_LABELS)
 
 
 # =============================================================================
@@ -393,6 +573,25 @@ def upload_external():
                                 function_description=line
                             ))
 
+                    # ── VISTOS: deCRETOS y antecedentes detectados por OCR ──
+                    from app.services.ocr_service import extract_decrees_vistos
+                    for idx, dec in enumerate(extract_decrees_vistos(extracted_text), start=1):
+                        decree_date = None
+                        if dec.get('decree_date'):
+                            try:
+                                decree_date = datetime.strptime(dec['decree_date'], '%Y-%m-%d').date()
+                            except (ValueError, TypeError):
+                                decree_date = None
+                        db.session.add(ContractDecree(
+                            contract_id=new_contract.id,
+                            decree_type=dec['decree_type'] if dec['decree_type'] in DECREE_TYPE_LABELS else 'OTRO',
+                            decree_number=dec.get('decree_number'),
+                            decree_date=decree_date,
+                            description=dec['description'],
+                            origin='MANUAL',
+                            display_order=idx,
+                        ))
+
                 db.session.commit()
                 log_action('CONTRACT_UPLOAD', 'contract', new_contract.id,
                            {'contract_number': contract_number, 'ocr': bool(extracted_text)})
@@ -425,6 +624,10 @@ def api_preview():
         provider_nationality = ''
         department_name = data.get('department_name', '____________________')
 
+        # ── Datos del Decreto Alcaldicio (domicilio/comuna para página 2) ──
+        provider_address = (data.get('provider_address') or '').strip()
+        provider_comuna = (data.get('provider_comuna') or '').strip()
+
         if data.get('provider_id'):
             provider = ServiceProvider.query.get(data['provider_id'])
             if provider:
@@ -432,6 +635,9 @@ def api_preview():
                 provider_rut = provider.rut
                 provider_profession = provider.profession_or_trade or ''
                 provider_nationality = provider.nationality or ''
+                # Domicilio desde la ficha si el formulario no lo definió
+                if not provider_address:
+                    provider_address = provider.address or ''
 
         if data.get('department_id'):
             dept = Department.query.get(data['department_id'])
@@ -460,6 +666,29 @@ def api_preview():
             except:
                 pass
 
+        # ── VISTOS agrupados por tipo (solo los 7 tipos admitidos + OTRO) ──
+        decrees_clean = [
+            {
+                'decree_type': d.get('decree_type', 'OTRO'),
+                'decree_number': d.get('decree_number'),
+                'decree_date': d.get('decree_date'),
+                'description': (d.get('description') or '').strip(),
+            }
+            for d in (data.get('decrees') or [])
+            if (d.get('description') or '').strip()
+        ]
+        vistos = order_vistos(decrees_clean)
+
+        # ── Datos Decreto Alcaldicio (página 2, estructura Cunco) ──
+        try:
+            hours_weekly = int(data.get('hours_weekly')) or None
+        except (TypeError, ValueError):
+            hours_weekly = None
+        try:
+            budget_year = datetime.strptime(sd, '%Y-%m-%d').year if sd else datetime.now().year
+        except (ValueError, TypeError):
+            budget_year = datetime.now().year
+
         preview_data = {
             'contract_number': data.get('contract_number', 'CT-XXXX-XXX') or 'CT-XXXX-XXX',
             'position_title': data.get('position_title', '____________________'),
@@ -483,6 +712,15 @@ def api_preview():
             'payment_modality': data.get('payment_modality', 'MENSUAL_FIJO'),
             'duration_months': duration_months,
             'functions': [f.strip() for f in data.get('functions', []) if f.strip()],
+            'decrees': decrees_clean,
+            # VISTOS filtrados + ordenados por decreto_type (bloque página 1)
+            'vistos': vistos,
+            # ── Datos Decreto Alcaldicio (página 2, estructura Cunco) ──
+            'provider_address': provider_address,
+            'provider_comuna': provider_comuna,
+            'hours_weekly': hours_weekly,
+            'total_amount_words': (data.get('total_amount_words') or '').strip(),
+            'budget_year': budget_year,
             'mayor_name': current_app.config.get('MAYOR_NAME', ''),
             'mayor_rut': current_app.config.get('MAYOR_RUT', ''),
             'municipality_name': current_app.config.get('MUNICIPALITY_NAME', ''),
@@ -862,6 +1100,7 @@ def api_provider_detail(provider_id):
             'bank_name': provider.bank_name or '',
             'account_type': provider.account_type or '',
             'account_number': provider.account_number or '',
+            'address': provider.address or '',
         }
     })
 

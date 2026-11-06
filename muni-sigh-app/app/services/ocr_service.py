@@ -343,8 +343,8 @@ def _parse_any_date(date_str: str) -> str:
     if m:
         return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
 
-    # DD de mes de YYYY (ej: "30 de junio de 2026")
-    m = re.search(r'(\d{1,2})\s+de\s+([a-zA-Záéíóú]+)\s+de\s+(\d{4})', date_str, re.IGNORECASE)
+    # DD de mes de YYYY (ej: "30 de junio de 2026", "01 de julio del 2025")
+    m = re.search(r'(\d{1,2})\s+de\s+([a-zA-Záéíóú]+)\s+del?\s+(\d{4})', date_str, re.IGNORECASE)
     if m:
         day, month_name, year = m.groups()
         month = _MONTHS_ES.get(month_name.lower().strip(), 1)
@@ -377,6 +377,7 @@ def parse_contract_data(text: str) -> dict:
         'provider_profession': None,
         'provider_nationality': None,
         'provider_address': None,
+        'provider_comuna': None,
         'provider_email': None,
 
         # Objeto y Estructura
@@ -391,6 +392,7 @@ def parse_contract_data(text: str) -> dict:
         'budget_account': None,
         'cost_center': None,
         'payment_modality': 'MENSUAL_FIJO',
+        'hours_weekly': None,
 
         # Fechas y Documentos
         'start_date': None,
@@ -402,6 +404,7 @@ def parse_contract_data(text: str) -> dict:
 
         # Funciones
         'functions': [],
+        'decrees': [],
         'raw_text': text
     }
 
@@ -453,6 +456,24 @@ def parse_contract_data(text: str) -> dict:
     if match_prestador:
         data['full_name'] = re.sub(r'\s+', ' ', match_prestador.group(1).strip()).title()
         data['rut'] = re.sub(r'\s', '', match_prestador.group(2)).strip().upper()
+
+    # ── 4b. DOMICILIO, COMUNA Y JORNADA (estructura Cunco) ─────────────────
+    match_dom = _try_match(full_text, [
+        r'domiciliad[oa]\s*(?:\(a\))?s?\s+en\s+([A-ZÁÉÍÓÚÑa-z][^,.;]{0,80}?),\s*(?:de\s+la\s+)?comuna\s+(?:de\s+la\s+)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]{0,25}?)(?:,|\s+en\s+adelante|\.)',
+        r'con\s+domicilio\s+en\s+([A-ZÁÉÍÓÚÑa-z][^,.;]{0,80}?),\s*(?:de\s+la\s+)?comuna\s+(?:de\s+la\s+)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]{0,25}?)(?:,|\s+en\s+adelante|\.)',
+        r'domiciliad[oa]\s*(?:\(a\))?s?\s+en\s+([A-ZÁÉÍÓÚÑa-z][^,.;]{0,60}),',
+    ])
+    if match_dom:
+        data['provider_address'] = match_dom.group(1).strip()
+        if match_dom.lastindex and match_dom.lastindex >= 2:
+            data['provider_comuna'] = match_dom.group(2).strip()
+
+    # Jornada horaria: 'con una jornada de 44 horas semanales'
+    match_hours = re.search(r'jornada\s+(?:de\s+|flexible\s+de\s+)?(\d{1,2})\s+horas?', full_text, re.IGNORECASE)
+    if match_hours:
+        hours = int(match_hours.group(1))
+        if 0 < hours <= 60:
+            data['hours_weekly'] = hours
 
     # ── 5. PROGRAMA ────────────────────────────────────────────────────────
     match_prog = _try_match(full_text, [
@@ -532,14 +553,19 @@ def parse_contract_data(text: str) -> dict:
     if 'producto o servicio entregado' in full_text.lower():
         data['payment_modality'] = 'POR_PRODUCTO'
 
-    # ── 12. FUNCIONES ──────────────────────────────────────────────────────
+    # ── 12. VISTOS / DECRETOS PREVIOS ─────────────────────────────────────
+    data['decrees'] = extract_decrees_vistos(full_text)
+
+    # ── 13. FUNCIONES ─────────────────────────────────────────────────────
     data['functions'] = extract_functions(full_text)
 
     # ── DEBUG: Log de campos extraídos ─────────────────────────────────────
-    extracted_fields = {k: v for k, v in data.items() if v is not None and k not in ('raw_text', 'functions')}
+    extracted_fields = {k: v for k, v in data.items() if v is not None and k not in ('raw_text', 'functions', 'decrees')}
     logging.info(f"OCR Parser: {len(extracted_fields)} campos extraídos: {list(extracted_fields.keys())}")
     if data['functions']:
         logging.info(f"OCR Parser: {len(data['functions'])} funciones extraídas")
+    if data['decrees']:
+        logging.info(f"OCR Parser: {len(data['decrees'])} decretos/VISTOS extraídos")
 
     return data
 
@@ -547,6 +573,220 @@ def parse_contract_data(text: str) -> dict:
 def _parse_date_string(date_str: str) -> str:
     """Helper interno para convertir cualquier variante de fecha a ISO YYYY-MM-DD."""
     return _parse_any_date(date_str)
+
+
+# =============================================================================
+# PARSER DEL BLOQUE "VISTOS" (DECRETOS Y ANTECEDENTES PREVIOS)
+# =============================================================================
+
+# Sellos/timbres que el scanner superpone sobre el documento: aparecen como
+# líneas sueltas dentro del bloque VISTOS y NO son ítems. Cada alternativa
+# debe cubrir la línea COMPLETA (anclada a fin de línea) para no tumbar
+# fragmentos legítimos de los VISTOS. CASE-SENSITIVE: los sellos reales van
+# en MAYÚSCULAS; las continuaciones reales suelen traer minúsculas.
+_DECREE_STAMP_RE = re.compile(
+    r'^\s*(?:'
+    r'[a-zA-Z]{1,4}\s*$|'                                  # ruido: 'ef', 'nc', 'O'
+    r'(?:FECHA|HORA|TELÉFONO|MAIL)\b.*$|'                  # sellos: 'FECHA SALIDA', 'HORA'
+    r'POR\s*$|NC\s*$|_DE\s*$|_POR\s*$|'                    # fragmentos de sello
+    r'\d{1,2}[A-Z]{3}\.?\s*\d{2,4}\s*$|'                   # '15JUL.2025', '21JUL.2026'
+    r'\d{1,2}\.\d{2}\s*$|'                                 # '13.40'
+    r'REPRESENTACION\b.*$|'                                # sello 'REPRESENTACION NC'
+    r'DIRECTOR\s+DE\s+CONTROL.*$|'
+    r'(?:Was|M[aá]s)\s+cerc[aá][^ü]*$|'                    # timbre 'Está/Was cerca de usted'
+    r'Wnc\s*$|'
+    r'[A-ZÁÉÍÓÚÑ(]{2,}[\.\s]*$|'                           # siglas puras: 'CUNCO'
+    r'[A-ZÁÉÍÓÚÑ](?:[A-ZÁÉÍÓÚÑ/\s\-]{0,40}[A-ZÁÉÍÓÚÑ.])\s*$'  # frases cortas en mayúsculas
+    r')'
+)
+
+# Inicio de ítem numerado: número de 1-2 dígitos seguido POR UN DELIMITADOR
+# (punto, paréntesis, guion, º°:) y el resto del texto. El delimitador es
+# obligatorio: evita tratar fechas como '06 de diciembre...' como numeración.
+_DECREE_ITEM_START_RE = re.compile(r'^(\d{1,2})\s*[\.º°\)\:\-]\s*(.*)')
+
+
+def _normalize_ocr_word_fixes(text: str) -> str:
+    """Corrige confusiones típicas del OCR en español: EI→El, Ia→la, Req→reg."""
+    text = re.sub(r'\bEI\b', 'El', text)
+    text = re.sub(r'\beI\b', 'el', text)
+    text = re.sub(r'\bIa\b', 'la', text)
+    text = re.sub(r'Req([a-záéíóúñ])', r'reg\1', text)
+    text = re.sub(r'municipaI', 'municipal', text)
+    text = re.sub(r'estad?s?\s+de\s+pago', 'estados de pago', text, flags=re.IGNORECASE)
+    # Fechas partidas por espacios: '11 /12/2025' → '11/12/2025'
+    text = re.sub(r'(\d{1,2})\s+/\s*(\d{1,2})\s*/\s*(\d{2,4})', r'\1/\2/\3', text)
+    return text
+
+
+def _classify_decree(desc: str) -> str:
+    """Clasifica un decreto/VISTO por su contenido. Retorna un código de tipo."""
+    d = desc.lower()
+
+    if re.search(r'ficha\s+de\s+ingreso', d, re.IGNORECASE):
+        return 'FICHA_RRHH'
+    if 'anterior' in d and re.search(r'contrat', d, re.IGNORECASE):
+        return 'CONTRATO_ANTERIOR'
+    # El propio contrato del expediente (sin la palabra 'anterior')
+    if re.search(r'(?:el\s+)?contrat[oa]\s+a?\s+prestaci[óo]n\s+de\s+servicios', d, re.IGNORECASE):
+        return 'CONTRATO_ACTUAL'
+    if re.search(r'subrogaci[óo]n', d, re.IGNORECASE):
+        if re.search(r'control', d, re.IGNORECASE):
+            return 'SUBROGANCIA_CONTROL'
+        if re.search(r'alcalde', d, re.IGNORECASE):
+            return 'SUBROGANCIA_ALCALDE'
+        return 'SUBROGANCIA_CONTROL'
+    if re.search(r'plan\s+operativo\s+anual?|\bPOA\b', d, re.IGNORECASE):
+        return 'PROGRAMA_MUNICIPAL'
+    if re.search(r'programa', d, re.IGNORECASE):
+        return 'PROGRAMA_MUNICIPAL'
+    if re.search(r'presupuesto|desagregaci[óo]n|desgloses?|subt[íi]tulos', d, re.IGNORECASE):
+        return 'PRESUPUESTO_ANUAL'
+    if re.search(r'resoluci[óo]n|contralor[íi]a|oficio|ley\s+n?[°oº\.]*\s*\d|ley\s+\d|facultades', d, re.IGNORECASE):
+        return 'BASE_LEGAL'
+    if re.search(r'fallo|calificaci[óo]n|concejo|municipal|asume\s+el\s+cargo|nombra\s+', d, re.IGNORECASE):
+        return 'ANTECEDENTE_INSTITUCIONAL'
+    if re.search(r'decreto', d, re.IGNORECASE):
+        return 'ANTECEDENTE_INSTITUCIONAL'
+    return 'OTRO'
+
+
+def _extract_decree_ref(desc: str):
+    """
+    Busca dentro del texto del VISTO el número y la fecha del documento
+    referenciado (ej: 'Decreto Exento N° 3.074 de fecha 17.12.2024').
+    Retorna (decree_number, decree_date_iso).
+    """
+    number = None
+    m = re.search(
+        r'(?:Decreto\s+(?:Exento|Alcaldicio)|Resoluci[óo]n|Oficio|Ley)\s+N[°oº\.]*\s*([\d\.\-]+)',
+        desc, re.IGNORECASE
+    )
+    if m:
+        number = m.group(1).strip('.- ')
+
+    date_iso = None
+    date_patterns = [
+        r'del?\s+(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        r'de\s+fecha\s+(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        r'de\s+fecha\s+(\d{1,2}\s+de\s+[a-záéíóú]+\s+del?\s+\d{4})',
+        r'del\s+(\d{1,2}\s+de\s+[a-záéíóú]+\s+(?:del\s+)?(?:a[ñn]o\s+)?\d{4})',
+        r'de\s+(\d{1,2}\s+de\s+[a-záéíóú]+\s+del?\s+\d{4})',
+        r'(\d{1,2}\s+de\s+[a-záéíóú]+\s+del?\s+\d{4})',
+        r'fecha\s+([\d\-/]{8,12})',
+    ]
+    for pat in date_patterns:
+        dm = re.search(pat, desc, re.IGNORECASE)
+        if dm:
+            date_iso = _parse_any_date(dm.group(1))
+            break
+
+    return number, date_iso
+
+
+def extract_decrees_vistos(text: str) -> list:
+    """
+    Extrae el bloque VISTOS: decretos y antecedentes previos del contrato.
+    Detecta la cabecera 'VISTOS:' y procesa la lista numerada que sigue
+    (ítems multilínea), descartando sellos/timbres del escaneo.
+
+    Retorna una lista de dicts con claves:
+        {'decree_type', 'decree_number', 'decree_date', 'description'}
+    listos para instanciar ContractDecree (origin MANUAL).
+    """
+    decrees = []
+    if not text:
+        return decrees
+
+    # ── Localizar el bloque VISTOS (del marcador hasta 'DECRETO:' / 'ANOTÉSE') ──
+    match_block = re.search(
+        r'VISTOS\s*:?([\s\S]{0,10000}?)(?=\n\s*DECRETO\s*:|\n\s*ANOT[EÉ]SE|\n\s*RESUELVE|\n\s*CONSIDERANDO\s+QUE)',
+        text, re.IGNORECASE
+    )
+    if not match_block:
+        return decrees
+
+    block = match_block.group(1)
+    lines = block.split('\n')
+
+    items = []       # textos ya unidos, uno por ítem numerado
+    current = None   # lista de líneas del ítem en formación
+    last_num = 0     # último número de ítem aceptado (guardia contra sellos)
+
+    for line in lines:
+        stripped = re.sub(r'\s+', ' ', line.strip())
+        if not stripped:
+            continue
+
+        mnum = _DECREE_ITEM_START_RE.match(stripped)
+        is_new_item = False
+        if mnum:
+            try:
+                n = int(mnum.group(1))
+                rest = (mnum.group(2) or '').strip()
+                # '13.40' y similares: décimales del sello, no numeración.
+                if rest.isdigit() and len(rest) <= 2:
+                    is_new_item = False
+                # Numeración aceptada si es estrictamente creciente (~1,2,3...),
+                # arranca el bloque, o salta de secuencia con texto largo (OCR
+                # que garbleó el ítem anterior, ej: 'g°' en vez de '9.').
+                elif n == last_num + 1 or (last_num == 0 and n <= 3) or (n > last_num and len(rest) > 40):
+                    is_new_item = True
+            except ValueError:
+                pass
+
+        if is_new_item:
+            if current:
+                joined = ' '.join(current).strip()
+                if joined:
+                    items.append(joined)
+            current = [stripped]
+            last_num = int(mnum.group(1))
+        elif current is not None:
+            # Línea de continuación: filtra sellos del scanner
+            if len(stripped) <= 45 and _DECREE_STAMP_RE.match(stripped):
+                continue
+            current.append(stripped)
+        # Líneas previas al primer ítem (cabecera del decreto): se ignoran.
+
+    if current:
+        joined = ' '.join(current).strip()
+        if joined:
+            items.append(joined)
+
+    # ── El bloque VISTOS queda rodeado de timbres del pie/cabecera de página ──
+    # Recorta, del ÚLTIMO ítem, la cola de membrete institucional detrás del
+    # texto real (mayúsculas del membrete, nunca texto de los VISTOS).
+    if items:
+        _noise_tail_re = re.compile(
+            r'CUNCO\s*MUNICIPALIDAD|MUNICIPALIDAD\s+DE\s+[A-ZÁÉÍÓÚÑ]+\s+DIRECCI|'
+            r'DIRECCI[ÓO]N\s+DE\s+[A-ZÁÉÍÓÚÑ]+|UNIDAD\s+(?:DE\s+)?RECURSOS|'
+            r'REPRESENTACION|DIRECTOR\s+DE\s+CONTROL|DECRETO\s+ALCALDICIO'
+        )
+        last_text = items[-1]
+        m_noise = _noise_tail_re.search(last_text)
+        if m_noise and m_noise.start() > 0:
+            items[-1] = last_text[:m_noise.start()].rstrip(' .,;')
+
+    # ── Armar los decretos con su metadato tipo/número/fecha ──
+    for raw in items:
+        description = re.sub(r'\s+', ' ', _normalize_ocr_word_fixes(raw)).strip()
+        # Quitar la numeración inicial OCR ('1. ', '12) ', '10- ')
+        description = re.sub(r'^\d{1,2}\s*[\.\)\-º°:]\s*', '', description).strip()
+
+        if not description or len(description) < 15:
+            continue
+
+        decree_number, decree_date = _extract_decree_ref(description)
+
+        decrees.append({
+            'decree_type': _classify_decree(description),
+            'decree_number': decree_number,
+            'decree_date': decree_date,
+            'description': description,
+        })
+
+    return decrees
 
 
 def extract_functions(text: str) -> list:
