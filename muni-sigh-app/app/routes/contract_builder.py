@@ -254,6 +254,10 @@ def create():
             except (TypeError, ValueError):
                 hours_weekly = None
             total_amount_words = request.form.get('total_amount_words', '').strip() or None
+            # ── Firmas del decreto (dataURL PNG dibujado en el modal) ──
+            MAX_SIG_LEN = 300000
+            mayor_signature = (request.form.get('mayor_signature') or '').strip()[:MAX_SIG_LEN] or None
+            secretary_signature = (request.form.get('secretary_signature') or '').strip()[:MAX_SIG_LEN] or None
 
             # ── Trazabilidad: registrar quién crea ──
             current_user = get_current_user()
@@ -280,6 +284,8 @@ def create():
                 provider_comuna=provider_comuna,
                 hours_weekly=hours_weekly,
                 total_amount_words=total_amount_words,
+                mayor_signature=mayor_signature,
+                secretary_signature=secretary_signature,
                 status='BORRADOR',
                 created_by_user_id=current_user.id if current_user else None,
                 last_modified_by_user_id=current_user.id if current_user else None,
@@ -403,6 +409,10 @@ def edit(contract_id):
             except (TypeError, ValueError):
                 contract.hours_weekly = None
             contract.total_amount_words = request.form.get('total_amount_words', '').strip() or None
+            # ── Firmas del decreto (dataURL PNG dibujado en el modal) ──
+            MAX_SIG_LEN = 300000
+            contract.mayor_signature = (request.form.get('mayor_signature') or '').strip()[:MAX_SIG_LEN] or None
+            contract.secretary_signature = (request.form.get('secretary_signature') or '').strip()[:MAX_SIG_LEN] or None
 
             current_user = get_current_user()
             contract.last_modified_by_user_id = current_user.id if current_user else None
@@ -720,6 +730,9 @@ def api_preview():
             'provider_comuna': provider_comuna,
             'hours_weekly': hours_weekly,
             'total_amount_words': (data.get('total_amount_words') or '').strip(),
+            # ── Firmas del decreto (dataURL PNG o None) ──
+            'mayor_signature': data.get('mayor_signature') or None,
+            'secretary_signature': data.get('secretary_signature') or None,
             'budget_year': budget_year,
             'mayor_name': current_app.config.get('MAYOR_NAME', ''),
             'mayor_rut': current_app.config.get('MAYOR_RUT', ''),

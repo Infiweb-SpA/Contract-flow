@@ -326,12 +326,18 @@
         <div class="firmas-grid">
             <div class="firma-box">
                 <div class="firma-linea">
-                    <div class="firma-nombre">_______________________</div>
+                    {% if contract.secretary_signature %}
+                    <img src="{{ contract.secretary_signature }}" alt="Firma Secretario Municipal" style="max-width: 180px; max-height: 70px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
+                    {% endif %}
+                    <div class="firma-nombre">{{ contract.secretary_signature and '&nbsp;' or '_______________________' }}</div>
                     <div class="firma-cargo">Secretario Municipal</div>
                 </div>
             </div>
             <div class="firma-box">
                 <div class="firma-linea">
+                    {% if contract.mayor_signature %}
+                    <img src="{{ contract.mayor_signature }}" alt="Firma del Alcalde" style="max-width: 180px; max-height: 70px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
+                    {% endif %}
                     <div class="firma-nombre">{{ contract.mayor_name or '_______________________' }}</div>
                     <div class="firma-cargo">{{ muni_city }} — Alcalde</div>
                     <div class="firma-cargo">RUT: {{ contract.mayor_rut or '__.___.___-_' }}</div>

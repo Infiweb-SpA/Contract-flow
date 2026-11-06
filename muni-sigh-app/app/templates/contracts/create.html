@@ -427,11 +427,106 @@
                 </div>
 
                 <!-- ══════════════════════════════════════════════════════ -->
-                <!-- PASO 2: ANTECEDENTES LEGALES Y PRESUPUESTO             -->
+                <!-- PASO 2: DECRETOS Y ANTECEDENTES PREVIOS (VISTOS)       -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-8">
                     <div class="stepper-line"></div>
                     <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">2</div>
+                    <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xs font-bold text-[#4A2E1B] uppercase tracking-wider">Decretos y Antecedentes Previos (VISTOS)</h2>
+                                <p class="text-[11px] text-slate-400 mt-0.5">Decretos fijos del año municipal y antecedentes específicos del prestador</p>
+                            </div>
+                            <button type="button" onclick="addDecreeRow()"
+                                class="bg-[#1e3a8a] hover:bg-[#0f265c] text-white text-[11px] font-semibold px-3 py-2 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                Agregar Decreto Manual
+                            </button>
+                        </div>
+                        <div class="p-5 space-y-5">
+
+                            <!-- ── Decretos fijos del catálogo anual ── -->
+                            <div>
+                                <p class="subsection-label">Decretos Fijos del Año (Catálogo Municipal)</p>
+                                <div id="decree_templates_list" class="space-y-2">
+                                    {% for t in decree_templates %}
+                                    <label class="decree-template-row flex items-start gap-3 bg-white border border-slate-200 rounded-md px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors" title="{{ t.description }}">
+                                        <input type="checkbox" name="decree_template_ids" value="{{ t.id }}" checked
+                                            class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"
+                                            data-type="{{ t.decree_type }}" data-number="{{ t.decree_number or '' }}"
+                                            data-date="{{ t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '' }}" data-desc="{{ t.description }}">
+                                        <div class="flex-grow min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">{{ t.decree_type_label }}</span>
+                                                {% if t.decree_number %}<span class="text-xs font-mono text-slate-500">{{ t.decree_number }}</span>{% endif %}
+                                                {% if t.decree_date %}<span class="text-[10px] text-slate-400">{{ t.decree_date.strftime('%d-%m-%Y') }}</span>{% endif %}
+                                            </div>
+                                            <p class="text-xs text-slate-600 mt-1 truncate">{{ t.description }}</p>
+                                        </div>
+                                    </label>
+                                    {% endfor %}
+                                    {% if not decree_templates %}
+                                    <div class="text-xs text-slate-400 border border-dashed border-slate-200 rounded-md px-3 py-4 text-center">
+                                        No hay plantillas de decretos activas en el catálogo anual.
+                                        {% if session.get('user_role') == 'SUPERADMIN' %}
+                                        <a href="{{ url_for('decrees.index') }}" class="text-[#1e3a8a] font-semibold hover:underline">Configurar catálogo</a>
+                                        {% else %}
+                                        Solicite al administrador del sistema registrar la plantilla anual.
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- ── Decretos/Fichas específicos del prestador ── -->
+                            <div>
+                                <p class="subsection-label">Decretos y Fichas Específicas del Prestador</p>
+                                <div id="decrees_container" class="space-y-3">
+                                    <!-- filas dinámicas via addDecreeRow() -->
+                                </div>
+                                <p class="microcopy mt-3">Añada decretos anteriores del prestador, fichas de ingreso de RRHH u otros antecedentes. También se precargan automáticamente desde el OCR de contratos escaneados.</p>
+                            </div>
+
+                            <!-- ── Firmas del Decreto Alcaldicio (dibujo canvas) ── -->
+                            <div>
+                                <p class="subsection-label">Firmas del Decreto Alcaldicio</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="border border-slate-200 rounded-md p-3 flex flex-col items-center">
+                                        <img id="mayor_signature_thumb" class="hidden max-h-14 mb-1" alt="Firma del Alcalde">
+                                        <div id="mayor_signature_empty" class="text-[11px] text-slate-300 italic py-3">Sin firma</div>
+                                        <button type="button" onclick="openSignatureModal('mayor')"
+                                            class="mt-auto bg-[#1e3a8a] hover:bg-[#0f265c] text-white text-[11px] font-semibold px-3 py-1.5 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 4.732z"/></svg>
+                                            Añadir firma — Alcalde
+                                        </button>
+                                        <button type="button" id="mayor_signature_remove_btn" onclick="clearSignatureEntry('mayor')" class="hidden mt-1.5 text-[10px] text-red-500 hover:text-red-700 font-semibold">Quitar firma</button>
+                                    </div>
+                                    <div class="border border-slate-200 rounded-md p-3 flex flex-col items-center">
+                                        <img id="secretary_signature_thumb" class="hidden max-h-14 mb-1" alt="Firma del Secretario Municipal">
+                                        <div id="secretary_signature_empty" class="text-[11px] text-slate-300 italic py-3">Sin firma</div>
+                                        <button type="button" onclick="openSignatureModal('secretary')"
+                                            class="mt-auto bg-[#1e3a8a] hover:bg-[#0f265c] text-white text-[11px] font-semibold px-3 py-1.5 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 4.732z"/></svg>
+                                            Añadir firma — Secretario
+                                        </button>
+                                        <button type="button" id="secretary_signature_remove_btn" onclick="clearSignatureEntry('secretary')" class="hidden mt-1.5 text-[10px] text-red-500 hover:text-red-700 font-semibold">Quitar firma</button>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="mayor_signature" id="mayor_signature" value="">
+                                <input type="hidden" name="secretary_signature" id="secretary_signature" value="">
+                                <p class="microcopy mt-2">Dibuje la firma con el mouse o el dedo; quedará guardada sobre la línea de firma del Decreto. El Secretario Municipal firma sin nombre (igual que en el documento real).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- PASO 3: ANTECEDENTES LEGALES Y PRESUPUESTO             -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div class="stepper-item relative pl-8 pb-8">
+                    <div class="stepper-line"></div>
+                    <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">3</div>
                     <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                         <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
                             <h2 class="text-xs font-bold text-[#4A2E1B] uppercase tracking-wider">Antecedentes Legales y Presupuesto</h2>
@@ -568,11 +663,11 @@
                 </div>
 
                 <!-- ══════════════════════════════════════════════════════ -->
-                <!-- PASO 3: CLÁUSULAS, FUNCIONES Y COMETIDOS               -->
+                <!-- PASO 4: CLÁUSULAS, FUNCIONES Y COMETIDOS               -->
                 <!-- ══════════════════════════════════════════════════════ -->
                 <div class="stepper-item relative pl-8 pb-4">
                     <div class="stepper-line"></div>
-                    <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">3</div>
+                    <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">4</div>
                     <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                         <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
                             <div>
@@ -602,70 +697,6 @@
                     </div>
                 </div>
 
-                <!-- ══════════════════════════════════════════════════════ -->
-                <!-- PASO 4: DECRETOS Y ANTECEDENTES PREVIOS (VISTOS)       -->
-                <!-- ══════════════════════════════════════════════════════ -->
-                <div class="stepper-item relative pl-8 pb-4">
-                    <div class="stepper-line"></div>
-                    <div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0f265c] text-white flex items-center justify-center text-xs font-bold shadow-sm z-10 ring-4 ring-slate-50">4</div>
-                    <div class="section-card bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
-                            <div>
-                                <h2 class="text-xs font-bold text-[#4A2E1B] uppercase tracking-wider">Decretos y Antecedentes Previos (VISTOS)</h2>
-                                <p class="text-[11px] text-slate-400 mt-0.5">Decretos fijos del año municipal y antecedentes específicos del prestador</p>
-                            </div>
-                            <button type="button" onclick="addDecreeRow()"
-                                class="bg-[#1e3a8a] hover:bg-[#0f265c] text-white text-[11px] font-semibold px-3 py-2 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                Agregar Decreto Manual
-                            </button>
-                        </div>
-                        <div class="p-5 space-y-5">
-
-                            <!-- ── Decretos fijos del catálogo anual ── -->
-                            <div>
-                                <p class="subsection-label">Decretos Fijos del Año (Catálogo Municipal)</p>
-                                <div id="decree_templates_list" class="space-y-2">
-                                    {% for t in decree_templates %}
-                                    <label class="decree-template-row flex items-start gap-3 bg-white border border-slate-200 rounded-md px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors" title="{{ t.description }}">
-                                        <input type="checkbox" name="decree_template_ids" value="{{ t.id }}" checked
-                                            class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"
-                                            data-type="{{ t.decree_type }}" data-number="{{ t.decree_number or '' }}"
-                                            data-date="{{ t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '' }}" data-desc="{{ t.description }}">
-                                        <div class="flex-grow min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">{{ t.decree_type_label }}</span>
-                                                {% if t.decree_number %}<span class="text-xs font-mono text-slate-500">{{ t.decree_number }}</span>{% endif %}
-                                                {% if t.decree_date %}<span class="text-[10px] text-slate-400">{{ t.decree_date.strftime('%d-%m-%Y') }}</span>{% endif %}
-                                            </div>
-                                            <p class="text-xs text-slate-600 mt-1 truncate">{{ t.description }}</p>
-                                        </div>
-                                    </label>
-                                    {% endfor %}
-                                    {% if not decree_templates %}
-                                    <div class="text-xs text-slate-400 border border-dashed border-slate-200 rounded-md px-3 py-4 text-center">
-                                        No hay plantillas de decretos activas en el catálogo anual.
-                                        {% if session.get('user_role') == 'SUPERADMIN' %}
-                                        <a href="{{ url_for('decrees.index') }}" class="text-[#1e3a8a] font-semibold hover:underline">Configurar catálogo</a>
-                                        {% else %}
-                                        Solicite al administrador del sistema registrar la plantilla anual.
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <!-- ── Decretos/Fichas específicos del prestador ── -->
-                            <div>
-                                <p class="subsection-label">Decretos y Fichas Específicas del Prestador</p>
-                                <div id="decrees_container" class="space-y-3">
-                                    <!-- filas dinámicas via addDecreeRow() -->
-                                </div>
-                                <p class="microcopy mt-3">Añada decretos anteriores del prestador, fichas de ingreso de RRHH u otros antecedentes. También se precargan automáticamente desde el OCR de contratos escaneados.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </form>
 
             <!-- Footer -->
@@ -774,12 +805,14 @@
                         <div style="margin-top: 60px; page-break-inside: avoid;">
                             <div style="display: flex; justify-content: space-between; margin-top: 50px;">
                                 <div style="text-align: center; width: 42%;">
+                                    <img id="pg2_secretary_sig" class="hidden" alt="Firma Secretario Municipal" style="max-height: 60px; width: auto; margin: 0 auto 4px;">
                                     <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
                                         <div style="font-weight: bold; font-size: 10.5pt;">_______________________</div>
                                         <div style="font-size: 9.5pt; color: #222;">Secretario Municipal</div>
                                     </div>
                                 </div>
                                 <div style="text-align: center; width: 42%;">
+                                    <img id="pg2_mayor_sig" class="hidden" alt="Firma del Alcalde" style="max-height: 60px; width: auto; margin: 0 auto 4px;">
                                     <div style="border-top: 1px solid #000; padding-top: 6px; margin-bottom: 4px;">
                                         <div style="font-weight: bold; font-size: 10.5pt;">{{ g.mayor_name | default('_______________________') }}</div>
                                         <div style="font-size: 9.5pt; color: #222;">{{ muni_city_js }} — Alcalde</div>
@@ -1644,7 +1677,7 @@ function autofillForm(parsed, providerMatch, deptMatch) {
         }
         const hint = document.getElementById('ocr_decree_hint');
         if (hint) {
-            hint.textContent = '✅ ' + parsed.decrees.length + ' decretos/antecedentes (VISTOS) extraídos automáticamente. Revíselos en el paso 4.';
+            hint.textContent = '✅ ' + parsed.decrees.length + ' decretos/antecedentes (VISTOS) extraídos automáticamente. Revíselos en el paso 2.';
             hint.className = 'mt-2 text-[11px] text-green-700 bg-green-50 px-2.5 py-1.5 rounded-md border border-green-200';
         }
     }
@@ -1661,7 +1694,7 @@ const DECREE_TYPE_OPTIONS_HTML = Object.entries(DECREE_TYPE_OPTIONS)
     .join('');
 
 // Antecedentes institucionales FIJOS (estructura Cunco, página 1 del decreto).
-// NO son seleccionables en el paso 4: se inyectan fijados aquí y en el PDF.
+// NO son seleccionables en el paso 2: se inyectan fijados aquí y en el PDF.
 const DECREE_FIXED_HEAD = [
     'El fallo de Calificación y el Acta Complementaria de proclamación de fecha 18 de noviembre de 2024, emitida por el Tribunal Electoral Regional, IX Región de la Araucanía.',
     'El Acta de la Sesión de Constitución e Instalación del Concejo Municipal, de fecha 06 de diciembre de 2024.'
@@ -1867,6 +1900,13 @@ function updateDecretoPreview() {
         if (!isNaN(y) && y >= 2000 && y <= 2100) budgetYear = y;
     }
     set('pg3_budget_year', budgetYear || '__________');
+
+    // ── Firmas dibujadas (Hoja 2) ──
+    [['mayor_signature', 'pg2_mayor_sig'], ['secretary_signature', 'pg2_secretary_sig']].forEach(([hid, iid]) => {
+        const v = document.getElementById(hid)?.value || '';
+        const img = document.getElementById(iid);
+        if (img) { img.src = v; img.classList.toggle('hidden', !v); }
+    });
 }
 
 // Los checkboxes del catálogo disparan la vista previa (delegación global).
@@ -1876,7 +1916,7 @@ document.addEventListener('change', function (e) {
     }
 });
 
-// ── Reactividad: el catálogo del paso 4 reacciona al año presupuestario ──
+// ── Reactividad: el catálogo del paso 2 reacciona al año presupuestario ──
 // El año se deriva de la fecha de inicio; al cambiarla se recargan las
 // plantillas del catálogo activas para ese año (o sin año definido).
 let decreeLoadedYear = null;
@@ -2550,6 +2590,138 @@ function autoCalcTotal() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// FIRMAS DEL DECRETO (modal dibujo canvas — Alcalde / Secretario Municipal)
+// ═══════════════════════════════════════════════════════════════════════
+let sigTarget = null;      // 'mayor' | 'secretary'
+let sigHasInk = false;
+let sigCtx = null;
+
+function toggleSignatureModal(show) {
+    const modal = document.getElementById('signature_modal');
+    const content = document.getElementById('signature_modal_content');
+    if (show) {
+        modal.classList.remove('hidden');
+        setTimeout(() => { content.classList.remove('scale-95', 'opacity-0'); content.classList.add('scale-100', 'opacity-100'); }, 10);
+    } else {
+        content.classList.remove('scale-100', 'opacity-100'); content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+}
+
+function openSignatureModal(target) {
+    sigTarget = target;
+    document.getElementById('signature_modal_target').textContent = (target === 'mayor') ? 'Alcalde' : 'Secretario Municipal';
+    initSignatureEvents();   // ← asegura que los pointer events estén vinculados al abrir
+    clearSignatureCanvas();
+    // Precargar la firma existente (si la hay) para redibujarla o reemplazarla
+    const existing = document.getElementById(target === 'mayor' ? 'mayor_signature' : 'secretary_signature')?.value || '';
+    if (existing) {
+        const img = new Image();
+        img.onload = () => { sigCtx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 640, 240); sigHasInk = true; };
+        img.src = existing;
+    }
+    toggleSignatureModal(true);
+}
+
+function closeSignatureModal() { toggleSignatureModal(false); }
+
+function clearSignatureCanvas() {
+    const canvas = document.getElementById('signature_canvas');
+    if (!canvas) return;
+    sigCtx = canvas.getContext('2d');
+    sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+    sigCtx.lineWidth = 3;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+    sigCtx.strokeStyle = '#1a1a1a';
+    sigHasInk = false;
+    const hint = document.getElementById('signature_hint');
+    if (hint) hint.classList.remove('hidden');
+}
+
+function sigPointerPos(e) {
+    const canvas = document.getElementById('signature_canvas');
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
+}
+
+function initSignatureEvents() {
+    const canvas = document.getElementById('signature_canvas');
+    if (!canvas || canvas.dataset.sigInit) return;
+    canvas.dataset.sigInit = '1';
+    sigCtx = canvas.getContext('2d');
+
+    let drawing = false;
+    canvas.addEventListener('pointerdown', (e) => {
+        drawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        const p = sigPointerPos(e);
+        sigCtx.beginPath();
+        sigCtx.moveTo(p.x, p.y);
+        sigCtx.lineTo(p.x + 0.1, p.y + 0.1);
+        sigCtx.stroke();
+        sigHasInk = true;
+        document.getElementById('signature_hint')?.classList.add('hidden');
+    });
+    canvas.addEventListener('pointermove', (e) => {
+        if (!drawing) return;
+        const p = sigPointerPos(e);
+        sigCtx.lineTo(p.x, p.y);
+        sigCtx.stroke();
+    });
+    const stop = () => { drawing = false; };
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
+    canvas.addEventListener('pointerleave', () => { if (drawing) stop(); });
+}
+
+function saveSignature() {
+    if (!sigTarget) return;
+    if (!sigHasInk) { alert('Dibuje una firma antes de guardar.'); return; }
+    const dataURL = document.getElementById('signature_canvas').toDataURL('image/png');
+    const hiddenId = sigTarget === 'mayor' ? 'mayor_signature' : 'secretary_signature';
+    const hidden = document.getElementById(hiddenId);
+    if (hidden) hidden.value = dataURL;
+    refreshSignatureThumb(sigTarget);
+    closeSignatureModal();
+    updateDecretoPreview();
+}
+
+function clearSignatureEntry(target) {
+    const hiddenId = target === 'mayor' ? 'mayor_signature' : 'secretary_signature';
+    const hidden = document.getElementById(hiddenId);
+    if (hidden) hidden.value = '';
+    refreshSignatureThumb(target);
+    updateDecretoPreview();
+}
+
+function refreshSignatureThumb(target) {
+    const hidden = document.getElementById(target === 'mayor' ? 'mayor_signature' : 'secretary_signature');
+    const thumb = document.getElementById(target === 'mayor' ? 'mayor_signature_thumb' : 'secretary_signature_thumb');
+    const empty = document.getElementById(target === 'mayor' ? 'mayor_signature_empty' : 'secretary_signature_empty');
+    const removeBtn = document.getElementById(target === 'mayor' ? 'mayor_signature_remove_btn' : 'secretary_signature_remove_btn');
+    if (!hidden) return;
+    const v = hidden.value || '';
+    if (thumb) { thumb.src = v; thumb.classList.toggle('hidden', !v); }
+    if (empty) empty.classList.toggle('hidden', !!v);
+    if (removeBtn) removeBtn.classList.toggle('hidden', !v);
+}
+
+/** Inicializa las firmas al cargar (pobladas desde el contrato en edición). */
+function initSignatures() {
+    const canvas = document.getElementById('signature_canvas');
+    if (!canvas) {
+        // El modal se inyecta después del script; reintenta hasta que exista
+        return setTimeout(initSignatures, 50);
+    }
+    initSignatureEvents();
+    ['mayor', 'secretary'].forEach(refreshSignatureThumb);
+}
+
 // ── Inicialización de la sección VISTOS: una fila manual vacía + año del catálogo ──
 (function initDecrees() {
     const container = document.getElementById('decrees_container');
@@ -2559,7 +2731,36 @@ function autoCalcTotal() {
     refreshDecreeTemplates();
     updateDecreePreview();
     updateDecretoPreview();
+    initSignatures();
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: AÑADIR FIRMA (dibujo canvas — Alcalde / Secretario Municipal)     -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="signature_modal" class="fixed inset-0 bg-slate-900/60 hidden flex justify-center items-center p-4 z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden transform transition-all scale-95 opacity-0" id="signature_modal_content">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-[#4A2E1B]">Añadir Firma — <span id="signature_modal_target">Alcalde</span></h3>
+            <button type="button" onclick="closeSignatureModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-[11px] text-slate-400">Dibuje la firma con el mouse o con el dedo (pantalla táctil). Se guardará sobre la línea de firma del Decreto.</p>
+            <div class="border border-slate-300 rounded-lg bg-white relative" style="touch-action: none;">
+                <canvas id="signature_canvas" width="640" height="240" class="w-full block cursor-crosshair"></canvas>
+                <div id="signature_hint" class="absolute inset-0 flex items-center justify-center text-slate-300 text-sm italic pointer-events-none">Firme aquí</div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+            <button type="button" onclick="clearSignatureCanvas()" class="px-4 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-600 hover:bg-white transition-colors">Limpiar</button>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeSignatureModal()" class="px-4 py-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-600 hover:bg-white transition-colors">Cancelar</button>
+                <button type="button" onclick="saveSignature()" class="px-4 py-2 bg-[#1e3a8a] hover:bg-[#0f265c] text-white rounded-md text-xs font-bold shadow-sm transition-colors">Guardar Firma</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

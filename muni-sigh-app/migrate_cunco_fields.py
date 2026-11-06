@@ -14,6 +14,9 @@ COLUMNS = [
     ('provider_comuna',   'VARCHAR(100)'),
     ('hours_weekly',      'INTEGER'),
     ('total_amount_words',  'VARCHAR(255)'),
+    # Firmas dibujadas (dataURL PNG, guardadas como texto)
+    ('mayor_signature',      'TEXT'),
+    ('secretary_signature',  'TEXT'),
 ]
 
 

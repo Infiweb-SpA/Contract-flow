@@ -37,6 +37,9 @@ class Contract(db.Model):
     provider_comuna = db.Column(db.String(100), nullable=True)       # Comuna de domicilio
     hours_weekly = db.Column(db.Integer, nullable=True, default=44)  # Jornada horas semanales
     total_amount_words = db.Column(db.String(255), nullable=True)    # Monto total en palabras
+    # ── Firmas del Decreto Alcaldicio (dibujo canvas, dataURL PNG) ──
+    mayor_signature = db.Column(db.Text, nullable=True)              # Firma del Alcalde
+    secretary_signature = db.Column(db.Text, nullable=True)          # Firma del Secretario Municipal
 
     pdf_file_path = db.Column(db.String(255), nullable=True)
     ocr_processed = db.Column(db.Integer, default=0)

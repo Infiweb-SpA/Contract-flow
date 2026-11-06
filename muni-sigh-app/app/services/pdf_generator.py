@@ -302,6 +302,10 @@ def _build_preview_context(contract):
         # Funciones
         'functions': functions,
 
+        # ── Firmas del Decreto (dataURL PNG o None) ──
+        'mayor_signature': _get(contract, 'mayor_signature', None),
+        'secretary_signature': _get(contract, 'secretary_signature', None),
+
         # Decretos y Antecedentes Previos (VISTOS)
         'decrees': decrees,
         # VISTOS filtrados + ordenados por decreto_type (bloque página 1)
