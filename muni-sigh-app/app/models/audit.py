@@ -22,12 +22,6 @@ class AuditLog(db.Model):
         'CONTRACT_UPDATE': 'Contrato modificado',
         'CONTRACT_STATUS_CHANGE': 'Cambio de estado',
         'CONTRACT_UPLOAD': 'Contrato cargado (externo)',
-        'PAYMENT_CREATE': 'Pago mensual creado',
-        'PAYMENT_VISADO_DEPTO': 'Pago visado por Jefe de Depto.',
-        'PAYMENT_APROBADO_RRHH': 'Pago aprobado por RRHH',
-        'PAYMENT_APROBADO_FINANZAS': 'Pago aprobado por Finanzas',
-        'PAYMENT_RECHAZADO': 'Pago rechazado',
-        'PAYMENT_OBSERVADO': 'Pago observado',
         'PROVIDER_CREATE': 'Prestador creado',
         'PROVIDER_AUTO_CREATE': 'Prestador creado automáticamente (OCR)',
         'DEPARTMENT_CREATE': 'Departamento creado',
@@ -71,31 +65,13 @@ class AuditLog(db.Model):
     @classmethod
     def get_contract_trail(cls, contract_id, limit=50):
         """
-        Retorna el historial completo de un contrato, incluyendo acciones
-        directas sobre el contrato y acciones sobre sus pagos asociados.
+        Retorna el historial cronológico de acciones de un contrato.
+        Ordenado del más reciente al más antiguo.
         """
-        from app.models.payment import MonthlyPayment
-
-        # IDs de pagos asociados a este contrato
-        payment_ids = [
-            p.id for p in MonthlyPayment.query.filter_by(contract_id=contract_id).all()
-        ]
-
-        # Consultar acciones del contrato + acciones de sus pagos
-        if payment_ids:
-            trail = cls.query.filter(
-                db.or_(
-                    db.and_(cls.entity_type == 'contract', cls.entity_id == contract_id),
-                    db.and_(cls.entity_type == 'monthly_payment', cls.entity_id.in_(payment_ids))
-                )
-            ).order_by(cls.timestamp.desc()).limit(limit).all()
-        else:
-            trail = cls.query.filter_by(
-                entity_type='contract',
-                entity_id=contract_id
-            ).order_by(cls.timestamp.desc()).limit(limit).all()
-
-        return trail
+        return cls.query.filter_by(
+            entity_type='contract',
+            entity_id=contract_id
+        ).order_by(cls.timestamp.desc()).limit(limit).all()
 
     def __repr__(self):
         return f"<AuditLog Action: {self.action} Entity: {self.entity_type} ID: {self.entity_id}>"

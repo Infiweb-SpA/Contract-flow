@@ -345,20 +345,33 @@ def create():
 def api_decree_templates():
     year = request.args.get('year', type=int)
     templates = _load_templates_for_context(year=year)
+    target_year = year or datetime.now().year
+
+    def _tpl_json(t):
+        return {
+            'id': t.id,
+            'decree_type': t.decree_type,
+            'decree_type_label': t.decree_type_label,
+            'decree_number': t.decree_number or '',
+            'decree_date': t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '',
+            'description': t.description,
+            'year': t.year,
+        }
+
+    # Plantillas activas de OTROS años (visibles en un grupo colapsable para
+    # que nada del catálogo quede "invisible" al armar el contrato).
+    other_years = DecreeTemplate.query.filter(
+        DecreeTemplate.is_active.is_(True),
+        DecreeTemplate.decree_type.in_(list(VISTOS_SELECTABLE_TYPES)),
+        DecreeTemplate.year.isnot(None),
+        DecreeTemplate.year != target_year,
+    ).order_by(DecreeTemplate.year, DecreeTemplate.id).all()
+
     return jsonify({
         'success': True,
-        'year': year,
-        'templates': [
-            {
-                'id': t.id,
-                'decree_type': t.decree_type,
-                'decree_type_label': t.decree_type_label,
-                'decree_number': t.decree_number or '',
-                'decree_date': t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '',
-                'description': t.description,
-            }
-            for t in templates
-        ]
+        'year': target_year,
+        'templates': [_tpl_json(t) for t in templates],
+        'other_years': [_tpl_json(t) for t in other_years],
     })
 
 

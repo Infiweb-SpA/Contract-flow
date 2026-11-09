@@ -51,13 +51,37 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 
 ---
 
+**NOTA GENERAL (2026-11-09):** El módulo de Pagos Mensuales (bandejas, revisión/aprobación, payments) fue **eliminado del proyecto** por decisión del usuario — no es requisito. Las referencias a pagos en fases posteriores de este plan quedan sin efecto; los permisos `approve_payment_lvl1/lvl2` fueron removidos del catálogo RBAC.
+
+---
+
 ## FASE 2: Gestión Fina de Permisos (RBAC) y Notificaciones por Correo
 
 ### 2.1 Módulo de Gestión de Roles y Permisos Granulares
-- [ ] Crear modelos `Permission` y `RolePermission` para soportar asignación fina de permisos.
-- [ ] Crear vista de administración exclusiva para el `SUPERADMIN` que permita:
-  - Crear y editar roles personalizados.
-  - Asignar permisos específicos (ej. `create_contract`, `edit_decree`, `approve_payment_lvl1`, etc.).
+- [x] Crear modelos `Permission` y `RolePermission` para soportar asignación fina de permisos.
+  - `app/models/permission.py`: `Permission` (permiso granular con `name`/`description`/`module`), `Role` (nombre de rol disponible; NO reemplaza al campo string `User.role`, lo complementa), `RolePermission` (asignación rol→permiso, unique por par).
+  - Migración idempotente `migrate_rbac_fields.py`: crea tablas `roles`, `permissions` y `role_permissions`; seed de 10 permisos estándar (create/edit/view/delete_contract, create/edit/delete_decree, manage_users, manage_roles, view_audit — sin permisos de pago: el módulo de Pagos fue eliminado del proyecto a solicitud del usuario) y matriz inicial rol→permiso para los 5 roles base (SUPERADMIN, ADMIN_RRHH, JEFE_DEPTO, FINANZAS_CONTROL, AUDITOR).
+- [x] Crear vista de administración exclusiva para el `SUPERADMIN` que permita:
+  - Crear y editar roles personalizados. → `/admin/roles` (listado con etiqueta BASE, crear rol, eliminar rol — roles base del sistema no eliminables, y refuse si hay usuarios asignados), `/admin/roles/create`. Los roles persisten en la tabla `roles` (`is_base=1` para los del sistema).
+  - Asignar permisos específicos (ej. `create_contract`, `edit_decree`, `approve_payment_lvl1`, etc.). → `/admin/roles/{rol}/assign` (matriz de checkboxes por permiso, guarda y reporta), `/admin/permissions` + `/admin/permissions/create` para gestionar el catálogo de permisos.
+  - Decorador `@permission_required('permiso')` en `app/auth/utils.py`: verifica que el rol del usuario en sesión tenga el permiso; `SUPERADMIN` siempre pasa (bypass). Protección de `/admin/*` con `@role_required('SUPERADMIN')` y enlace "Roles y Permisos" en el navbar solo visible para SUPERADMIN.
+  - Prueba de integración (temporal, eliminada tras ejecutar): 22 verificaciones OK — seed, RBAC de la vista, CRUD de roles/permisos, y decorador (permitir a rol con permiso, bloquear sin él, bypass SUPERADMIN).
+  - Nota: las rutas existentes (`/contracts/*`, `/payments/*`) conservan sus `@role_required`; el acople de `@permission_required` por ruta se hará junto con la planificación de la lógica de aprobación de decretos/contratos acordada con el usuario.
+- [x] UI del RBAC en lenguaje natural (para usuarios no técnicos):
+  - `assign_permissions.html`: checklist agrupado por módulo (Contratos / Decretos / Usuarios / Auditoría / General) — cada permiso muestra la descripción humana como etiqueta principal y el identificador técnico como chip secundario en monospace.
+  - `permissions.html` en formato "Acción permitida" con área del sistema; `create_permission.html` pide la acción en lenguaje natural y autogenera el identificador técnico (JS, soporta vocales tildadas).
+  - `roles.html`: chips de permisos con descripción + fuente técnica, botón a "Usuarios y Contraseñas", nota de que los cambios se aplican de inmediato.
+- [x] Gestión de usuarios y contraseñas (solo SUPERADMIN):
+  - `/admin/users` (listado + crear usuario con rol, departamento y contraseña), `/admin/users/create`, `/admin/users/{id}/password` (cambiar o generar nueva contraseña; mín. 8 caracteres si es manual; se muestra UNA sola vez con botón Copiar y opción "Generar otra"), `/admin/users/{id}/toggle` (activar/desactivar).
+  - Enlace "Usuarios" en el navbar para SUPERADMIN; generación segura con `secrets` (alfabeto sin caracteres ambíguos).
+- [x] Visibilidad de decretos de otros años en contratos (bug reportado por usuario: decreto de año 2023 no aparecía):
+  - `/contracts/api/decree-templates` devuelve además `other_years` (plantillas activas de otros años del catálogo).
+  - `create.html`/`edit.html`: grupo colapsable "Decretos de otros años del catálogo" con badge ámbar "Año N", desmarcados por defecto.
+  - `decrees/form.html`: el select "Año de Vigencia" se sincroniza automáticamente con el año de la fecha del decreto (JS) — evita decretos con año desfasado como el detectado (2023/2026).
+  - Prueba de integración (temporal, eliminada tras ejecutar): 38 verificaciones OK — usuarios/contraseñas (crear, mín. 8, generar, cambiar, login con nueva, toggle), RBAC amigable, API de otros años, plantillas estáticas.
+
+### 2.1bis Pendiente de confirmación en navegador (usuario)
+- Usuario debe iniciar sesión como SUPERADMIN (`super@muni.cl` / `super123`) y reiniciar su Flask (`python app.py`) para ver "Roles y Permisos" y "Usuarios" en el navbar, la gestión de usuarios, el checklist amigable de permisos, y los decretos de otros años en el Paso 2 de contratos.
 
 ### 2.2 Matriz y Configuración de Notificaciones por Correo
 - [ ] Añadir campo `receive_email_notifications` (BOOLEAN) y matriz de suscripción de eventos en la configuración del rol/usuario.

@@ -1619,18 +1619,23 @@ function currentBudgetYear() {
     return new Date().getFullYear();
 }
 
-function renderDecreeTemplateRow(t) {
+function renderDecreeTemplateRow(t, opts) {
+    opts = opts || {};
+    const yearBadge = (opts.otherYear && t.year)
+        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Año ' + t.year + '</span>'
+        : '';
     const row = document.createElement('label');
     row.className = 'decree-template-row flex items-start gap-3 bg-white border border-slate-200 rounded-md px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors';
     row.title = t.description;
     row.innerHTML =
-        '<input type="checkbox" name="decree_template_ids" value="' + t.id + '" checked'
+        '<input type="checkbox" name="decree_template_ids" value="' + t.id + '"' + (opts.checked === false ? '' : ' checked')
         + ' class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"'
         + ' data-type="' + escapeHtml(t.decree_type) + '" data-number="' + escapeHtml(t.decree_number || '') + '"'
         + ' data-date="' + escapeHtml(t.decree_date || '') + '" data-desc="' + escapeHtml(t.description) + '">'
         + '<div class="flex-grow min-w-0">'
         + '<div class="flex flex-wrap items-center gap-2">'
         + '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">' + escapeHtml(t.decree_type_label) + '</span>'
+        + yearBadge
         + (t.decree_number ? '<span class="text-xs font-mono text-slate-500">' + escapeHtml(t.decree_number) + '</span>' : '')
         + (t.decree_date ? '<span class="text-[10px] text-slate-400">' + escapeHtml(t.decree_date) + '</span>' : '')
         + '</div>'
@@ -1660,6 +1665,22 @@ function refreshDecreeTemplates(force) {
 
             list.innerHTML = '';
             data.templates.forEach((t) => list.appendChild(renderDecreeTemplateRow(t)));
+
+            // Plantillas de otros años: grupo colapsable, visibles y desmarcadas por defecto
+            if (data.other_years && data.other_years.length > 0) {
+                const group = document.createElement('div');
+                group.className = 'mt-2';
+                group.innerHTML =
+                    '<details class="decree-other-years border border-slate-200 rounded-md">'
+                    + '<summary class="px-3 py-2 text-[11px] font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 cursor-pointer select-none flex justify-between items-center">'
+                    + '<span>Decretos de otros años del catálogo (' + data.other_years.length + ') — no corresponden al año ' + data.year + ' del contrato</span>'
+                    + '</summary>'
+                    + '<div class="p-2 space-y-2 decree-other-years-list"></div>'
+                    + '</details>';
+                const innerList = group.querySelector('.decree-other-years-list');
+                data.other_years.forEach((t) => innerList.appendChild(renderDecreeTemplateRow(t, { checked: false, otherYear: true })));
+                list.appendChild(group);
+            }
 
             // Re-agregar plantillas marcadas de otro año que ya no vienen en la lista.
             checkedRows.forEach((node) => {

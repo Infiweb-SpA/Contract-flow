@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Permiso — SIGH-MUNI{% endblock %}
+
+{% block content %}
+<style>
+    .microcopy { font-size: 11px; line-height: 1.4; color: #64748b; }
+</style>
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Nuevo Permiso</h1>
+            <p class="text-sm text-slate-300 mt-1">Cree una nueva acción que los roles de la municipalidad podrán marcar o desmarcar.</p>
+        </div>
+        <a href="{{ url_for('admin.permissions') }}" class="px-4 py-2 bg-white border border-slate-300 rounded-md text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+            ← Volver a Permisos
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 px-4 py-3 rounded-md text-sm {{ 'bg-green-50 text-green-700 border border-green-200' if category == 'success' else 'bg-red-50 text-red-700 border border-red-200' if category == 'danger' else 'bg-yellow-50 text-yellow-700 border border-yellow-200' if category == 'warning' else 'bg-blue-50 text-blue-700 border border-blue-200' }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <form method="POST" class="p-5 space-y-4">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1" for="description">¿Qué acción estará permitida? *</label>
+                <input type="text" id="description" name="description" required
+                    placeholder="Ej: Descargar el PDF oficial del contrato"
+                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]">
+                <p class="microcopy mt-1">Esta frase se mostrará a los administradores al asignar permisos; escríbala de forma clara y simple.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1" for="name">Identificador interno</label>
+                <input type="text" id="name" name="name" required
+                    placeholder="se genera al escribir la acción (puede editarlo)"
+                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]">
+                <p class="microcopy mt-1">Es el nombre técnico que verá el / la informática del sistema; se sugiere automáticamente.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1" for="module">Área del sistema</label>
+                <select id="module" name="module"
+                    class="w-full px-3 py-2.5 border border-slate-300 rounded-md text-sm bg-white">
+                    <option value="contract">Contratos</option>
+                    <option value="decree">Decretos</option>
+                    <option value="user">Usuarios</option>
+                    <option value="audit">Auditoría</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            <div class="flex justify-end pt-2 border-t border-slate-100">
+                <button type="submit"
+                    class="bg-[#0f265c] hover:bg-[#1e3a8a] text-white text-sm font-semibold px-5 py-2.5 rounded-md shadow-sm transition-all active:scale-95">
+                    Crear Permiso
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Autogenera el identificador técnico desde la acción (soporta vocales tildadas)
+document.getElementById('description')?.addEventListener('input', (e) => {
+    const nameInp = document.getElementById('name');
+    if (!nameInp || nameInp.dataset.touched) return;
+    const slug = e.target.value
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    nameInp.value = slug;
+});
+document.getElementById('name')?.addEventListener('input', (e) => { e.target.dataset.touched = '1'; });
+</script>
+{% endblock %}
