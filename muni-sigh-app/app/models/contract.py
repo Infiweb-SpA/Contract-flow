@@ -61,6 +61,10 @@ class Contract(db.Model):
     decrees = db.relationship('ContractDecree', backref='contract', cascade='all, delete-orphan', lazy=True,
                               order_by='ContractDecree.display_order')
 
+    # ── Firmas ágiles (rúbrica) con metadatos de validación ──
+    signatures = db.relationship('ContractSignature', backref='contract', cascade='all, delete-orphan', lazy=True,
+                                 order_by='ContractSignature.signed_at')
+
     @property
     def status_label(self):
         labels = {
@@ -121,3 +125,63 @@ class ContractFunction(db.Model):
 
     def __repr__(self):
         return f"<ContractFunction {self.function_order}: {self.function_description[:30]}...>"
+
+
+class ContractSignature(db.Model):
+    """Firma ágil (rúbrica) con metadatos inmutables de validación."""
+    __tablename__ = 'contract_signatures'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    contract_id = db.Column(db.Integer, db.ForeignKey('contracts.id', ondelete='CASCADE'), nullable=False)
+
+    # Firmante (sesión activa)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    signer_rut = db.Column(db.String(20), nullable=False)
+    signer_name = db.Column(db.String(200), nullable=False)
+    signer_role = db.Column(db.String(50), nullable=True)
+
+    # Metadatos inmutables
+    signed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    ip_address = db.Column(db.String(64), nullable=True)
+    ip = db.Column(db.String(64), nullable=True)  # alias
+    user_agent = db.Column(db.Text, nullable=True)
+    device_type = db.Column(db.String(50), nullable=True)
+    device_info = db.Column(db.Text, nullable=True)
+    document_hash = db.Column(db.String(64), nullable=False)
+    document_hash_sha256 = db.Column(db.String(64), nullable=True)  # alias
+
+    # Firma vectorial + validación
+    signature_image = db.Column(db.Text, nullable=True)
+    signature_data = db.Column(db.Text, nullable=True)  # alias
+    validation_code = db.Column(db.String(64), nullable=False, unique=True)
+    is_valid = db.Column(db.Boolean, default=True, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='contract_signatures', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'contract_id': self.contract_id,
+            'user_id': self.user_id,
+            'signer_rut': self.signer_rut,
+            'signer_name': self.signer_name,
+            'signer_role': self.signer_role,
+            'signed_at': self.signed_at.isoformat() if self.signed_at else None,
+            'timestamp': self.signed_at.isoformat() if self.signed_at else None,
+            'ip_address': self.ip_address or self.ip,
+            'ip': self.ip_address or self.ip,
+            'user_agent': self.user_agent,
+            'device_type': self.device_type,
+            'document_hash': self.document_hash or self.document_hash_sha256,
+            'document_hash_sha256': self.document_hash or self.document_hash_sha256,
+            'sha256': self.document_hash or self.document_hash_sha256,
+            'signature_image': self.signature_image or self.signature_data,
+            'signature': self.signature_image or self.signature_data,
+            'validation_code': self.validation_code,
+            'is_valid': bool(self.is_valid),
+        }
+
+    def __repr__(self):
+        return f"<ContractSignature {self.validation_code} by {self.signer_name}>"

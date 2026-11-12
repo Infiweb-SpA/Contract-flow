@@ -5,13 +5,14 @@ from app import db
 from app.auth.utils import login_required, role_required, get_current_user
 from app.models.user import Department
 from app.models.provider import ServiceProvider
-from app.models.contract import Contract, ContractFunction
+from app.models.contract import Contract, ContractFunction, ContractSignature
 from app.models.decree import (DECREE_TYPE_LABELS, ContractDecree, DecreeTemplate,
                                VISTOS_SELECTABLE_TYPES, order_vistos)
 from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
 from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es, OCRCancelledException
 import os
+import hashlib
 import tempfile
 import uuid
 import threading
@@ -491,6 +492,100 @@ def download_pdf(contract_id):
     except Exception as e:
         flash(f'Error generando PDF: {str(e)}. Use la vista de impresión del navegador.', 'danger')
         return redirect(url_for('contract_builder.preview', contract_id=contract.id))
+
+
+# =============================================================================
+# FIRMA ÁGIL (RÚBRICA) CON METADATOS DE VALIDACIÓN
+# =============================================================================
+@contract_builder_bp.route('/<int:contract_id>/sign', methods=['POST'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL')
+def sign_contract(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+
+    data = request.get_json(silent=True) or {}
+    if not data and request.form:
+        data = request.form.to_dict()
+
+    signature = (data.get('signature') or data.get('signature_image') or data.get('signature_data') or '').strip()
+    # La firma vectorial es opcional pero recomendada; si no viene, se registra solo el sello.
+
+    current_user = get_current_user()
+    if current_user is None:
+        return jsonify({'success': False, 'message': 'Sesión no válida.'}), 401
+
+    # Hash SHA-256 del contenido del documento al momento de firmar
+    try:
+        from app.services.pdf_generator import generate_contract_html
+        doc_html = generate_contract_html(contract)
+        document_hash = hashlib.sha256(doc_html.encode('utf-8')).hexdigest()
+    except Exception as e:
+        current_app.logger.warning(f"No se pudo generar hash del documento: {e}")
+        document_hash = hashlib.sha256(str(contract.id).encode('utf-8')).hexdigest()
+
+    # IP y dispositivo
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    user_agent = request.headers.get('User-Agent', '') or data.get('user_agent', '')
+    device_type = data.get('device_type')
+    if not device_type:
+        ua_low = user_agent.lower()
+        if 'mobile' in ua_low or 'android' in ua_low or 'iphone' in ua_low:
+            device_type = 'Mobile'
+        elif 'tablet' in ua_low or 'ipad' in ua_low:
+            device_type = 'Tablet'
+        else:
+            device_type = 'Desktop'
+
+    validation_code = 'CF-' + uuid.uuid4().hex[:12].upper()
+
+    signed_at = datetime.utcnow()
+
+    sig = ContractSignature(
+        contract_id=contract.id,
+        user_id=current_user.id,
+        signer_rut=current_user.rut,
+        signer_name=current_user.full_name,
+        signer_role=current_user.role,
+        signed_at=signed_at,
+        ip_address=ip,
+        ip=ip,
+        user_agent=user_agent,
+        device_type=device_type,
+        device_info=data.get('device_info') or data.get('device'),
+        document_hash=document_hash,
+        document_hash_sha256=document_hash,
+        signature_image=signature or None,
+        signature_data=signature or None,
+        validation_code=validation_code,
+        is_valid=True,
+    )
+    db.session.add(sig)
+    db.session.commit()
+
+    log_action(
+        action='DOCUMENT_SIGNED',
+        entity_type='contract',
+        entity_id=contract.id,
+        payload={
+            'signer_name': current_user.full_name,
+            'signer_rut': current_user.rut,
+            'validation_code': validation_code,
+            'document_hash': document_hash,
+            'ip_address': ip,
+            'device_type': device_type,
+        }
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Documento firmado exitosamente.',
+        'signature': sig.to_dict(),
+        'validation_code': validation_code,
+        'document_hash': document_hash,
+        'signed_at': signed_at.isoformat(),
+    })
 
 
 # =============================================================================

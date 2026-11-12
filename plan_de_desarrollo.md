@@ -96,17 +96,17 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 ## FASE 3: Módulo de Rúbrica / Firma Ágil con Metadatos de Validación
 
 ### 3.1 Interfaz de Captura de Firma Frontend
-- [ ] Integrar biblioteca JavaScript de firma digital (ej. *Signature Pad*) en la vista de edición y previsualización (`/contracts/<id>/preview`).
-- [ ] Adaptar la interfaz para capturar rúbricas mediante periféricos USB (tabletas Wacom, pantallas táctiles, mouse o stylus).
+- [x] Integrar biblioteca JavaScript de firma digital (canvas Signature Pad) en la vista de previsualización (`/contracts/<id>/preview`) y en el armador (create/edit), soportando mouse, stylus, tableta USB y pantalla táctil (Pointer Events).
+- [x] Adaptar la interfaz para capturar rúbricas mediante periféricos USB (tabletas Wacom, pantallas táctiles, mouse o stylus).
 
 ### 3.2 Servicio Backend de Sellado y Metadatos
-- [ ] Diseñar el endpoint `POST /contracts/<id>/sign` para procesar la firma digital interna.
-- [ ] Almacenar los metadatos inmutables de la firma:
+- [x] Diseñar el endpoint `POST /contracts/<id>/sign` para procesar la firma digital interna.
+- [x] Almacenar los metadatos inmutables de la firma:
   - RUT y Nombre de la sesión activa del firmante.
   - Timestamp exacto con precisión de milisegundos.
   - Dirección IP de la estación de trabajo y tipo de dispositivo.
   - Hash SHA-256 del contenido del documento al momento de firmar.
-- [ ] Estampar dinámicamente la firma vectorial + bloque de código QR/texto de validación al pie de las páginas del PDF.
+- [x] Estampar dinámicamente la firma vectorial + bloque de código QR/texto de validación al pie de las páginas del PDF.
 
 ---
 

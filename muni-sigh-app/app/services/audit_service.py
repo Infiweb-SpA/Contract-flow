@@ -128,6 +128,14 @@ def _format_payload(action: str, payload: dict) -> str:
         if templates or manual:
             parts.append(f"{templates} de plantilla y {manual} manual(es)")
 
+    elif action in ('DOCUMENT_SIGNED', 'CONTRACT_SIGNED'):
+        if payload.get('signer_name'):
+            parts.append(f"Firmante: {payload['signer_name']}")
+        if payload.get('validation_code'):
+            parts.append(f"Código: {payload['validation_code']}")
+        if payload.get('document_hash'):
+            parts.append(f"Hash: {payload['document_hash'][:12]}…")
+
     return ' — '.join(parts) if parts else ''
 
 

@@ -550,11 +550,114 @@
         </div>
     </div>
 
+    <!-- Bloque de validación de firma ágil (rúbrica) -->
+    {% if contract.signatures %}
+    <div style="margin-top: 30px; border: 1px solid #94a3b8; border-radius: 6px; padding: 12px; page-break-inside: avoid;">
+        <div style="font-weight: bold; font-size: 10pt; margin-bottom: 8px; text-transform: uppercase;">
+            Firma ágil (rúbrica) — Bloque de validación
+        </div>
+        {% for sig in contract.signatures %}
+        <div style="margin-bottom: 10px; font-size: 9pt;">
+            {% if sig.signature_image %}
+            <img src="{{ sig.signature_image }}" alt="Firma ágil" style="max-width: 160px; max-height: 60px; display: block; margin-bottom: 4px;">
+            {% endif %}
+            <div><strong>Firmante:</strong> {{ sig.signer_name }} — RUT: {{ sig.signer_rut }} — Rol: {{ sig.signer_role }}</div>
+            <div><strong>Fecha/Hora:</strong> {{ sig.signed_at }}</div>
+            <div><strong>IP:</strong> {{ sig.ip_address }} — <strong>Dispositivo:</strong> {{ sig.device_type }}</div>
+            <div><strong>Hash SHA-256:</strong> {{ sig.document_hash }}</div>
+            <div><strong>Código de validación:</strong> {{ sig.validation_code }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Pie de documento -->
     <div style="margin-top: 40px; text-align: center; font-size: 8.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 8px;">
         Documento generado mediante SIGH-MUNI — Sistema Integrado de Gestión de Honorarios Municipales<br>
         {{ muni_name }} — {{ contract.municipality_region or '' }}, República de Chile
     </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- FIRMA ÁGIL (RÚBRICA) — Panel de captura (no se imprime)         -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="agile-sign-panel" class="no-print" style="position: fixed; bottom: 16px; right: 16px; z-index: 9998; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 320px; font-family: sans-serif;">
+    <div style="font-size: 11px; font-weight: bold; color: #1e3a8a; margin-bottom: 6px;">Firma ágil (rúbrica)</div>
+    <canvas id="agile_signature_canvas" width="300" height="120" style="border: 1px solid #e2e8f0; border-radius: 4px; cursor: crosshair; touch-action: none; width: 100%;"></canvas>
+    <div style="display: flex; gap: 6px; margin-top: 6px;">
+        <button type="button" onclick="clearAgileCanvas()" style="flex:1; padding:6px; font-size:11px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; cursor:pointer;">Limpiar</button>
+        <button type="button" onclick="submitAgileSignature()" style="flex:1; padding:6px; font-size:11px; border:none; border-radius:4px; background:#1e3a8a; color:#fff; font-weight:bold; cursor:pointer;">Firmar documento</button>
+    </div>
+    <div id="agile_sign_status" style="font-size: 10px; margin-top: 4px; color: #475569;"></div>
+</div>
+<style>
+@media print { .no-print { display: none !important; } }
+</style>
+<script>
+(function() {
+    var canvas = document.getElementById('agile_signature_canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var drawing = false, hasInk = false;
+    function getPos(e) {
+        var r = canvas.getBoundingClientRect();
+        var t = e.touches ? e.touches[0] : e;
+        return { x: (t.clientX - r.left) * (canvas.width / r.width),
+                 y: (t.clientY - r.top) * (canvas.height / r.height) };
+    }
+    function start(e){ drawing=true; hasInk=true; var p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault(); }
+    function move(e){ if(!drawing) return; var p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); }
+    function end(){ drawing=false; }
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', end);
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    window.clearAgileCanvas = function() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        hasInk = false;
+        document.getElementById('agile_sign_status').textContent = '';
+    };
+
+    window.submitAgileSignature = function() {
+        var dataURL = hasInk ? canvas.toDataURL('image/png') : '';
+        var status = document.getElementById('agile_sign_status');
+        status.textContent = 'Enviando firma...';
+        status.style.color = '#475569';
+        var contractId = '{{ contract.contract_number }}'.replace(/\D/g,'') || '';
+        // Extraer id desde la URL actual: /contracts/<id>/preview
+        var m = window.location.pathname.match(/\/contracts\/(\d+)\/preview/);
+        if (!m) { status.textContent = 'No se pudo determinar el contrato.'; status.style.color='#b91c1c'; return; }
+        fetch('/contracts/' + m[1] + '/sign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                signature: dataURL,
+                device_type: /Mobi|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop',
+                user_agent: navigator.userAgent
+            })
+        }).then(function(r){ return r.json(); }).then(function(res){
+            if (res && res.success) {
+                status.textContent = 'Firmado. Código: ' + res.validation_code;
+                status.style.color = '#166534';
+                setTimeout(function(){ window.location.reload(); }, 1200);
+            } else {
+                status.textContent = (res && res.message) ? res.message : 'Error al firmar.';
+                status.style.color = '#b91c1c';
+            }
+        }).catch(function(err){
+            status.textContent = 'Error de red: ' + err;
+            status.style.color = '#b91c1c';
+        });
+    };
+})();
+</script>
 </body>
 </html>

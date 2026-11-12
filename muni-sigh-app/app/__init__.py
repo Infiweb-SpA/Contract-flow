@@ -31,6 +31,12 @@ def create_app(config_class=Config):
             cursor.execute("PRAGMA foreign_keys=ON;")
             cursor.close()
 
+    # Asegurar que todas las tablas (incluidas las nuevas de Fase 3) existan
+    with app.app_context():
+        import importlib
+        importlib.import_module('app.models')  # noqa: F401
+        db.create_all()
+
     # ── Context Processor: Datos Institucionales ──────────────────────
     # Inyecta variables de municipalidad en TODAS las plantillas Jinja2.
     # Accesibles como {{ g.municipio_nombre }}, {{ g.mayor_name }}, etc.

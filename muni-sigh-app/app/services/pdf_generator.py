@@ -255,6 +255,25 @@ def _build_preview_context(contract):
     # ── VISTOS: filtrados y ordenados por decreto_type (bloque página 1) ──
     vistos = order_vistos(decrees)
 
+    # ── Firmas ágiles (rúbrica) con metadatos de validación ──
+    signatures_raw = _get(contract, 'signatures', []) or []
+    signatures = []
+    for s in signatures_raw:
+        if isinstance(s, dict):
+            signatures.append(s)
+        else:
+            signatures.append({
+                'id': getattr(s, 'id', None),
+                'signer_name': getattr(s, 'signer_name', '') or '',
+                'signer_rut': getattr(s, 'signer_rut', '') or '',
+                'signer_role': getattr(s, 'signer_role', '') or '',
+                'signed_at': getattr(s, 'signed_at', None),
+                'ip_address': getattr(s, 'ip_address', None) or getattr(s, 'ip', None),
+                'device_type': getattr(s, 'device_type', None),
+                'document_hash': getattr(s, 'document_hash', None) or getattr(s, 'document_hash_sha256', None),
+                'signature_image': getattr(s, 'signature_image', None) or getattr(s, 'signature_data', None),
+                'validation_code': getattr(s, 'validation_code', '') or '',
+            })
     # ── Construir dict unificado ──
     context = {
         'contract_number': _get(contract, 'contract_number', 'CT-XXXX-XXX'),
@@ -305,6 +324,9 @@ def _build_preview_context(contract):
         # ── Firmas del Decreto (dataURL PNG o None) ──
         'mayor_signature': _get(contract, 'mayor_signature', None),
         'secretary_signature': _get(contract, 'secretary_signature', None),
+
+        # ── Firmas ágiles (rúbrica) ──
+        'signatures': signatures,
 
         # Decretos y Antecedentes Previos (VISTOS)
         'decrees': decrees,
