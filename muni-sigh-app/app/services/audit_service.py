@@ -136,6 +136,15 @@ def _format_payload(action: str, payload: dict) -> str:
         if payload.get('document_hash'):
             parts.append(f"Hash: {payload['document_hash'][:12]}…")
 
+    elif action == 'USER_PASSWORD_CHANGE':
+        parts.append('Contraseña actualizada por el propio usuario')
+
+    elif action == 'USER_EMAIL_CHANGE':
+        if payload.get('from'):
+            parts.append(f"De: {payload['from']}")
+        if payload.get('to'):
+            parts.append(f"A: {payload['to']}")
+
     return ' — '.join(parts) if parts else ''
 
 

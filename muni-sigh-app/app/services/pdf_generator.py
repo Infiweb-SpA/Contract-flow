@@ -46,6 +46,22 @@ def format_date_es(value):
     return str(value)
 
 
+def _qr_data_url(text):
+    """Genera un código QR (PNG base64) para un texto. Devuelve None si falla."""
+    if not text:
+        return None
+    try:
+        import qrcode
+        import io
+        import base64
+        img = qrcode.make(str(text))
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+    except Exception:
+        return None
+
+
 def format_money_cl(value):
     """Formatea un monto al formato chileno: 5.481.000."""
     if value in (None, ''):
@@ -264,6 +280,7 @@ def _build_preview_context(contract):
         else:
             signatures.append({
                 'id': getattr(s, 'id', None),
+                'signer_kind': getattr(s, 'signer_kind', '') or '',
                 'signer_name': getattr(s, 'signer_name', '') or '',
                 'signer_rut': getattr(s, 'signer_rut', '') or '',
                 'signer_role': getattr(s, 'signer_role', '') or '',
@@ -274,6 +291,26 @@ def _build_preview_context(contract):
                 'signature_image': getattr(s, 'signature_image', None) or getattr(s, 'signature_data', None),
                 'validation_code': getattr(s, 'validation_code', '') or '',
             })
+    # ── Firmas OTP de Alcalde y Prestador (para el bloque de firmas del contrato) ──
+    mayor_otp_sig = None
+    provider_otp_sig = None
+    for s in signatures:
+        if s.get('signer_kind') == 'MAYOR':
+            mayor_otp_sig = s
+        elif s.get('signer_kind') == 'PROVIDER':
+            provider_otp_sig = s
+
+    mayor_signature_img = _get(contract, 'mayor_signature', None)
+    if mayor_otp_sig and mayor_otp_sig.get('signature_image'):
+        mayor_signature_img = mayor_otp_sig.get('signature_image')
+
+    provider_signature_img = None
+    if provider_otp_sig:
+        provider_signature_img = provider_otp_sig.get('signature_image')
+
+    mayor_validation_code = mayor_otp_sig.get('validation_code') if mayor_otp_sig else None
+    provider_validation_code = provider_otp_sig.get('validation_code') if provider_otp_sig else None
+
     # ── Construir dict unificado ──
     context = {
         'contract_number': _get(contract, 'contract_number', 'CT-XXXX-XXX'),
@@ -327,6 +364,15 @@ def _build_preview_context(contract):
 
         # ── Firmas ágiles (rúbrica) ──
         'signatures': signatures,
+
+        # ── Firmas OTP en la hoja del contrato ──
+        'mayor_signature_img': mayor_signature_img,
+        'provider_signature_img': provider_signature_img,
+        'provider_signature_name': provider_name,
+        'mayor_validation_code': mayor_validation_code,
+        'provider_validation_code': provider_validation_code,
+        'mayor_qr': _qr_data_url(mayor_validation_code),
+        'provider_qr': _qr_data_url(provider_validation_code),
 
         # Decretos y Antecedentes Previos (VISTOS)
         'decrees': decrees,

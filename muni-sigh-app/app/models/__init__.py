@@ -5,6 +5,7 @@ from app.models.contract import Contract, ContractFunction, ContractSignature
 from app.models.audit import AuditLog
 from app.models.decree import DECREE_TYPE_LABELS, ContractDecree, DecreeTemplate
 from app.models.permission import Permission, Role, RolePermission
+from app.models.verification_code import VerificationCode
 
 __all__ = [
     'Department',
@@ -20,4 +21,5 @@ __all__ = [
     'Permission',
     'Role',
     'RolePermission',
+    'VerificationCode',
 ]

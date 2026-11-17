@@ -17,10 +17,12 @@ DEFAULT_PERMISSIONS = [
     ('edit_contract', 'Editar contratos', 'contract'),
     ('view_contract', 'Ver contratos', 'contract'),
     ('delete_contract', 'Eliminar contratos', 'contract'),
+    ('sign_contract', 'Firmar contratos', 'contract'),
     # Decretos
     ('create_decree', 'Crear decretos/plantillas', 'decree'),
     ('edit_decree', 'Editar decretos/plantillas', 'decree'),
     ('delete_decree', 'Eliminar decretos/plantillas', 'decree'),
+    ('sign_decree', 'Firmar decretos/plantillas', 'decree'),
     # Usuarios y roles
     ('manage_users', 'Gestionar usuarios', 'user'),
     ('manage_roles', 'Gestionar roles y permisos', 'user'),
@@ -39,6 +41,7 @@ DEFAULT_ROLE_PERMISSIONS = {
     'JEFE_DEPTO': ['view_contract', 'edit_contract', 'view_audit'],
     'FINANZAS_CONTROL': ['view_contract', 'view_audit'],
     'AUDITOR': ['view_contract', 'view_audit'],
+    'ALCALDE': ['view_contract', 'sign_contract', 'sign_decree', 'view_audit'],
 }
 
 

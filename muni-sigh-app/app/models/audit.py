@@ -32,6 +32,8 @@ class AuditLog(db.Model):
         'CONTRACT_DECREE_UPDATE': 'Decretos/VISTOS del contrato actualizados',
     'DOCUMENT_SIGNED': 'Documento firmado (rúbrica ágil)',
     'CONTRACT_SIGNED': 'Contrato firmado (rúbrica ágil)',
+    'USER_PASSWORD_CHANGE': 'Cambio de contraseña de usuario',
+    'USER_EMAIL_CHANGE': 'Cambio de correo electrónico de usuario',
     }
 
     @property

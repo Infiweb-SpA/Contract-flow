@@ -136,9 +136,15 @@ class ContractSignature(db.Model):
 
     # Firmante (sesión activa)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    operator_user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    signer_kind = db.Column(db.String(20), nullable=True)  # USER, ALCALDE, PROVIDER, SECRETARY
+    provider_id = db.Column(db.Integer, db.ForeignKey('service_providers.id', ondelete='SET NULL'), nullable=True)
     signer_rut = db.Column(db.String(20), nullable=False)
     signer_name = db.Column(db.String(200), nullable=False)
     signer_role = db.Column(db.String(50), nullable=True)
+    signer_email = db.Column(db.String(120), nullable=True)
+    verification_code_id = db.Column(db.Integer, db.ForeignKey('verification_codes.id', ondelete='SET NULL'), nullable=True)
+    otp_verified_at = db.Column(db.DateTime, nullable=True)
 
     # Metadatos inmutables
     signed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -158,16 +164,23 @@ class ContractSignature(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship('User', backref='contract_signatures', lazy=True)
+    user = db.relationship('User', foreign_keys=[user_id], backref='contract_signatures', lazy=True)
+    operator = db.relationship('User', foreign_keys=[operator_user_id], lazy=True)
 
     def to_dict(self):
         return {
             'id': self.id,
             'contract_id': self.contract_id,
             'user_id': self.user_id,
+            'operator_user_id': self.operator_user_id,
+            'signer_kind': self.signer_kind,
+            'provider_id': self.provider_id,
             'signer_rut': self.signer_rut,
             'signer_name': self.signer_name,
             'signer_role': self.signer_role,
+            'signer_email': self.signer_email,
+            'verification_code_id': self.verification_code_id,
+            'otp_verified_at': self.otp_verified_at.isoformat() if self.otp_verified_at else None,
             'signed_at': self.signed_at.isoformat() if self.signed_at else None,
             'timestamp': self.signed_at.isoformat() if self.signed_at else None,
             'ip_address': self.ip_address or self.ip,

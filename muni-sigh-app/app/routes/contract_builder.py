@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from werkzeug.utils import secure_filename
 from app import db
 from app.auth.utils import login_required, role_required, get_current_user
-from app.models.user import Department
+from app.models.user import Department, User
 from app.models.provider import ServiceProvider
 from app.models.contract import Contract, ContractFunction, ContractSignature
 from app.models.decree import (DECREE_TYPE_LABELS, ContractDecree, DecreeTemplate,
@@ -11,6 +11,7 @@ from app.models.decree import (DECREE_TYPE_LABELS, ContractDecree, DecreeTemplat
 from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
 from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es, OCRCancelledException
+from app.services.otp_service import request_otp, verify_otp
 import os
 import hashlib
 import tempfile
@@ -495,11 +496,72 @@ def download_pdf(contract_id):
 
 
 # =============================================================================
+# OTP PARA FIRMA DE CONTRATOS
+# =============================================================================
+@contract_builder_bp.route('/<int:contract_id>/otp/request', methods=['POST'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'ALCALDE')
+def request_contract_otp(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    data = request.get_json(silent=True) or {}
+    signer_kind = (data.get('signer_kind') or '').strip().upper()
+    if signer_kind not in ('USER', 'ALCALDE', 'PROVIDER'):
+        return jsonify({'success': False, 'message': 'Tipo de firmante inválido.'}), 400
+
+    current_user = get_current_user()
+    if current_user is None:
+        return jsonify({'success': False, 'message': 'Sesión no válida.'}), 401
+
+    if signer_kind == 'USER':
+        email = current_user.email
+        label = 'firma de documento'
+    elif signer_kind == 'ALCALDE':
+        alcalde = User.query.filter_by(role='ALCALDE', is_active=1).first()
+        if not alcalde or not alcalde.email:
+            return jsonify({'success': False, 'message': 'No hay un usuario Alcalde activo con correo configurado.'}), 400
+        email = alcalde.email
+        label = 'firma del Alcalde'
+    else:
+        provider = contract.provider
+        if not provider or not provider.email:
+            return jsonify({'success': False, 'message': 'El prestador no tiene correo registrado. Debe actualizar sus datos.'}), 400
+        email = provider.email
+        label = 'firma del prestador (honorario)'
+
+    purpose = f'CONTRACT_SIGN_{signer_kind}'
+    request_uuid, code = request_otp(
+        email=email,
+        purpose=purpose,
+        entity_type='contract',
+        entity_id=contract.id,
+        signer_kind=signer_kind,
+        created_by_user_id=current_user.id,
+        purpose_label=label,
+    )
+    if not request_uuid:
+        return jsonify({'success': False, 'message': 'No se pudo generar el código.'}), 500
+
+    # Enmascarar correo para la respuesta
+    masked = email
+    if '@' in email:
+        local, domain = email.split('@', 1)
+        masked = (local[:2] + '***@' + domain) if len(local) > 2 else ('***@' + domain)
+
+    return jsonify({
+        'success': True,
+        'request_uuid': request_uuid,
+        'email': masked,
+        'expires_in': current_app.config.get('OTP_EXPIRY_MINUTES', 10) * 60,
+        'message': f'Código enviado a {masked}.',
+    })
+
+
+# =============================================================================
 # FIRMA ÁGIL (RÚBRICA) CON METADATOS DE VALIDACIÓN
 # =============================================================================
 @contract_builder_bp.route('/<int:contract_id>/sign', methods=['POST'])
 @login_required
-@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL')
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'ALCALDE')
 def sign_contract(contract_id):
     contract = Contract.query.get_or_404(contract_id)
 
@@ -513,6 +575,22 @@ def sign_contract(contract_id):
     current_user = get_current_user()
     if current_user is None:
         return jsonify({'success': False, 'message': 'Sesión no válida.'}), 401
+
+    # ── Verificación OTP (identidad del firmante) ──
+    request_uuid = (data.get('request_uuid') or data.get('otp_request_uuid') or '').strip()
+    otp_code = (data.get('otp_code') or data.get('code') or '').strip()
+    if not signature:
+        return jsonify({'success': False, 'message': 'Por favor ingresar firma.'}), 400
+    if not request_uuid or not otp_code:
+        return jsonify({'success': False, 'message': 'Se requiere código de verificación (OTP). Solicite el código primero.'}), 400
+
+    ok, vc, err = verify_otp(request_uuid, otp_code)
+    if not ok:
+        return jsonify({'success': False, 'message': err or 'Código inválido.'}), 400
+    if not vc or vc.purpose != 'CONTRACT_SIGN_USER' or vc.entity_type != 'contract' or vc.entity_id != contract.id:
+        return jsonify({'success': False, 'message': 'El código no corresponde a esta firma.'}), 400
+    if (vc.email or '').lower() != (current_user.email or '').lower():
+        return jsonify({'success': False, 'message': 'El código no corresponde al usuario firmante.'}), 400
 
     # Hash SHA-256 del contenido del documento al momento de firmar
     try:
@@ -545,9 +623,14 @@ def sign_contract(contract_id):
     sig = ContractSignature(
         contract_id=contract.id,
         user_id=current_user.id,
+        operator_user_id=current_user.id,
+        signer_kind='USER',
         signer_rut=current_user.rut,
         signer_name=current_user.full_name,
         signer_role=current_user.role,
+        signer_email=current_user.email,
+        verification_code_id=vc.id if vc else None,
+        otp_verified_at=vc.used_at if vc else None,
         signed_at=signed_at,
         ip_address=ip,
         ip=ip,
@@ -584,6 +667,200 @@ def sign_contract(contract_id):
         'signature': sig.to_dict(),
         'validation_code': validation_code,
         'document_hash': document_hash,
+        'signed_at': signed_at.isoformat(),
+    })
+
+
+# =============================================================================
+# FIRMA DEL ALCALDE (OTP + imagen)
+# =============================================================================
+@contract_builder_bp.route('/<int:contract_id>/sign-mayor', methods=['POST'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'ALCALDE')
+def sign_mayor(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    data = request.get_json(silent=True) or {}
+    if not data and request.form:
+        data = request.form.to_dict()
+
+    signature = (data.get('signature') or data.get('signature_image') or data.get('signature_data') or '').strip()
+    request_uuid = (data.get('request_uuid') or data.get('otp_request_uuid') or '').strip()
+    otp_code = (data.get('otp_code') or data.get('code') or '').strip()
+
+    current_user = get_current_user()
+    if current_user is None:
+        return jsonify({'success': False, 'message': 'Sesión no válida.'}), 401
+
+    if not signature:
+        return jsonify({'success': False, 'message': 'Por favor ingresar firma.'}), 400
+    if not request_uuid or not otp_code:
+        return jsonify({'success': False, 'message': 'Se requiere código de verificación (OTP).'}), 400
+
+    ok, vc, err = verify_otp(request_uuid, otp_code)
+    if not ok:
+        return jsonify({'success': False, 'message': err or 'Código inválido.'}), 400
+
+    alcalde = User.query.filter_by(role='ALCALDE', is_active=1).first()
+    if not alcalde:
+        return jsonify({'success': False, 'message': 'No hay un usuario Alcalde activo.'}), 400
+    if not vc or vc.purpose != 'CONTRACT_SIGN_ALCALDE' or vc.entity_type != 'contract' or vc.entity_id != contract.id:
+        return jsonify({'success': False, 'message': 'El código no corresponde a esta firma.'}), 400
+    if (vc.email or '').lower() != (alcalde.email or '').lower():
+        return jsonify({'success': False, 'message': 'El código no corresponde al Alcalde.'}), 400
+
+    MAX_SIG_LEN = 300000
+    if signature:
+        contract.mayor_signature = signature[:MAX_SIG_LEN]
+
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    user_agent = request.headers.get('User-Agent', '') or data.get('user_agent', '')
+
+    signed_at = datetime.utcnow()
+    doc_hash = None
+    try:
+        from app.services.pdf_generator import generate_contract_html
+        doc_html = generate_contract_html(contract)
+        doc_hash = hashlib.sha256(doc_html.encode('utf-8')).hexdigest()
+    except Exception:
+        doc_hash = hashlib.sha256(str(contract.id).encode('utf-8')).hexdigest()
+
+    sig = ContractSignature(
+        contract_id=contract.id,
+        user_id=alcalde.id,
+        operator_user_id=current_user.id,
+        signer_kind='MAYOR',
+        signer_rut=alcalde.rut,
+        signer_name=alcalde.full_name,
+        signer_role='ALCALDE',
+        signer_email=alcalde.email,
+        verification_code_id=vc.id if vc else None,
+        otp_verified_at=vc.used_at if vc else None,
+        signed_at=signed_at,
+        ip_address=ip,
+        ip=ip,
+        user_agent=user_agent,
+        device_type=data.get('device_type') or 'Desktop',
+        document_hash=doc_hash,
+        document_hash_sha256=doc_hash,
+        signature_image=signature or None,
+        signature_data=signature or None,
+        validation_code='CF-' + uuid.uuid4().hex[:12].upper(),
+        is_valid=True,
+    )
+    db.session.add(sig)
+    contract.last_modified_by_user_id = current_user.id
+    db.session.commit()
+
+    log_action('DOCUMENT_SIGNED', 'contract', contract.id, {
+        'signer_name': alcalde.full_name,
+        'signer_rut': alcalde.rut,
+        'validation_code': sig.validation_code,
+        'document_hash': doc_hash,
+        'role': 'ALCALDE',
+    })
+
+    return jsonify({
+        'success': True,
+        'message': 'Firma del Alcalde registrada exitosamente.',
+        'validation_code': sig.validation_code,
+        'signed_at': signed_at.isoformat(),
+    })
+
+
+# =============================================================================
+# FIRMA DEL HONORARIO / PRESTADOR (OTP + imagen)
+# =============================================================================
+@contract_builder_bp.route('/<int:contract_id>/sign-provider', methods=['POST'])
+@login_required
+@role_required('ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'ALCALDE')
+def sign_provider(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    data = request.get_json(silent=True) or {}
+    if not data and request.form:
+        data = request.form.to_dict()
+
+    signature = (data.get('signature') or data.get('signature_image') or data.get('signature_data') or '').strip()
+    request_uuid = (data.get('request_uuid') or data.get('otp_request_uuid') or '').strip()
+    otp_code = (data.get('otp_code') or data.get('code') or '').strip()
+
+    current_user = get_current_user()
+    if current_user is None:
+        return jsonify({'success': False, 'message': 'Sesión no válida.'}), 401
+
+    provider = contract.provider
+    if not provider or not provider.email:
+        return jsonify({'success': False, 'message': 'El prestador no tiene correo registrado. Debe actualizar sus datos.'}), 400
+
+    if not signature:
+        return jsonify({'success': False, 'message': 'Por favor ingresar firma.'}), 400
+    if not request_uuid or not otp_code:
+        return jsonify({'success': False, 'message': 'Se requiere código de verificación (OTP).'}), 400
+
+    ok, vc, err = verify_otp(request_uuid, otp_code)
+    if not ok:
+        return jsonify({'success': False, 'message': err or 'Código inválido.'}), 400
+    if not vc or vc.purpose != 'CONTRACT_SIGN_PROVIDER' or vc.entity_type != 'contract' or vc.entity_id != contract.id:
+        return jsonify({'success': False, 'message': 'El código no corresponde a esta firma.'}), 400
+    if (vc.email or '').lower() != (provider.email or '').lower():
+        return jsonify({'success': False, 'message': 'El código no corresponde al prestador.'}), 400
+
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    user_agent = request.headers.get('User-Agent', '') or data.get('user_agent', '')
+
+    signed_at = datetime.utcnow()
+    doc_hash = None
+    try:
+        from app.services.pdf_generator import generate_contract_html
+        doc_html = generate_contract_html(contract)
+        doc_hash = hashlib.sha256(doc_html.encode('utf-8')).hexdigest()
+    except Exception:
+        doc_hash = hashlib.sha256(str(contract.id).encode('utf-8')).hexdigest()
+
+    sig = ContractSignature(
+        contract_id=contract.id,
+        user_id=current_user.id,
+        operator_user_id=current_user.id,
+        signer_kind='PROVIDER',
+        provider_id=provider.id,
+        signer_rut=provider.rut,
+        signer_name=provider.full_name,
+        signer_role='PRESTADOR',
+        signer_email=provider.email,
+        verification_code_id=vc.id if vc else None,
+        otp_verified_at=vc.used_at if vc else None,
+        signed_at=signed_at,
+        ip_address=ip,
+        ip=ip,
+        user_agent=user_agent,
+        device_type=data.get('device_type') or 'Desktop',
+        document_hash=doc_hash,
+        document_hash_sha256=doc_hash,
+        signature_image=signature or None,
+        signature_data=signature or None,
+        validation_code='CF-' + uuid.uuid4().hex[:12].upper(),
+        is_valid=True,
+    )
+    db.session.add(sig)
+    contract.last_modified_by_user_id = current_user.id
+    db.session.commit()
+
+    log_action('DOCUMENT_SIGNED', 'contract', contract.id, {
+        'signer_name': provider.full_name,
+        'signer_rut': provider.rut,
+        'validation_code': sig.validation_code,
+        'document_hash': doc_hash,
+        'role': 'PRESTADOR',
+        'operator': current_user.full_name,
+    })
+
+    return jsonify({
+        'success': True,
+        'message': 'Firma del prestador registrada exitosamente.',
+        'validation_code': sig.validation_code,
         'signed_at': signed_at.isoformat(),
     })
 

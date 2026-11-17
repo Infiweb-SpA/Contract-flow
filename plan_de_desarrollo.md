@@ -4,6 +4,57 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 
 ---
 
+## FASE 0: Perfil de Usuario — Cambio de Correo y Contraseña (foundational)
+
+### 0.1 Cambio de contraseña
+- [x] Formulario `ChangePasswordForm` (contraseña actual, nueva, confirmación, mín. 8).
+- [x] Ruta `POST /auth/profile/change-password` con reautenticación y validaciones.
+- [x] Actualización de `password_hash` y auditoría `USER_PASSWORD_CHANGE`.
+
+### 0.2 Cambio de correo electrónico
+- [x] Formulario `ChangeEmailForm` (nuevo correo, contraseña actual).
+- [x] Ruta `POST /auth/profile/change-email` con validación de unicidad y reautenticación.
+- [x] Actualización de `email` y auditoría `USER_EMAIL_CHANGE`.
+- [ ] Verificación por correo del nuevo email (se activará con Resend en FASE 2).
+
+### 0.3 UI
+- [x] `templates/auth/profile.html` con secciones de cambio de correo y contraseña.
+
+---
+
+## FASE 7: Firma Digital Validada por Correo (OTP) + Rol ALCALDE
+
+### 7.1 Roles y permisos
+- [ ] Agregar rol base `ALCALDE` con permisos `view_contract`, `sign_contract`, `sign_decree`, `view_audit`.
+- [ ] `SUPERADMIN` y `ALCALDE` pueden firmar plantillas del catálogo.
+
+### 7.2 Infraestructura de correo (Resend) + OTP
+- [ ] `app/services/email_service.py` con Resend.
+- [ ] Modelo `VerificationCode` (OTP 6 dígitos, 10 min, máx. intentos).
+- [ ] `app/services/otp_service.py`: generar, hashear, enviar, verificar, invalidar.
+- [ ] Config: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `OTP_EXPIRY_MINUTES`, `OTP_MAX_ATTEMPTS`.
+
+### 7.3 Firma de contratos (borrador final)
+- [x] Refactor `POST /contracts/<id>/sign` para exigir OTP (usuario municipal).
+- [x] `POST /contracts/<id>/sign-mayor` (OTP + firma del alcalde).
+- [x] `POST /contracts/<id>/sign-provider` (OTP + firma del honorario, requiere correo del prestador).
+- [x] `POST /contracts/<id>/otp/request` (solicitud de código por tipo de firmante).
+- [x] UI en `preview_template.html` con botones y panel OTP.
+
+### 7.4 Firma de decretos (catálogo)
+- [ ] `POST /decrees/<id>/otp/request` y `POST /decrees/<id>/sign`.
+- [ ] `DecreeTemplateSignature` y UI en `/decrees`.
+
+### 7.5 Validación de datos del prestador
+- [ ] Bloquear firma del honorario si falta correo.
+- [ ] Marcar email como obligatorio en modal de prestador.
+
+### 7.6 Auditoría y seguridad
+- [ ] Acciones: `OTP_REQUESTED`, `OTP_VERIFIED`, `OTP_FAILED`, `SIGNATURE_OTP_INVALID`, `PROVIDER_EMAIL_MISSING`.
+- [ ] Rate limiting y pruebas.
+
+---
+
 ## FASE 1: Rediseño del Módulo de Decretos Previos y Vistos Buenos
 
 ### 1.1 Extensión de la Base de Datos para Decretos
@@ -83,9 +134,11 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 ### 2.1bis Pendiente de confirmación en navegador (usuario)
 - Usuario debe iniciar sesión como SUPERADMIN (`super@muni.cl` / `super123`) y reiniciar su Flask (`python app.py`) para ver "Roles y Permisos" y "Usuarios" en el navbar, la gestión de usuarios, el checklist amigable de permisos, y los decretos de otros años en el Paso 2 de contratos.
 
-### 2.2 Matriz y Configuración de Notificaciones por Correo
+### 2.2 Matriz y Configuración de Notificaciones por Correo (Resend)
+- [x] Servicio de envío de correos con Resend (`app/services/email_service.py`) — `send_email`, `send_otp_email`.
+- [x] Configuración: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` en `config.py`.
+- [x] Servicio OTP (`app/services/otp_service.py`) y modelo `VerificationCode` (6 dígitos, 10 min, máx. intentos).
 - [ ] Añadir campo `receive_email_notifications` (BOOLEAN) y matriz de suscripción de eventos en la configuración del rol/usuario.
-- [ ] Implementar servicio de envío de correos asíncrono (usando Flask-Mail o ejecutor en segundo plano) para evitar bloqueos en el UI.
 - [ ] Configurar plantillas de correo HTML informativas que incluyan:
   - Evento realizado (ej. "Modificación de Decretos", "Firma Registrada").
   - Identificación del responsable (Nombre, RUT, Rol).

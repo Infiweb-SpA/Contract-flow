@@ -13,3 +13,4 @@ Werkzeug
 WTForms
 xhtml2pdf
 opencv-python-headless
+requests>=2.31.0

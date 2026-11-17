@@ -536,15 +536,39 @@
     </div>
 
     <div class="firmas">
-        <div class="firmas-grid" style="justify-content: center;">
-            <div class="firma-box">
+        <div class="firmas-grid" style="justify-content: center; gap: 40px;">
+            <div class="firma-box" style="text-align: center;">
                 <div class="firma-linea">
+                    {% if contract.mayor_signature_img %}
+                    <img src="{{ contract.mayor_signature_img }}" alt="Firma del Alcalde" style="max-width: 160px; max-height: 60px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
+                    {% endif %}
+                    {% if contract.mayor_qr %}
+                    <img src="{{ contract.mayor_qr }}" alt="QR Alcalde" style="max-width: 70px; max-height: 70px; margin: 4px auto; display: block;"><br>
+                    {% endif %}
                     <div class="firma-nombre">{{ contract.mayor_name or '_______________________' }}</div>
                     <div class="firma-cargo">{{ muni_city }} — Alcalde</div>
                     <div class="firma-cargo">RUT: {{ contract.mayor_rut or '__.___.___-_' }}</div>
                 </div>
                 <div style="margin-top: 8px; font-size: 9pt; color: #444;">
                     <strong>ALCALDE — {{ (muni_name) | upper }}</strong>
+                    {% if contract.mayor_validation_code %}<br><span style="font-size:8pt;">Código: {{ contract.mayor_validation_code }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="firma-box" style="text-align: center;">
+                <div class="firma-linea">
+                    {% if contract.provider_signature_img %}
+                    <img src="{{ contract.provider_signature_img }}" alt="Firma del Prestador" style="max-width: 160px; max-height: 60px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
+                    {% endif %}
+                    {% if contract.provider_qr %}
+                    <img src="{{ contract.provider_qr }}" alt="QR Prestador" style="max-width: 70px; max-height: 70px; margin: 4px auto; display: block;"><br>
+                    {% endif %}
+                    <div class="firma-nombre">{{ contract.provider_name or '_______________________' }}</div>
+                    <div class="firma-cargo">Contrato de {{ contract.provider_name or '_______________________' }}</div>
+                    <div class="firma-cargo">RUT: {{ contract.provider_rut or '__.___.___-_' }}</div>
+                </div>
+                <div style="margin-top: 8px; font-size: 9pt; color: #444;">
+                    <strong>PRESTADOR A HONORARIOS</strong>
+                    {% if contract.provider_validation_code %}<br><span style="font-size:8pt;">Código: {{ contract.provider_validation_code }}</span>{% endif %}
                 </div>
             </div>
         </div>
@@ -581,14 +605,21 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- FIRMA ÁGIL (RÚBRICA) — Panel de captura (no se imprime)         -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<div id="agile-sign-panel" class="no-print" style="position: fixed; bottom: 16px; right: 16px; z-index: 9998; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 320px; font-family: sans-serif;">
-    <div style="font-size: 11px; font-weight: bold; color: #1e3a8a; margin-bottom: 6px;">Firma ágil (rúbrica)</div>
+<div id="agile-sign-panel" class="no-print" style="position: fixed; bottom: 16px; right: 16px; z-index: 9998; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 340px; font-family: sans-serif;">
+    <div style="font-size: 11px; font-weight: bold; color: #1e3a8a; margin-bottom: 6px;">Firma digital (OTP por correo)</div>
+    <div style="display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap;">
+        <button type="button" onclick="requestOtp('USER')" style="flex:1; padding:5px; font-size:10px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; cursor:pointer;">1. Solicitar código (Usuario)</button>
+        <button type="button" onclick="requestOtp('ALCALDE')" style="flex:1; padding:5px; font-size:10px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; cursor:pointer;">Alcalde</button>
+        <button type="button" onclick="requestOtp('PROVIDER')" style="flex:1; padding:5px; font-size:10px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; cursor:pointer;">Honorario</button>
+    </div>
     <canvas id="agile_signature_canvas" width="300" height="120" style="border: 1px solid #e2e8f0; border-radius: 4px; cursor: crosshair; touch-action: none; width: 100%;"></canvas>
+    <input id="agile_otp_code" type="text" placeholder="Código OTP (6 dígitos)" style="width:100%; margin-top:6px; padding:6px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px;">
     <div style="display: flex; gap: 6px; margin-top: 6px;">
         <button type="button" onclick="clearAgileCanvas()" style="flex:1; padding:6px; font-size:11px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; cursor:pointer;">Limpiar</button>
-        <button type="button" onclick="submitAgileSignature()" style="flex:1; padding:6px; font-size:11px; border:none; border-radius:4px; background:#1e3a8a; color:#fff; font-weight:bold; cursor:pointer;">Firmar documento</button>
+        <button type="button" onclick="submitAgileSignature()" style="flex:1; padding:6px; font-size:11px; border:none; border-radius:4px; background:#1e3a8a; color:#fff; font-weight:bold; cursor:pointer;">Confirmar firma</button>
     </div>
     <div id="agile_sign_status" style="font-size: 10px; margin-top: 4px; color: #475569;"></div>
+    <div id="agile_otp_info" style="font-size: 10px; margin-top: 2px; color: #166534;"></div>
 </div>
 <style>
 @media print { .no-print { display: none !important; } }
@@ -599,6 +630,8 @@
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
     var drawing = false, hasInk = false;
+    var currentSigner = 'USER';
+    var requestUuid = null;
     function getPos(e) {
         var r = canvas.getBoundingClientRect();
         var t = e.touches ? e.touches[0] : e;
@@ -625,21 +658,77 @@
         document.getElementById('agile_sign_status').textContent = '';
     };
 
+    function contractIdFromUrl() {
+        var m = window.location.pathname.match(/\/contracts\/(\d+)\/preview/);
+        return m ? m[1] : null;
+    }
+
+    window.requestOtp = function(signerKind) {
+        var status = document.getElementById('agile_sign_status');
+        var info = document.getElementById('agile_otp_info');
+        var cid = contractIdFromUrl();
+        if (!cid) { status.textContent = 'No se pudo determinar el contrato.'; status.style.color='#b91c1c'; return; }
+        status.textContent = 'Solicitando código...';
+        status.style.color = '#475569';
+        fetch('/contracts/' + cid + '/otp/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ signer_kind: signerKind })
+        }).then(function(r){ return r.json(); }).then(function(res){
+            if (res && res.success) {
+                currentSigner = signerKind;
+                requestUuid = res.request_uuid;
+                status.textContent = 'Código enviado a ' + (res.email || '') + '. Ingréselo y confirme la firma.';
+                status.style.color = '#166534';
+                info.textContent = 'Firmante seleccionado: ' + signerKind + ' | Expira en ' + Math.round((res.expires_in||600)/60) + ' min.';
+            } else {
+                status.textContent = (res && res.message) ? res.message : 'Error al solicitar código.';
+                status.style.color = '#b91c1c';
+                info.textContent = '';
+            }
+        }).catch(function(err){
+            status.textContent = 'Error de red: ' + err;
+            status.style.color = '#b91c1c';
+        });
+    };
+
     window.submitAgileSignature = function() {
         var dataURL = hasInk ? canvas.toDataURL('image/png') : '';
         var status = document.getElementById('agile_sign_status');
+        var code = (document.getElementById('agile_otp_code').value || '').trim();
+        if (!hasInk) {
+            status.textContent = 'Por favor ingresar firma.';
+            status.style.color = '#b91c1c';
+            return;
+        }
+        if (!requestUuid) {
+            status.textContent = 'Primero solicite un código OTP.';
+            status.style.color = '#b91c1c';
+            return;
+        }
+        if (!code) {
+            status.textContent = 'Ingrese el código OTP.';
+            status.style.color = '#b91c1c';
+            return;
+        }
         status.textContent = 'Enviando firma...';
         status.style.color = '#475569';
-        var contractId = '{{ contract.contract_number }}'.replace(/\D/g,'') || '';
-        // Extraer id desde la URL actual: /contracts/<id>/preview
-        var m = window.location.pathname.match(/\/contracts\/(\d+)\/preview/);
-        if (!m) { status.textContent = 'No se pudo determinar el contrato.'; status.style.color='#b91c1c'; return; }
-        fetch('/contracts/' + m[1] + '/sign', {
+        var cid = contractIdFromUrl();
+        if (!cid) { status.textContent = 'No se pudo determinar el contrato.'; status.style.color='#b91c1c'; return; }
+
+        var endpoint = '/sign';
+        if (currentSigner === 'ALCALDE') endpoint = '/sign-mayor';
+        if (currentSigner === 'PROVIDER') endpoint = '/sign-provider';
+
+        fetch('/contracts/' + cid + endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify({
                 signature: dataURL,
+                request_uuid: requestUuid,
+                otp_code: code,
                 device_type: /Mobi|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop',
                 user_agent: navigator.userAgent
             })

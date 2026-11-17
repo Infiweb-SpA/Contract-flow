@@ -5,7 +5,9 @@
 {% block content %}
 <div class="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">Mi Perfil</h1>
-    <div class="space-y-4 text-sm">
+
+    <!-- Datos personales (solo lectura) -->
+    <div class="space-y-4 text-sm mb-8">
         <div class="flex justify-between border-b pb-2">
             <span class="text-gray-500">Nombre completo</span>
             <span class="font-semibold">{{ user.full_name }}</span>
@@ -31,6 +33,63 @@
             <span class="font-semibold">{{ user.created_at.strftime('%d/%m/%Y') }}</span>
         </div>
     </div>
+
+    <!-- Cambiar correo -->
+    <div class="mb-8 border-t pt-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Cambiar correo electrónico</h2>
+        <form method="POST" action="{{ url_for('auth.change_email') }}" class="space-y-3">
+            {{ email_form.hidden_tag() }}
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Nuevo correo electrónico</label>
+                {{ email_form.new_email(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-sm", placeholder="nuevo@correo.cl") }}
+                {% for error in email_form.new_email.errors %}
+                    <p class="text-red-600 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Contraseña actual</label>
+                {{ email_form.current_password(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-sm") }}
+                {% for error in email_form.current_password.errors %}
+                    <p class="text-red-600 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {{ email_form.submit_email(class="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm font-semibold hover:bg-blue-700") }}
+        </form>
+        <p class="text-xs text-gray-500 mt-2">
+            Nota: la verificación por correo del nuevo email se activará en la siguiente fase (Resend). Por ahora el cambio se aplica de inmediato tras validar la contraseña.
+        </p>
+    </div>
+
+    <!-- Cambiar contraseña -->
+    <div class="border-t pt-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Cambiar contraseña</h2>
+        <form method="POST" action="{{ url_for('auth.change_password') }}" class="space-y-3">
+            {{ password_form.hidden_tag() }}
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Contraseña actual</label>
+                {{ password_form.current_password(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-sm") }}
+                {% for error in password_form.current_password.errors %}
+                    <p class="text-red-600 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Nueva contraseña</label>
+                {{ password_form.new_password(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-sm") }}
+                {% for error in password_form.new_password.errors %}
+                    <p class="text-red-600 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Confirmar nueva contraseña</label>
+                {{ password_form.confirm_password(class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-sm") }}
+                {% for error in password_form.confirm_password.errors %}
+                    <p class="text-red-600 text-xs mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {{ password_form.submit_password(class="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm font-semibold hover:bg-blue-700") }}
+        </form>
+    </div>
+
     <div class="mt-6 text-center">
         <a href="{{ url_for('dashboard.index') }}" class="text-[#2563eb] hover:underline text-sm font-semibold">← Volver al Dashboard</a>
     </div>

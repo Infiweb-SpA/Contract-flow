@@ -12,7 +12,7 @@ from app.models import User, Role, Permission, RolePermission
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Roles base del sistema (no se pueden eliminar)
-BASE_ROLES = {'SUPERADMIN', 'ADMIN_RRHH', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'AUDITOR'}
+BASE_ROLES = {'SUPERADMIN', 'ADMIN_RRHH', 'JEFE_DEPTO', 'FINANZAS_CONTROL', 'AUDITOR', 'ALCALDE'}
 
 
 def _role_permission_map():

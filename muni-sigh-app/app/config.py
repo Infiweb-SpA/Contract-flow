@@ -1,6 +1,23 @@
 # app/config.py
 import os
 
+# Cargar variables de entorno desde .env (sin dependencias externas)
+try:
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    if os.path.exists(_env_path):
+        with open(_env_path, 'r', encoding='utf-8') as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if not _line or _line.startswith('#') or '=' not in _line:
+                    continue
+                _key, _val = _line.split('=', 1)
+                _key = _key.strip()
+                _val = _val.strip().strip('"').strip("'")
+                if _key and _key not in os.environ:
+                    os.environ[_key] = _val
+except Exception:
+    pass
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -31,3 +48,13 @@ class Config:
     # ── Representante Legal (Alcalde) ──
     MAYOR_NAME = os.environ.get('MAYOR_NAME') or 'Cristian Moraga Lagos'
     MAYOR_RUT = os.environ.get('MAYOR_RUT') or '15.260.138-7'
+
+    # ── Correo (Resend) ──
+    RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+    RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL') or 'onboarding@resend.dev'
+    RESEND_FROM_NAME = os.environ.get('RESEND_FROM_NAME') or 'Contract Flow - Municipalidad'
+
+    # ── OTP (código de un solo uso) ──
+    OTP_EXPIRY_MINUTES = int(os.environ.get('OTP_EXPIRY_MINUTES') or 10)
+    OTP_MAX_ATTEMPTS = int(os.environ.get('OTP_MAX_ATTEMPTS') or 5)
+    OTP_LENGTH = int(os.environ.get('OTP_LENGTH') or 6)
