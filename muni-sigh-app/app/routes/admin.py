@@ -77,6 +77,11 @@ def create_role():
 
         db.session.add(Role(name=name, description=description, is_base=0))
         db.session.commit()
+        try:
+            from app.services.audit_service import log_action
+            log_action('ROLE_CREATE', 'role', None, {'name': name})
+        except Exception:
+            pass
         flash(f'Rol "{name}" creado correctamente.', 'success')
         return redirect(url_for('admin.roles'))
 
@@ -104,6 +109,11 @@ def assign_permissions(role_name):
             if perm:
                 db.session.add(RolePermission(role_name=role_name, permission_id=perm.id))
         db.session.commit()
+        try:
+            from app.services.audit_service import log_action
+            log_action('ROLE_PERMISSIONS_UPDATE', 'role', None, {'role': role_name, 'permissions': selected})
+        except Exception:
+            pass
         flash(f'Permisos de "{role_name}" actualizados.', 'success')
         return redirect(url_for('admin.roles'))
 
@@ -131,6 +141,11 @@ def delete_role(role_name):
     if role:
         db.session.delete(role)
     db.session.commit()
+    try:
+        from app.services.audit_service import log_action
+        log_action('ROLE_DELETE', 'role', None, {'name': role_name})
+    except Exception:
+        pass
     flash(f'Rol "{role_name}" eliminado.', 'success')
     return redirect(url_for('admin.roles'))
 
@@ -197,6 +212,11 @@ def users_create():
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
+    try:
+        from app.services.audit_service import log_action
+        log_action('USER_CREATE', 'user', user.id, {'rut': rut, 'role': role, 'email': email})
+    except Exception:
+        pass
     flash(f'Usuario {first_name} {last_name} creado.', 'success')
     return redirect(url_for('admin.users_password', user_id=user.id, generated=password))
 
@@ -221,6 +241,11 @@ def users_password(user_id):
 
         user.set_password(password)
         db.session.commit()
+        try:
+            from app.services.audit_service import log_action
+            log_action('USER_PASSWORD_RESET', 'user', user.id, {'by_admin': True})
+        except Exception:
+            pass
         return render_template('admin/users_password.html', user=user,
                                new_password=password)
 
@@ -236,8 +261,59 @@ def users_toggle(user_id):
     user = User.query.get_or_404(user_id)
     user.is_active = 0 if user.is_active else 1
     db.session.commit()
+    try:
+        from app.services.audit_service import log_action
+        log_action('USER_TOGGLE', 'user', user.id, {'is_active': user.is_active})
+    except Exception:
+        pass
     flash(f'Usuario {"activado" if user.is_active else "desactivado"}.', 'success')
     return redirect(url_for('admin.users'))
+
+
+@admin_bp.route('/users/<int:user_id>/notifications', methods=['POST'])
+@login_required
+@role_required('SUPERADMIN')
+def users_notifications(user_id):
+    user = User.query.get_or_404(user_id)
+    user.receive_email_notifications = 0 if user.receive_email_notifications else 1
+    db.session.commit()
+    try:
+        from app.services.audit_service import log_action
+        log_action('USER_NOTIFICATION_PREF', 'user', user.id, {'receive_email_notifications': user.receive_email_notifications})
+    except Exception:
+        pass
+    flash(f'Notificaciones {"activadas" if user.receive_email_notifications else "desactivadas"} para {user.full_name}.', 'success')
+    return redirect(url_for('admin.users'))
+
+
+@admin_bp.route('/users/<int:user_id>/notification-events', methods=['GET', 'POST'])
+@login_required
+@role_required('SUPERADMIN')
+def users_notification_events(user_id):
+    from app.services.notification_service import NOTIFICATION_EVENTS, get_disabled_actions, set_disabled_actions
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        disabled = set()
+        for action, _label, _mod in NOTIFICATION_EVENTS:
+            # Si el checkbox NO está marcado, se desactiva
+            if not request.form.get(f'evt_{action}'):
+                disabled.add(action)
+        set_disabled_actions(user, disabled)
+        db.session.commit()
+        try:
+            from app.services.audit_service import log_action
+            log_action('USER_NOTIFICATION_PREF', 'user', user.id, {'disabled': sorted(disabled)})
+        except Exception:
+            pass
+        flash(f'Preferencias de notificación actualizadas para {user.full_name}.', 'success')
+        return redirect(url_for('admin.users'))
+
+    disabled = get_disabled_actions(user)
+    # Agrupar por módulo
+    grouped = {}
+    for action, label, module in NOTIFICATION_EVENTS:
+        grouped.setdefault(module, []).append((action, label, action not in disabled))
+    return render_template('admin/notification_events.html', user=user, grouped=grouped)
 
 
 # =============================================================================
@@ -269,6 +345,11 @@ def create_permission():
 
         db.session.add(Permission(name=name, description=description, module=module))
         db.session.commit()
+        try:
+            from app.services.audit_service import log_action
+            log_action('PERMISSION_CREATE', 'permission', None, {'name': name, 'module': module})
+        except Exception:
+            pass
         flash(f'Permiso "{name}" creado correctamente.', 'success')
         return redirect(url_for('admin.permissions'))
 

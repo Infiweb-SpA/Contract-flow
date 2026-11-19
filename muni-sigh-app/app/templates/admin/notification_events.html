@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Preferencias de Notificación{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">Preferencias de Notificación</h1>
+    <p class="text-sm text-gray-500 mb-6">Usuario: <strong>{{ user.full_name }}</strong> ({{ user.role }})</p>
+
+    <form method="POST">
+        {% for module, events in grouped.items() %}
+        <div class="mb-6">
+            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider border-b pb-1 mb-3">{{ module }}</h3>
+            <div class="space-y-2">
+                {% for action, label, enabled in events %}
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="evt_{{ action }}" value="1" {% if enabled %}checked{% endif %} class="rounded border-gray-300">
+                    {{ label }}
+                    <span class="text-[10px] text-gray-400 font-mono ml-auto">{{ action }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="flex gap-3 mt-6">
+            <button type="submit" class="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm font-semibold hover:bg-blue-700">
+                Guardar preferencias
+            </button>
+            <a href="{{ url_for('admin.users') }}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                Volver
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

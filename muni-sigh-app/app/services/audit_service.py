@@ -23,6 +23,14 @@ def log_action(action: str, entity_type: str, entity_id: int, payload: dict = No
     db.session.add(audit_entry)
     db.session.commit()
 
+    # Notificaciones por correo (best-effort, no bloquea el flujo)
+    try:
+        from app.services.notification_service import notify_audit_event
+        notify_audit_event(action, entity_type, entity_id, user_id, payload)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Error en notificaciones de auditoría: %s", e)
+
 
 def get_contract_audit_trail(contract_id: int, limit: int = 50) -> list:
     """
@@ -144,6 +152,14 @@ def _format_payload(action: str, payload: dict) -> str:
             parts.append(f"De: {payload['from']}")
         if payload.get('to'):
             parts.append(f"A: {payload['to']}")
+
+    elif action == 'DOCUMENT_DOWNLOADED':
+        if payload.get('ip_address'):
+            parts.append(f"IP: {payload['ip_address']}")
+
+    elif action == 'DOCUMENT_PRINTED':
+        if payload.get('ip_address'):
+            parts.append(f"IP: {payload['ip_address']}")
 
     return ' — '.join(parts) if parts else ''
 

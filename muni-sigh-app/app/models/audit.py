@@ -34,6 +34,16 @@ class AuditLog(db.Model):
     'CONTRACT_SIGNED': 'Contrato firmado (rúbrica ágil)',
     'USER_PASSWORD_CHANGE': 'Cambio de contraseña de usuario',
     'USER_EMAIL_CHANGE': 'Cambio de correo electrónico de usuario',
+    'USER_CREATE': 'Usuario creado',
+    'USER_TOGGLE': 'Usuario activado/desactivado',
+    'USER_PASSWORD_RESET': 'Contraseña reseteada por admin',
+    'USER_NOTIFICATION_PREF': 'Preferencia de notificación actualizada',
+    'ROLE_CREATE': 'Rol creado',
+    'ROLE_DELETE': 'Rol eliminado',
+    'ROLE_PERMISSIONS_UPDATE': 'Permisos de rol actualizados',
+    'PERMISSION_CREATE': 'Permiso creado',
+    'DOCUMENT_DOWNLOADED': 'Documento descargado (PDF)',
+    'DOCUMENT_PRINTED': 'Documento impreso',
     }
 
     @property

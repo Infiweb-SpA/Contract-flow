@@ -90,6 +90,22 @@
         </form>
     </div>
 
+    <!-- Notificaciones por correo -->
+    <div class="border-t pt-6 mt-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Notificaciones por correo</h2>
+        <form method="POST" action="{{ url_for('auth.profile_notifications') }}" class="space-y-3">
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="receive_email_notifications" value="1"
+                    {% if user.receive_email_notifications %}checked{% endif %}
+                    class="rounded border-gray-300">
+                Recibir notificaciones de auditoría por correo electrónico
+            </label>
+            <button type="submit" class="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm font-semibold hover:bg-blue-700">
+                Guardar preferencia
+            </button>
+        </form>
+    </div>
+
     <div class="mt-6 text-center">
         <a href="{{ url_for('dashboard.index') }}" class="text-[#2563eb] hover:underline text-sm font-semibold">← Volver al Dashboard</a>
     </div>

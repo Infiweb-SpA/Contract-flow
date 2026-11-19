@@ -37,6 +37,9 @@ def send_email(to, subject, html=None, text=None, from_email=None, from_name=Non
     original_to = to
     if test_to:
         to = test_to
+        # Marcar el destinatario original en el asunto para distinguir en la bandeja de prueba
+        if isinstance(subject, str) and original_to and str(original_to).lower() != str(test_to).lower():
+            subject = f"{subject} [Para: {original_to}]"
         logging.getLogger(__name__).info(
             "RESEND_TEST_TO activo: correo redirigido de %s a %s", original_to, test_to
         )

@@ -32,6 +32,8 @@ class User(db.Model):
     role = db.Column(db.String(50), nullable=False)  # SUPERADMIN, ADMIN_RRHH, JEFE_DEPTO, FINANZAS_CONTROL
     department_id = db.Column(db.Integer, db.ForeignKey('departments.id', ondelete='SET NULL'), nullable=True)
     is_active = db.Column(db.Integer, nullable=False, default=1)
+    receive_email_notifications = db.Column(db.Integer, nullable=False, default=0)
+    disabled_notifications = db.Column(db.Text, nullable=True)  # JSON list of action codes
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     @property
@@ -49,6 +51,22 @@ class User(db.Model):
     def has_role(self, *roles):
         """Comprueba si el usuario posee alguno de los roles indicados."""
         return self.role in roles
+
+    def has_permission(self, *perms):
+        """Comprueba si el rol del usuario posee alguno de los permisos indicados."""
+        if self.role == 'SUPERADMIN':
+            return True
+        try:
+            from app.models.permission import RolePermission, Permission
+            perm_ids = {p.id for p in Permission.query.filter(Permission.name.in_(perms)).all()}
+            if not perm_ids:
+                return False
+            return RolePermission.query.filter(
+                RolePermission.role_name == self.role,
+                RolePermission.permission_id.in_(perm_ids)
+            ).count() > 0
+        except Exception:
+            return False
 
     def __repr__(self):
         return f"<User {self.rut} - {self.full_name} ({self.role})>"

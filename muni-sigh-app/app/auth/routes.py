@@ -60,6 +60,17 @@ def profile():
                            password_form=password_form, email_form=email_form)
 
 
+@auth_bp.route('/profile/notifications', methods=['POST'])
+@login_required
+def profile_notifications():
+    user = get_current_user()
+    enabled = request.form.get('receive_email_notifications') == '1'
+    user.receive_email_notifications = 1 if enabled else 0
+    db.session.commit()
+    flash('Preferencia de notificaciones actualizada.', 'success')
+    return redirect(url_for('auth.profile'))
+
+
 @auth_bp.route('/profile/change-password', methods=['POST'])
 @login_required
 def change_password():

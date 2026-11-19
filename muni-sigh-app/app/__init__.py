@@ -53,6 +53,21 @@ def create_app(config_class=Config):
         g.mayor_name = app.config.get('MAYOR_NAME', '')
         g.mayor_rut = app.config.get('MAYOR_RUT', '')
 
+        # Permisos del usuario en sesión (para visibilidad en UI)
+        from app.auth.utils import get_current_user
+        user = get_current_user()
+        g.user_perms = set()
+        if user:
+            try:
+                from app.models.permission import RolePermission, Permission
+                if user.role == 'SUPERADMIN':
+                    g.user_perms = {p.name for p in Permission.query.all()}
+                else:
+                    rp_ids = {rp.permission_id for rp in RolePermission.query.filter_by(role_name=user.role).all()}
+                    g.user_perms = {p.name for p in Permission.query.filter(Permission.id.in_(rp_ids)).all()} if rp_ids else set()
+            except Exception:
+                g.user_perms = set()
+
     # Importación deferred de Blueprints
     from app.auth.routes import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')

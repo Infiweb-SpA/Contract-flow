@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
-from app.auth.utils import login_required, role_required
+from app.auth.utils import login_required, role_required, get_current_user
 from app.models.decree import DECREE_TYPE_LABELS, DecreeTemplate
 
 decrees_bp = Blueprint('decrees', __name__, url_prefix='/decrees')
@@ -32,8 +32,11 @@ def _validate_decree_type(decree_type):
 # =============================================================================
 @decrees_bp.route('/')
 @login_required
-@role_required('SUPERADMIN')
 def index():
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('create_decree', 'edit_decree', 'delete_decree', 'sign_decree')):
+        flash('No tiene permisos para acceder al catálogo de decretos.', 'danger')
+        return redirect(url_for('dashboard.index'))
     year_filter = request.args.get('year', type=int)
     type_filter = request.args.get('type', '').strip()
 
@@ -65,8 +68,11 @@ def index():
 # =============================================================================
 @decrees_bp.route('/create', methods=['GET', 'POST'])
 @login_required
-@role_required('SUPERADMIN')
 def create():
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('create_decree')):
+        flash('No tiene permiso para crear decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
     if request.method == 'POST':
         try:
             new_template = DecreeTemplate(
@@ -117,8 +123,11 @@ def create():
 # =============================================================================
 @decrees_bp.route('/<int:template_id>/edit', methods=['GET', 'POST'])
 @login_required
-@role_required('SUPERADMIN')
 def edit(template_id):
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('edit_decree')):
+        flash('No tiene permiso para editar decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
     template = DecreeTemplate.query.get_or_404(template_id)
 
     if request.method == 'POST':
@@ -164,8 +173,11 @@ def edit(template_id):
 # =============================================================================
 @decrees_bp.route('/<int:template_id>/toggle', methods=['POST'])
 @login_required
-@role_required('SUPERADMIN')
 def toggle(template_id):
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('edit_decree')):
+        flash('No tiene permiso para modificar decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
     template = DecreeTemplate.query.get_or_404(template_id)
     template.is_active = not template.is_active
     db.session.commit()
@@ -190,8 +202,11 @@ def toggle(template_id):
 # =============================================================================
 @decrees_bp.route('/<int:template_id>/delete', methods=['POST'])
 @login_required
-@role_required('SUPERADMIN')
 def delete(template_id):
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('delete_decree')):
+        flash('No tiene permiso para eliminar decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
     template = DecreeTemplate.query.get_or_404(template_id)
 
     payload = {

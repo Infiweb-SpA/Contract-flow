@@ -489,6 +489,19 @@ def preview(contract_id):
 def download_pdf(contract_id):
     contract = Contract.query.get_or_404(contract_id)
     try:
+        current_user = get_current_user()
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
+        if ',' in ip:
+            ip = ip.split(',')[0].strip()
+        from app.services.audit_service import log_action
+        log_action('DOCUMENT_DOWNLOADED', 'contract', contract.id, {
+            'contract_number': contract.contract_number,
+            'ip_address': ip,
+            'file': f'Contrato_{contract.contract_number}.pdf',
+        }, user_id=current_user.id if current_user else None)
+    except Exception:
+        pass
+    try:
         return make_pdf_response(contract)
     except Exception as e:
         flash(f'Error generando PDF: {str(e)}. Use la vista de impresión del navegador.', 'danger')
@@ -863,6 +876,72 @@ def sign_provider(contract_id):
         'validation_code': sig.validation_code,
         'signed_at': signed_at.isoformat(),
     })
+
+
+# =============================================================================
+# API: TRAZA DE AUDITORÍA (JSON) PARA ACTUALIZACIÓN EN VIVO
+# =============================================================================
+@contract_builder_bp.route('/<int:contract_id>/audit-trail', methods=['GET'])
+@login_required
+def audit_trail_json(contract_id):
+    contract = Contract.query.get_or_404(contract_id)
+    trail = get_contract_audit_trail(contract.id, limit=100)
+    entries = []
+    for e in trail:
+        entries.append({
+            'action': e['action'],
+            'action_label': e['action_label'],
+            'user_name': e['user_name'],
+            'user_role': e['user_role'],
+            'timestamp_display': e['timestamp_display'],
+            'details': e['details'],
+        })
+    return jsonify({'success': True, 'entries': entries})
+
+
+# =============================================================================
+# AUDITORÍA DE IMPRESIÓN LOCAL (evento silencioso desde el frontend)
+# =============================================================================
+@contract_builder_bp.route('/api/audit/print-event', methods=['POST'])
+@login_required
+def audit_print_event():
+    data = request.get_json(silent=True)
+    if not data:
+        try:
+            import json
+            raw = request.get_data(as_text=True) or ''
+            data = json.loads(raw) if raw else {}
+        except Exception:
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+    contract_id = data.get('contract_id')
+    try:
+        contract_id = int(contract_id or 0)
+    except (TypeError, ValueError):
+        contract_id = 0
+    if not contract_id:
+        return jsonify({'success': False, 'message': 'contract_id requerido.'}), 400
+
+    contract = Contract.query.get(contract_id)
+    if not contract:
+        return jsonify({'success': False, 'message': 'Contrato no encontrado.'}), 404
+
+    current_user = get_current_user()
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '')
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+
+    try:
+        log_action('DOCUMENT_PRINTED', 'contract', contract.id, {
+            'contract_number': contract.contract_number,
+            'ip_address': ip,
+            'user_agent': request.headers.get('User-Agent', ''),
+        }, user_id=current_user.id if current_user else None)
+    except Exception as e:
+        current_app.logger.warning(f"No se pudo registrar impresión: {e}")
+
+    return jsonify({'success': True})
 
 
 # =============================================================================

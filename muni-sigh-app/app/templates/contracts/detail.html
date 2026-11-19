@@ -48,7 +48,7 @@
                 Descargar PDF
             </a>
 
-            {% if session.user_role in ['ADMIN_RRHH', 'SUPERADMIN', 'JEFE_DEPTO'] %}
+            {% if 'edit_contract' in g.user_perms %}
             <a href="{{ url_for('contract_builder.edit', contract_id=contract.id) }}"
                class="inline-flex items-center px-4 py-2 bg-[#0F172A] hover:bg-[#1e293b] text-white text-xs font-bold rounded-lg shadow transition ring-1 ring-blue-200 ring-offset-1">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -195,6 +195,35 @@
                 {% endif %}
             </div>
 
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- HISTORIAL DE ACCESOS E IMPRESIONES                         -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex items-center justify-between border-b pb-2 mb-4">
+                    <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Historial de Accesos e Impresiones</h2>
+                </div>
+                <div id="access-list-container">
+                {% for entry in audit_trail %}
+                    {% if entry.action in ('DOCUMENT_DOWNLOADED', 'DOCUMENT_PRINTED') %}
+                        <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                            <div class="flex items-center gap-2">
+                                {% if entry.action == 'DOCUMENT_DOWNLOADED' %}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Descarga PDF</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Impresión</span>
+                                {% endif %}
+                                <span class="text-xs text-gray-600">{{ entry.user_name }}</span>
+                            </div>
+                            <span class="text-xs text-gray-400">{{ entry.timestamp_display }}</span>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                {% if not (audit_trail | selectattr('action', 'in', ['DOCUMENT_DOWNLOADED','DOCUMENT_PRINTED']) | list) %}
+                <p class="text-sm text-gray-400 italic text-center py-4">Sin descargas ni impresiones registradas.</p>
+                {% endif %}
+                </div>
+            </div>
+
         </div>
 
         <!-- Columna derecha: Panel de Estado -->
@@ -273,4 +302,47 @@
     </div>
 
 </div>
+<script>
+    // Actualizar la vista tras imprimir para reflejar el evento en la auditoría
+    window.addEventListener('afterprint', function() {
+        setTimeout(function(){ window.location.reload(); }, 1500);
+    });
+
+    // Polling ligero para actualizar el historial de accesos sin recargar manualmente
+    (function() {
+        var container = document.getElementById('access-list-container');
+        if (!container) return;
+        var cid = {{ contract.id }};
+        function renderAccess(entries) {
+            var access = entries.filter(function(e){
+                return e.action === 'DOCUMENT_DOWNLOADED' || e.action === 'DOCUMENT_PRINTED';
+            });
+            if (access.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-400 italic text-center py-4">Sin descargas ni impresiones registradas.</p>';
+                return;
+            }
+            var html = '';
+            access.forEach(function(e){
+                var badge = e.action === 'DOCUMENT_DOWNLOADED'
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Descarga PDF</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Impresión</span>';
+                html += '<div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">' +
+                    '<div class="flex items-center gap-2">' + badge +
+                    '<span class="text-xs text-gray-600">' + (e.user_name || '') + '</span></div>' +
+                    '<span class="text-xs text-gray-400">' + (e.timestamp_display || '') + '</span></div>';
+            });
+            container.innerHTML = html;
+        }
+        function refresh() {
+            fetch('/contracts/' + cid + '/audit-trail?_=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' })
+                .then(function(r){ return r.json(); })
+                .then(function(res){
+                    if (res && res.success) renderAccess(res.entries || []);
+                }).catch(function(){});
+        }
+        refresh();
+        setInterval(refresh, 2000);
+        window.addEventListener('focus', refresh);
+    })();
+</script>
 {% endblock %}

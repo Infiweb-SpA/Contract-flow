@@ -138,11 +138,13 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 - [x] Servicio de envío de correos con Resend (`app/services/email_service.py`) — `send_email`, `send_otp_email`.
 - [x] Configuración: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` en `config.py`.
 - [x] Servicio OTP (`app/services/otp_service.py`) y modelo `VerificationCode` (6 dígitos, 10 min, máx. intentos).
-- [ ] Añadir campo `receive_email_notifications` (BOOLEAN) y matriz de suscripción de eventos en la configuración del rol/usuario.
-- [ ] Configurar plantillas de correo HTML informativas que incluyan:
-  - Evento realizado (ej. "Modificación de Decretos", "Firma Registrada").
-  - Identificación del responsable (Nombre, RUT, Rol).
-  - Enlace directo al expediente en ContractFlow.
+- [x] Añadir campo `receive_email_notifications` (BOOLEAN) en `users` (migración `migrate_phase5_notifications.py`).
+- [x] Servicio de notificaciones por correo (`app/services/notification_service.py`) integrado en `log_action`: envía a usuarios suscritos con permiso `view_audit`.
+- [x] Toggle de notificaciones en perfil de usuario y en `/admin/users`.
+- [x] Plantilla de correo HTML con evento, entidad, responsable, detalles y enlace al expediente.
+- [x] Suscripción granular por evento (`disabled_notifications` JSON) con UI en `/admin/users/<id>/notification-events`.
+- [x] Auditoría para gestión de usuarios, roles y permisos (USER_*, ROLE_*, PERMISSION_*).
+- [ ] (Opcional) Matriz de suscripción por evento en el perfil del propio usuario.
 
 ---
 
@@ -166,19 +168,19 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 ## FASE 4: Auditoría de Descargas e Impresiones en Bitácora (`AuditLog`)
 
 ### 4.1 Captura de Eventos Backend (Descarga PDF)
-- [ ] Interceptar la ruta `GET /contracts/<id>/download-pdf`.
-- [ ] Registrar automáticamente en `AuditLog` un evento con:
+- [x] Interceptar la ruta `GET /contracts/<id>/download-pdf`.
+- [x] Registrar automáticamente en `AuditLog` un evento con:
   - `action`: `DOCUMENT_DOWNLOADED`
   - `user_id`: ID del usuario en sesión
   - `payload`: JSON con IP, nombre de archivo y marca de tiempo.
 
 ### 4.2 Captura de Eventos Frontend (Impresión Local)
-- [ ] Interceptar las llamadas al botón de impresión o `window.print()` en la interfaz visual.
-- [ ] Enviar una petición silenciosa mediante `fetch` o `navigator.sendBeacon` al endpoint `POST /api/audit/print-event` antes de desplegar el cuadro de diálogo de impresión.
-- [ ] Registrar en `AuditLog` la acción `DOCUMENT_PRINTED` con la misma estructura de metadatos.
+- [x] Interceptar las llamadas al botón de impresión o `window.print()` en la interfaz visual.
+- [x] Enviar una petición silenciosa mediante `fetch` o `navigator.sendBeacon` al endpoint `POST /api/audit/print-event` antes de desplegar el cuadro de diálogo de impresión.
+- [x] Registrar en `AuditLog` la acción `DOCUMENT_PRINTED` con la misma estructura de metadatos.
 
 ### 4.3 Visualización del Historial en el Expediente
-- [ ] Añadir una pestaña **"Historial de Accesos e Impresiones"** en la interfaz Split-View del contrato para mostrar en tiempo real la lista de usuarios que han visualizado, descargado o impreso el documento.
+- [x] Añadir sección **"Historial de Accesos e Impresiones"** en `detail.html` mostrando descargas e impresiones registradas.
 
 ---
 

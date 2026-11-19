@@ -22,11 +22,13 @@
             </h1>
             <p class="text-sm text-slate-500 mt-1">Plantilla anual de decretos y antecedentes (VISTOS) que se precargan en cada borrador de contrato.</p>
         </div>
+        {% if 'create_decree' in g.user_perms %}
         <a href="{{ url_for('decrees.create') }}"
             class="bg-[#0f265c] hover:bg-[#1e3a8a] text-white text-sm font-semibold px-4 py-2.5 rounded-md shadow-sm transition-all active:scale-95 flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             Nueva Plantilla
         </a>
+        {% endif %}
     </div>
 
     <!-- Filtros -->
@@ -90,18 +92,24 @@
                             <p class="truncate" title="{{ t.description }}">{{ t.description }}</p>
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
+                            {% if 'edit_decree' in g.user_perms %}
                             <a href="{{ url_for('decrees.edit', template_id=t.id) }}"
                                 class="text-xs font-semibold text-[#1e3a8a] hover:text-[#4A2E1B] hover:underline mr-3">Editar</a>
+                            {% endif %}
+                            {% if 'edit_decree' in g.user_perms %}
                             <form method="POST" action="{{ url_for('decrees.toggle', template_id=t.id) }}" class="inline-block mr-3"
                                 onsubmit="return confirm('¿Desea {{ 'desactivar' if t.is_active else 'reactivar' }} esta plantilla?')">
                                 <button type="submit" class="text-xs font-semibold text-amber-600 hover:text-amber-800 hover:underline">
                                     {{ 'Desactivar' if t.is_active else 'Activar' }}
                                 </button>
                             </form>
+                            {% endif %}
+                            {% if 'delete_decree' in g.user_perms %}
                             <form method="POST" action="{{ url_for('decrees.delete', template_id=t.id) }}" class="inline-block"
                                 onsubmit="return confirm('¿Eliminar esta plantilla del catálogo? Los contratos existentes NO se modificarán.')">
                                 <button type="submit" class="text-xs font-semibold text-red-500 hover:text-red-700 hover:underline">Eliminar</button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
