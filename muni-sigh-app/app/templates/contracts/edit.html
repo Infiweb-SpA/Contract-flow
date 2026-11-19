@@ -330,7 +330,8 @@
                                         <input type="checkbox" name="decree_template_ids" value="{{ t.id }}" {% if t.id in contract_template_ids %}checked{% endif %}
                                             class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"
                                             data-type="{{ t.decree_type }}" data-number="{{ t.decree_number or '' }}"
-                                            data-date="{{ t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '' }}" data-desc="{{ t.description }}">
+                                            data-date="{{ t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '' }}" data-desc="{{ t.description }}"
+                                            data-mayor-signature="{{ t.mayor_signature or '' }}">
                                         <div class="flex-grow min-w-0">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">{{ t.decree_type_label }}</span>
@@ -388,7 +389,7 @@
                                         <button type="button" id="secretary_signature_remove_btn" onclick="clearSignatureEntry('secretary')" class="hidden mt-1.5 text-[10px] text-red-500 hover:text-red-700 font-semibold">Quitar firma</button>
                                     </div>
                                 </div>
-                                <input type="hidden" name="mayor_signature" id="mayor_signature" value="{{ contract.mayor_signature or '' }}">
+                                <input type="hidden" name="mayor_signature" id="mayor_signature" value="{{ contract.mayor_signature or decree_mayor_signature or '' }}">
                                 <input type="hidden" name="secretary_signature" id="secretary_signature" value="{{ contract.secretary_signature or '' }}">
                                 <p class="microcopy mt-2">Dibuje la firma con el mouse o el dedo; quedará guardada sobre la línea de firma del Decreto. El Secretario Municipal firma sin nombre (igual que en el documento real).</p>
                             </div>
@@ -1457,7 +1458,8 @@ function getDecreesForPreview() {
             type: cb.getAttribute('data-type') || 'OTRO',
             number: cb.getAttribute('data-number') || '',
             date: cb.getAttribute('data-date') || '',
-            desc: cb.getAttribute('data-desc') || ''
+            desc: cb.getAttribute('data-desc') || '',
+            mayor_signature: cb.getAttribute('data-mayor-signature') || ''
         });
     });
 
@@ -1631,7 +1633,8 @@ function renderDecreeTemplateRow(t, opts) {
         '<input type="checkbox" name="decree_template_ids" value="' + t.id + '"' + (opts.checked === false ? '' : ' checked')
         + ' class="decree-template-check mt-0.5 flex-shrink-0 w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]"'
         + ' data-type="' + escapeHtml(t.decree_type) + '" data-number="' + escapeHtml(t.decree_number || '') + '"'
-        + ' data-date="' + escapeHtml(t.decree_date || '') + '" data-desc="' + escapeHtml(t.description) + '">'
+        + ' data-date="' + escapeHtml(t.decree_date || '') + '" data-desc="' + escapeHtml(t.description) + '"'
+        + ' data-mayor-signature="' + escapeHtml(t.mayor_signature || '') + '">'
         + '<div class="flex-grow min-w-0">'
         + '<div class="flex flex-wrap items-center gap-2">'
         + '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">' + escapeHtml(t.decree_type_label) + '</span>'

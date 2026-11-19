@@ -12,6 +12,7 @@ from app.services.audit_service import log_action, get_contract_audit_trail
 from app.services.pdf_generator import generate_contract_html, make_pdf_response, generate_contract_preview
 from app.services.ocr_service import extract_text_from_pdf, parse_contract_data, format_date_es, OCRCancelledException
 from app.services.otp_service import request_otp, verify_otp
+from sqlalchemy.exc import IntegrityError
 import os
 import hashlib
 import tempfile
@@ -328,14 +329,24 @@ def create():
             flash(f'Contrato N° {contract_number} creado exitosamente.', 'success')
             return redirect(url_for('contract_builder.detail', contract_id=new_contract.id))
 
+        except IntegrityError as e:
+            db.session.rollback()
+            msg = str(e).lower()
+            if 'contract_number' in msg or 'unique' in msg:
+                flash('El número de contrato ya existe. Por favor use uno diferente.', 'warning')
+            else:
+                flash('Error de integridad en la base de datos. Verifique los datos ingresados.', 'danger')
         except Exception as e:
             db.session.rollback()
             flash(f'Error al armar el contrato: {str(e)}', 'danger')
 
     providers = ServiceProvider.query.order_by(ServiceProvider.paternal_last_name).all()
     departments = Department.query.filter_by(is_active=1).all()
+    _templates = _load_templates_for_context()
+    _decree_mayor_sig = next((t.mayor_signature for t in _templates if t.is_active and t.mayor_signature), None)
     return render_template('contracts/create.html', providers=providers, departments=departments,
-                           decree_templates=_load_templates_for_context(),
+                           decree_templates=_templates,
+                           decree_mayor_signature=_decree_mayor_sig,
                            decree_type_options=DECREE_TYPE_LABELS)
 
 
@@ -357,6 +368,7 @@ def api_decree_templates():
             'decree_number': t.decree_number or '',
             'decree_date': t.decree_date.strftime('%Y-%m-%d') if t.decree_date else '',
             'description': t.description,
+            'mayor_signature': t.mayor_signature or '',
             'year': t.year,
         }
 
@@ -458,16 +470,34 @@ def edit(contract_id):
             flash('Contrato actualizado exitosamente.', 'success')
             return redirect(url_for('contract_builder.detail', contract_id=contract.id))
 
+        except IntegrityError as e:
+            db.session.rollback()
+            msg = str(e).lower()
+            if 'contract_number' in msg or 'unique' in msg:
+                flash('El número de contrato ya existe. Por favor use uno diferente.', 'warning')
+            else:
+                flash('Error de integridad en la base de datos. Verifique los datos ingresados.', 'danger')
         except Exception as e:
             db.session.rollback()
             flash(f'Error al actualizar: {str(e)}', 'danger')
 
     providers = ServiceProvider.query.order_by(ServiceProvider.paternal_last_name).all()
     departments = Department.query.filter_by(is_active=1).all()
+    _templates = _load_templates_for_context(
+        year=contract.start_date.year if contract.start_date else None)
+    _decree_mayor_sig = None
+    for d in contract.decrees:
+        if getattr(d, 'template_id', None):
+            tpl = DecreeTemplate.query.get(d.template_id)
+            if tpl and tpl.is_active and tpl.mayor_signature:
+                _decree_mayor_sig = tpl.mayor_signature
+                break
+    if not _decree_mayor_sig:
+        _decree_mayor_sig = next((t.mayor_signature for t in _templates if t.is_active and t.mayor_signature), None)
     return render_template('contracts/edit.html', contract=contract, providers=providers,
                            departments=departments,
-                           decree_templates=_load_templates_for_context(
-                               year=contract.start_date.year if contract.start_date else None),
+                           decree_templates=_templates,
+                           decree_mayor_signature=_decree_mayor_sig,
                            decree_type_options=DECREE_TYPE_LABELS)
 
 
@@ -1147,6 +1177,7 @@ def api_preview():
                 'decree_number': d.get('decree_number'),
                 'decree_date': d.get('decree_date'),
                 'description': (d.get('description') or '').strip(),
+                'mayor_signature': d.get('mayor_signature') or '',
             }
             for d in (data.get('decrees') or [])
             if (d.get('description') or '').strip()
@@ -1162,6 +1193,19 @@ def api_preview():
             budget_year = datetime.strptime(sd, '%Y-%m-%d').year if sd else datetime.now().year
         except (ValueError, TypeError):
             budget_year = datetime.now().year
+
+        _mayor_sig_preview = (data.get('mayor_signature') or None) or next((d.get('mayor_signature') for d in decrees_clean if isinstance(d, dict) and d.get('mayor_signature')), None)
+        if not _mayor_sig_preview:
+            try:
+                from app.models.decree import DecreeTemplate
+                _tpl = DecreeTemplate.query.filter(
+                    DecreeTemplate.is_active.is_(True),
+                    DecreeTemplate.mayor_signature.isnot(None),
+                ).first()
+                if _tpl:
+                    _mayor_sig_preview = _tpl.mayor_signature
+            except Exception:
+                pass
 
         preview_data = {
             'contract_number': data.get('contract_number', 'CT-XXXX-XXX') or 'CT-XXXX-XXX',
@@ -1195,7 +1239,7 @@ def api_preview():
             'hours_weekly': hours_weekly,
             'total_amount_words': (data.get('total_amount_words') or '').strip(),
             # ── Firmas del decreto (dataURL PNG o None) ──
-            'mayor_signature': data.get('mayor_signature') or None,
+            'mayor_signature': _mayor_sig_preview,
             'secretary_signature': data.get('secretary_signature') or None,
             'budget_year': budget_year,
             'mayor_name': current_app.config.get('MAYOR_NAME', ''),

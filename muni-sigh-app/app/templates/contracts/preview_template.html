@@ -335,8 +335,8 @@
             </div>
             <div class="firma-box">
                 <div class="firma-linea">
-                    {% if contract.mayor_signature %}
-                    <img src="{{ contract.mayor_signature }}" alt="Firma del Alcalde" style="max-width: 180px; max-height: 70px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
+                    {% if contract.mayor_signature or contract.mayor_signature_img %}
+                    <img src="{{ contract.mayor_signature or contract.mayor_signature_img }}" alt="Firma del Alcalde" style="max-width: 180px; max-height: 70px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;"><br>
                     {% endif %}
                     <div class="firma-nombre">{{ contract.mayor_name or '_______________________' }}</div>
                     <div class="firma-cargo">{{ muni_city }} — Alcalde</div>

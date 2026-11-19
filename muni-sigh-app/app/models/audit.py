@@ -29,6 +29,7 @@ class AuditLog(db.Model):
         'DECREE_TEMPLATE_CREATE': 'Plantilla de decreto creada',
         'DECREE_TEMPLATE_UPDATE': 'Plantilla de decreto modificada',
         'DECREE_TEMPLATE_DELETE': 'Plantilla de decreto eliminada',
+    'DECREE_ACTIVATED': 'Decreto activado (firma Alcalde)',
         'CONTRACT_DECREE_UPDATE': 'Decretos/VISTOS del contrato actualizados',
     'DOCUMENT_SIGNED': 'Documento firmado (rúbrica ágil)',
     'CONTRACT_SIGNED': 'Contrato firmado (rúbrica ágil)',

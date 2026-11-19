@@ -37,8 +37,16 @@ class DecreeTemplate(db.Model):
     decree_date = db.Column(db.Date, nullable=True)
     description = db.Column(db.Text, nullable=False)
     year = db.Column(db.Integer, nullable=True)
-    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # ── Firma del Alcalde para activación del decreto ──
+    mayor_signature = db.Column(db.Text, nullable=True)
+    signed_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    validation_code = db.Column(db.String(64), nullable=True, unique=True)
+    signed_at = db.Column(db.DateTime, nullable=True)
+
+    signed_by = db.relationship('User', foreign_keys=[signed_by_user_id], lazy=True)
 
     @property
     def decree_type_label(self):

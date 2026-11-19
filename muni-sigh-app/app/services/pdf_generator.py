@@ -5,7 +5,7 @@ from xhtml2pdf import pisa
 import io
 import os
 
-from app.models.decree import order_vistos
+from app.models.decree import order_vistos, DecreeTemplate
 
 
 def _pdf_link_callback(uri, rel):
@@ -190,6 +190,7 @@ def _build_preview_context(contract):
     # ── Decretos y Antecedentes Previos (VISTOS) ──
     decrees_raw = _get(contract, 'decrees', [])
     decrees = []
+    decree_mayor_signature = None
     for d in decrees_raw:
         if isinstance(d, dict):
             decrees.append({
@@ -205,6 +206,15 @@ def _build_preview_context(contract):
                 'decree_date': getattr(d, 'decree_date', None),
                 'description': getattr(d, 'description', '') or '',
             })
+            # Firma del Alcalde proveniente de un decreto activo
+            tid = getattr(d, 'template_id', None)
+            if tid and not decree_mayor_signature:
+                try:
+                    tpl = DecreeTemplate.query.get(tid)
+                    if tpl and tpl.is_active and tpl.mayor_signature:
+                        decree_mayor_signature = tpl.mayor_signature
+                except Exception:
+                    pass
 
     # ── Fechas ──
     start_date = _get(contract, 'start_date', None)
@@ -303,6 +313,19 @@ def _build_preview_context(contract):
     mayor_signature_img = _get(contract, 'mayor_signature', None)
     if mayor_otp_sig and mayor_otp_sig.get('signature_image'):
         mayor_signature_img = mayor_otp_sig.get('signature_image')
+    if not mayor_signature_img and decree_mayor_signature:
+        mayor_signature_img = decree_mayor_signature
+    # Fallback: si no hay firma, usar la de cualquier decreto activo
+    if not mayor_signature_img:
+        try:
+            active_tpl = DecreeTemplate.query.filter(
+                DecreeTemplate.is_active.is_(True),
+                DecreeTemplate.mayor_signature.isnot(None),
+            ).first()
+            if active_tpl:
+                mayor_signature_img = active_tpl.mayor_signature
+        except Exception:
+            pass
 
     provider_signature_img = None
     if provider_otp_sig:

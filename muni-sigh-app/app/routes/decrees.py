@@ -1,8 +1,11 @@
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+import uuid
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from app import db
 from app.auth.utils import login_required, role_required, get_current_user
+from app.services.otp_service import request_otp, verify_otp
 from app.models.decree import DECREE_TYPE_LABELS, DecreeTemplate
+from app.models.user import User
 
 decrees_bp = Blueprint('decrees', __name__, url_prefix='/decrees')
 
@@ -66,6 +69,109 @@ def index():
 # =============================================================================
 # CATÁLOGO: CREAR PLANTILLA
 # =============================================================================
+@decrees_bp.route('/<int:template_id>/otp/request', methods=['POST'])
+@login_required
+def request_decree_otp(template_id):
+    template = DecreeTemplate.query.get_or_404(template_id)
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('sign_decree')):
+        return jsonify({'success': False, 'message': 'Sin permiso para firmar decretos.'}), 403
+    alcalde = User.query.filter_by(role='ALCALDE', is_active=1).first()
+    if not alcalde or not alcalde.email:
+        return jsonify({'success': False, 'message': 'No hay un usuario Alcalde activo con correo configurado.'}), 400
+    request_uuid, code = request_otp(
+        email=alcalde.email,
+        purpose='DECREE_SIGN',
+        entity_type='decree_template',
+        entity_id=template.id,
+        signer_kind='ALCALDE',
+        created_by_user_id=current_user.id,
+        purpose_label='activación de decreto',
+    )
+    if not request_uuid:
+        return jsonify({'success': False, 'message': 'No se pudo generar el código.'}), 500
+    masked = alcalde.email
+    if '@' in masked:
+        local, domain = masked.split('@', 1)
+        masked = (local[:2] + '***@' + domain) if len(local) > 2 else ('***@' + domain)
+    return jsonify({
+        'success': True,
+        'request_uuid': request_uuid,
+        'email': masked,
+        'expires_in': current_app.config.get('OTP_EXPIRY_MINUTES', 10) * 60,
+        'message': f'Código enviado a {masked}.',
+    })
+
+
+@decrees_bp.route('/<int:template_id>/activate', methods=['GET'])
+@login_required
+def activate_page(template_id):
+    template = DecreeTemplate.query.get_or_404(template_id)
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('sign_decree')):
+        flash('No tiene permiso para activar decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
+    return render_template('decrees/activate.html', template=template)
+
+
+@decrees_bp.route('/<int:template_id>/activate', methods=['POST'])
+@login_required
+def activate(template_id):
+    template = DecreeTemplate.query.get_or_404(template_id)
+    current_user = get_current_user()
+    if not (current_user and current_user.has_permission('sign_decree')):
+        flash('No tiene permiso para activar decretos.', 'danger')
+        return redirect(url_for('decrees.index'))
+
+    data = request.get_json(silent=True) or {}
+    if not data and request.form:
+        data = request.form.to_dict()
+
+    signature = (data.get('signature') or data.get('signature_image') or data.get('signature_data') or '').strip()
+    request_uuid = (data.get('request_uuid') or data.get('otp_request_uuid') or '').strip()
+    otp_code = (data.get('otp_code') or data.get('code') or '').strip()
+
+    if not signature:
+        return jsonify({'success': False, 'message': 'Por favor ingresar firma.'}), 400
+    if not request_uuid or not otp_code:
+        return jsonify({'success': False, 'message': 'Se requiere código de verificación (OTP).'}), 400
+
+    ok, vc, err = verify_otp(request_uuid, otp_code)
+    if not ok:
+        return jsonify({'success': False, 'message': err or 'Código inválido.'}), 400
+
+    alcalde = User.query.filter_by(role='ALCALDE', is_active=1).first()
+    if not alcalde:
+        return jsonify({'success': False, 'message': 'No hay un usuario Alcalde activo.'}), 400
+    if not vc or vc.purpose != 'DECREE_SIGN' or vc.entity_type != 'decree_template' or vc.entity_id != template.id:
+        return jsonify({'success': False, 'message': 'El código no corresponde a este decreto.'}), 400
+    if (vc.email or '').lower() != (alcalde.email or '').lower():
+        return jsonify({'success': False, 'message': 'El código no corresponde al Alcalde.'}), 400
+
+    MAX_SIG_LEN = 300000
+    template.mayor_signature = signature[:MAX_SIG_LEN]
+    template.signed_by_user_id = alcalde.id
+    template.validation_code = 'DC-' + uuid.uuid4().hex[:12].upper()
+    template.signed_at = datetime.utcnow()
+    template.is_active = True
+    db.session.commit()
+
+    try:
+        from app.services.audit_service import log_action
+        log_action('DECREE_ACTIVATED', 'decree_template', template.id, {
+            'decree_number': template.decree_number,
+            'validation_code': template.validation_code,
+        })
+    except Exception:
+        pass
+
+    return jsonify({
+        'success': True,
+        'message': 'Decreto activado exitosamente.',
+        'validation_code': template.validation_code,
+    })
+
+
 @decrees_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
@@ -75,13 +181,19 @@ def create():
         return redirect(url_for('decrees.index'))
     if request.method == 'POST':
         try:
+            current_user = get_current_user()
+            if current_user and current_user.role == 'ALCALDE':
+                is_active_val = True
+            else:
+                is_active_val = bool(request.form.get('is_active'))
+
             new_template = DecreeTemplate(
                 decree_type=_validate_decree_type(request.form.get('decree_type', 'OTRO')),
                 decree_number=request.form.get('decree_number', '').strip() or None,
                 decree_date=_parse_decree_date(request.form.get('decree_date')),
                 description=request.form.get('description', '').strip(),
                 year=request.form.get('year', type=int),
-                is_active=bool(request.form.get('is_active')),
+                is_active=is_active_val,
             )
 
             if not new_template.description:
@@ -132,12 +244,18 @@ def edit(template_id):
 
     if request.method == 'POST':
         try:
+            current_user = get_current_user()
+            if current_user and current_user.role == 'ALCALDE':
+                is_active_val = True
+            else:
+                is_active_val = bool(request.form.get('is_active'))
+
             template.decree_type = _validate_decree_type(request.form.get('decree_type', 'OTRO'))
             template.decree_number = request.form.get('decree_number', '').strip() or None
             template.decree_date = _parse_decree_date(request.form.get('decree_date'))
             template.description = request.form.get('description', '').strip()
             template.year = request.form.get('year', type=int)
-            template.is_active = bool(request.form.get('is_active'))
+            template.is_active = is_active_val
 
             if not template.description:
                 flash('El texto del VISTO es obligatorio.', 'danger')

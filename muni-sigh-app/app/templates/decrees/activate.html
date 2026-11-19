@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Activar Decreto {{ template.decree_number }}{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-md border border-gray-200">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">Activar Decreto</h1>
+    <p class="text-sm text-gray-500 mb-4">{{ template.decree_number or 'Sin número' }} — {{ template.description[:80] }}</p>
+
+    <div class="mb-4">
+        <button type="button" id="btn-request-otp" class="px-4 py-2 bg-[#2563eb] text-white rounded-md text-sm font-semibold hover:bg-blue-700">
+            1. Solicitar código OTP
+        </button>
+        <span id="otp-info" class="text-xs text-gray-500 ml-2"></span>
+    </div>
+
+    <canvas id="sig-canvas" width="300" height="120" style="border:1px solid #cbd5e1; border-radius:4px; width:100%;"></canvas>
+    <div class="flex gap-2 mt-2">
+        <button type="button" id="btn-clear" class="px-3 py-1.5 border border-gray-300 rounded text-xs">Limpiar</button>
+    </div>
+
+    <div class="mt-4">
+        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Código OTP</label>
+        <input id="otp-code" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="6 dígitos">
+    </div>
+
+    <button type="button" id="btn-activate" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700">
+        2. Activar decreto con firma
+    </button>
+
+    <div id="status" class="text-sm mt-3"></div>
+
+    <div class="mt-6">
+        <a href="{{ url_for('decrees.index') }}" class="text-[#2563eb] hover:underline text-sm">← Volver</a>
+    </div>
+</div>
+
+<script>
+(function() {
+    var canvas = document.getElementById('sig-canvas');
+    var ctx = canvas.getContext('2d');
+    var drawing = false, hasInk = false;
+    function getPos(e){ var r=canvas.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:(t.clientX-r.left)*(canvas.width/r.width), y:(t.clientY-r.top)*(canvas.height/r.height)}; }
+    function start(e){ drawing=true; hasInk=true; var p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault(); }
+    function move(e){ if(!drawing) return; var p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); }
+    function end(){ drawing=false; }
+    canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+    ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.lineJoin='round';
+
+    document.getElementById('btn-clear').onclick = function(){ ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false; };
+
+    var requestUuid = null;
+    document.getElementById('btn-request-otp').onclick = function() {
+        fetch('/decrees/{{ template.id }}/otp/request', {method:'POST', credentials:'same-origin'})
+            .then(r=>r.json()).then(function(res){
+                if (res && res.success) {
+                    requestUuid = res.request_uuid;
+                    document.getElementById('otp-info').textContent = 'Código enviado a ' + res.email;
+                } else {
+                    document.getElementById('status').textContent = (res && res.message) ? res.message : 'Error';
+                    document.getElementById('status').style.color = '#b91c1c';
+                }
+            });
+    };
+
+    document.getElementById('btn-activate').onclick = function() {
+        var status = document.getElementById('status');
+        var code = document.getElementById('otp-code').value.trim();
+        if (!hasInk) { status.textContent = 'Por favor ingresar firma.'; status.style.color='#b91c1c'; return; }
+        if (!requestUuid) { status.textContent = 'Primero solicite un código OTP.'; status.style.color='#b91c1c'; return; }
+        if (!code) { status.textContent = 'Ingrese el código OTP.'; status.style.color='#b91c1c'; return; }
+        var dataURL = canvas.toDataURL('image/png');
+        status.textContent = 'Activando...';
+        status.style.color = '#475569';
+        fetch('/decrees/{{ template.id }}/activate', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ signature: dataURL, request_uuid: requestUuid, otp_code: code })
+        }).then(r=>r.json()).then(function(res){
+            if (res && res.success) {
+                status.textContent = 'Decreto activado. Código: ' + res.validation_code;
+                status.style.color = '#166534';
+                setTimeout(function(){ window.location.href = '{{ url_for("decrees.index") }}'; }, 1200);
+            } else {
+                status.textContent = (res && res.message) ? res.message : 'Error al activar.';
+                status.style.color = '#b91c1c';
+            }
+        });
+    };
+})();
+</script>
+{% endblock %}

@@ -41,9 +41,11 @@ Este documento detalla las tareas de desarrollo necesarias para extender y adapt
 - [x] `POST /contracts/<id>/otp/request` (solicitud de código por tipo de firmante).
 - [x] UI en `preview_template.html` con botones y panel OTP.
 
-### 7.4 Firma de decretos (catálogo)
-- [ ] `POST /decrees/<id>/otp/request` y `POST /decrees/<id>/sign`.
-- [ ] `DecreeTemplateSignature` y UI en `/decrees`.
+### 7.4 Firma/activación de decretos (catálogo)
+- [x] `POST /decrees/<id>/otp/request` y `POST /decrees/<id>/activate` (OTP + firma del Alcalde).
+- [x] Plantilla `decrees/activate.html` con captura de firma y código.
+- [x] Activación solo por rol ALCALDE (permiso `sign_decree`); decreto queda activo con firma almacenada.
+- [x] Firma del Alcalde de decretos activos se precarga en el bloque de firma del contrato (página 2).
 
 ### 7.5 Validación de datos del prestador
 - [ ] Bloquear firma del honorario si falta correo.
