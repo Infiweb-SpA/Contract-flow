@@ -1,216 +1,374 @@
-# Plan de Implementación de Funcionalidades y Trazabilidad Avanzada — SIGH-MUNI (ContractFlow)
+# Plan de Desarrollo — SIGH-MUNI (Contract Flow)
 
-Este documento detalla las tareas de desarrollo necesarias para extender y adaptar la plataforma **SIGH-MUNI** a los requerimientos normativos, operativos y de trazabilidad exigidos por la municipalidad (SECPLA/Control).
-
----
-
-## FASE 0: Perfil de Usuario — Cambio de Correo y Contraseña (foundational)
-
-### 0.1 Cambio de contraseña
-- [x] Formulario `ChangePasswordForm` (contraseña actual, nueva, confirmación, mín. 8).
-- [x] Ruta `POST /auth/profile/change-password` con reautenticación y validaciones.
-- [x] Actualización de `password_hash` y auditoría `USER_PASSWORD_CHANGE`.
-
-### 0.2 Cambio de correo electrónico
-- [x] Formulario `ChangeEmailForm` (nuevo correo, contraseña actual).
-- [x] Ruta `POST /auth/profile/change-email` con validación de unicidad y reautenticación.
-- [x] Actualización de `email` y auditoría `USER_EMAIL_CHANGE`.
-- [ ] Verificación por correo del nuevo email (se activará con Resend en FASE 2).
-
-### 0.3 UI
-- [x] `templates/auth/profile.html` con secciones de cambio de correo y contraseña.
+> **Última actualización:** 2026-11-23
+> **Documento maestro de brechas y decisiones:** `plan_brechas.md` (raíz del repo). Este plan de desarrollo se alinea con sus FASES 1–9 (§6) y su mapeo (§7).
+> **Leyenda:** `[x]` = verificado como realizado en código al 2026-11-23 · `[ ]` = pendiente · `[~]` = parcial.
+> **Regla de oro:** los catálogos nuevos (permisos, tipos de documento, textos fijos, etapas de visación, política de firma) nacen como **datos configurables**, no hardcodeados a Cunco, para no rehacer trabajo al llegar multi-tenant.
+> **Módulo de Pagos Mensuales: ELIMINADO** (decisión 2026-11-09). Pagos vía SMC externo. No se reactiva. Limpiar referencias en docs (FASE 9).
 
 ---
 
-## FASE 7: Firma Digital Validada por Correo (OTP) + Rol ALCALDE
+## PARTE A — Registro de trabajo realizado (verificado en código)
 
-### 7.1 Roles y permisos
-- [ ] Agregar rol base `ALCALDE` con permisos `view_contract`, `sign_contract`, `sign_decree`, `view_audit`.
-- [ ] `SUPERADMIN` y `ALCALDE` pueden firmar plantillas del catálogo.
+> Hitos ya implementados. Se conservan como trazabilidad; las fases activas de la Parte B no los repiten, solo los referencian.
 
-### 7.2 Infraestructura de correo (Resend) + OTP
-- [ ] `app/services/email_service.py` con Resend.
-- [ ] Modelo `VerificationCode` (OTP 6 dígitos, 10 min, máx. intentos).
-- [ ] `app/services/otp_service.py`: generar, hashear, enviar, verificar, invalidar.
-- [ ] Config: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `OTP_EXPIRY_MINUTES`, `OTP_MAX_ATTEMPTS`.
+### A.1 Perfil de usuario (ex FASE 0)
+- [x] Cambio de contraseña: `ChangePasswordForm`, `POST /auth/profile/change-password` con reautenticación, mín. 8, auditoría `USER_PASSWORD_CHANGE`. (`app/auth/routes.py`, `forms.py`)
+- [x] Cambio de correo: `ChangeEmailForm`, `POST /auth/profile/change-email` con unicidad + reautenticación, auditoría `USER_EMAIL_CHANGE`.
+- [x] UI `templates/auth/profile.html` con secciones de correo y contraseña.
+- [ ] Verificación por correo del nuevo email → **reubicado a FASE 3.4** (hoy el cambio se aplica directo, sin verificar la nueva dirección).
 
-### 7.3 Firma de contratos (borrador final)
-- [x] Refactor `POST /contracts/<id>/sign` para exigir OTP (usuario municipal).
-- [x] `POST /contracts/<id>/sign-mayor` (OTP + firma del alcalde).
-- [x] `POST /contracts/<id>/sign-provider` (OTP + firma del honorario, requiere correo del prestador).
-- [x] `POST /contracts/<id>/otp/request` (solicitud de código por tipo de firmante).
-- [x] UI en `preview_template.html` con botones y panel OTP.
+### A.2 Decretos previos y VISTOS — estructura Cunco (ex FASE 1)
+- [x] Tablas `contract_decrees` (instancias snapshot) + `decree_templates` (catálogo maestro anual). (`app/models/decree.py`)
+- [x] Catálogo `/decrees` CRUD + activar/desactivar + filtros tipo/año (SUPERADMIN). (`app/routes/decrees.py`)
+- [x] Precarga `_save_contract_decrees()`: copia plantillas activas del año como snapshot (origin PLANTILLA); editar plantilla no altera contratos existentes.
+- [x] Sección VISTOS como paso del stepper (checkboxes plantillas + filas dinámicas), render en split-view y PDF.
+- [x] Parser OCR `extract_decrees_vistos()`: detecta bloque VISTOS, une multilínea, descarta sellos, clasifica tipo/número/fecha (calibrado 16/16 contra escaneo real Cunco). (`app/services/ocr_service.py`)
+- [x] Campos Cunco: `provider_address`, `provider_comuna`, `hours_weekly` (defecto 44), `total_amount_words` (migración `migrate_cunco_fields.py`).
+- [x] Agrupación `VISTOS_TYPE_ORDER` / `order_vistos()` / tipos excluidos `BASE_LEGAL` y `CONTRATO_ACTUAL`.
+- [x] `preview_template.html` jerarquía 1:1 Cunco: Hoja 1 VISTOS (cabecera institucional + base legal nacional fija Res. CGR 15.700/2012, Of. CGR 33.701/2014, Ley 18.695) → Hoja 2 DECRETO (puntos 1 APRUÉBASE / 2 contratos parte del decreto / 3 imputación Ítem + año, firmas Alcalde/Secretario, distribución) → Hoja 3+ CONTRATO (13 cláusulas).
+- [x] Reactividad por año de presupuesto (`/api/decree-templates?year=`), grupo colapsable "decretos de otros años" con badge ámbar.
+- [x] Split-view 3 hojas en create/edit con `updateDecretoPreview()` en tiempo real; monto en palabras auto (`numToWordsEs`).
+- [x] `pdf_generator.py`: `order_vistos`, fechas español, `format_money_cl`, `number_to_words_es`, `budget_year`, logo embebido (`link_callback`).
+- [x] Verificación end-to-end (PDF 6 páginas en orden correcto, logo, fechas, navegación real sin errores de consola).
 
-### 7.4 Firma/activación de decretos (catálogo)
-- [x] `POST /decrees/<id>/otp/request` y `POST /decrees/<id>/activate` (OTP + firma del Alcalde).
-- [x] Plantilla `decrees/activate.html` con captura de firma y código.
-- [x] Activación solo por rol ALCALDE (permiso `sign_decree`); decreto queda activo con firma almacenada.
-- [x] Firma del Alcalde de decretos activos se precarga en el bloque de firma del contrato (página 2).
+### A.3 RBAC granular + notificaciones (ex FASE 2)
+- [x] Modelos `Permission`, `Role`, `RolePermission`; migración `migrate_rbac_fields.py`; seed de permisos estándar (sin permisos de pago) + matriz de roles base. (`app/models/permission.py`)
+- [x] Decorador `@permission_required`; bypass SUPERADMIN; protección `/admin/*`. (`app/auth/utils.py`)
+- [x] Vistas SUPERADMIN: `/admin/roles` (crear/eliminar, roles base no eliminables), `/admin/roles/<rol>/assign` (matriz checkboxes), `/admin/permissions` + create. (`app/routes/admin.py`)
+- [x] UI RBAC en lenguaje natural (descripción humana + chip técnico; autogenera identificador desde acción).
+- [x] Gestión de usuarios/contraseñas: `/admin/users`, create, password (cambiar/generar seguro con `secrets`, mostrar una vez), toggle activo.
+- [x] Visibilidad de decretos de otros años (`other_years` en API; sincronización año en `decrees/form.html`).
+- [x] **Correos (Resend):** `email_service.py` (`send_email`, `send_otp_email`), config `RESEND_API_KEY/FROM_EMAIL/FROM_NAME`, modo prueba `RESEND_TEST_TO`.
+- [x] **OTP:** `otp_service.py` (generar, hashear, enviar, verificar, invalidar previos, intentos máx., expiración) + modelo `VerificationCode`. (`app/services/otp_service.py`, `app/models/verification_code.py`)
+- [x] **Notificaciones:** `notification_service.py` integrado en `log_action`; envía a usuarios activos con `receive_email_notifications=1` y permiso `view_audit`; catálogo `NOTIFICATION_EVENTS`.
+- [x] Campo `receive_email_notifications` (migración `migrate_phase5_notifications.py`) + toggle en perfil (`/auth/profile/notifications`) y en `/admin/users`.
+- [x] Plantilla de correo HTML (evento, entidad, responsable, detalles, enlace al expediente).
+- [x] Suscripción granular por evento (`disabled_notifications` JSON) + UI admin `/admin/users/<id>/notification-events` (migración `migrate_phase6_notification_events.py`).
+- [x] Auditoría de gestión `USER_*`, `ROLE_*`, `PERMISSION_*`.
+- [ ] (Opcional) Matriz de suscripción por evento en el perfil del propio usuario → **reubicado a FASE 3.4** (hoy solo el admin la gestiona por usuario; el perfil propio tiene únicamente el toggle general).
+- [ ] Confirmación en navegador por el usuario (ex 2.1bis): iniciar sesión SUPERADMIN y reiniciar Flask para ver navbar de Roles/Usuarios. *(Acción administrativa del usuario, no de código.)*
 
-### 7.5 Validación de datos del prestador
-- [ ] Bloquear firma del honorario si falta correo.
-- [ ] Marcar email como obligatorio en modal de prestador.
+### A.4 Rúbrica / firma ágil con metadatos (ex FASE 3)
+- [x] Captura de firma canvas (Signature Pad, Pointer Events: mouse/stylus/tableta/táctil) en preview y create/edit.
+- [x] `POST /contracts/<id>/sign`: OTP obligatorio + metadatos inmutables (RUT, nombre, timestamp, IP, dispositivo, hash SHA-256 del documento). (`ContractSignature`)
+- [x] Firma vectorial + bloque QR/código de validación al pie del PDF.
 
-### 7.6 Auditoría y seguridad
-- [ ] Acciones: `OTP_REQUESTED`, `OTP_VERIFIED`, `OTP_FAILED`, `SIGNATURE_OTP_INVALID`, `PROVIDER_EMAIL_MISSING`.
-- [ ] Rate limiting y pruebas.
+### A.5 Auditoría de descargas e impresiones (ex FASE 4)
+- [x] `GET /contracts/<id>/download-pdf` registra `DOCUMENT_DOWNLOADED` (IP, archivo, timestamp).
+- [x] `POST /api/audit/print-event` registra `DOCUMENT_PRINTED` (fetch/sendBeacon antes de `window.print()`).
+- [x] Sección "Historial de Accesos e Impresiones" en `detail.html`.
 
----
+### A.6 Firma OTP del Alcalde + activación de decretos (ex FASE 7)
+- [x] **Rol base `ALCALDE`** en `BASE_ROLES` + permisos `view_contract`, `sign_contract`, `sign_decree`, `view_audit` (seed `migrate_rbac_fields.py`). *(Estaba sin marcar en el plan anterior; verificado como hecho.)*
+- [x] SUPERADMIN y ALCALDE pueden firmar/activar plantillas del catálogo (permiso `sign_decree` + bypass SUPERADMIN).
+- [x] Infraestructura Resend + OTP + `VerificationCode` + config (ver A.3).
+- [x] `POST /contracts/<id>/sign` refactorizado con OTP; `sign-mayor` (OTP Alcalde); `sign-provider` (OTP al correo del prestador); `otp/request` por tipo de firmante; UI panel OTP en `preview_template.html`.
+- [x] `POST /decrees/<id>/otp/request` + `activate` (OTP + firma Alcalde); `decrees/activate.html`; activación solo con `sign_decree`; firma del Alcalde de decretos activos se precarga en el bloque de firma del contrato.
+- [~] **Bloqueo de firma del honorario sin correo:** hecho en servidor (`otp/request` y `sign-provider` rechazan si el prestador no tiene email). **Falta** marcar email como obligatorio en el modal de prestador → **reubicado a FASE 3.3**.
+- [ ] Auditoría OTP (`OTP_REQUESTED/VERIFIED/FAILED`, `SIGNATURE_OTP_INVALID`, `PROVIDER_EMAIL_MISSING`) + rate limiting → **reubicado a FASE 3.3** (verificado: no implementado).
 
-## FASE 1: Rediseño del Módulo de Decretos Previos y Vistos Buenos
-
-### 1.1 Extensión de la Base de Datos para Decretos
-- [x] Crear la tabla `contract_decrees` en SQLite (instancias por contrato) junto a `decree_templates` (catálogo maestro), con la siguiente estructura:
-  - `id`: INTEGER PRIMARY KEY
-  - `contract_id`: INTEGER (FK a `contracts`, cascade delete)
-  - `template_id`: INTEGER FK (trazabilidad de la plantilla de origen)
-  - `decree_type`: STRING (`PRESUPUESTO_ANUAL`, `CONTRATO_ANTERIOR`, `CONTRATO_ACTUAL`, `FICHA_RRHH`, `PROGRAMA_MUNICIPAL`, `SUBROGANCIA_ALCALDE`, `SUBROGANCIA_CONTROL`, `BASE_LEGAL`, `ANTECEDENTE_INSTITUCIONAL`, `OTRO`)
-  - `decree_number`: STRING (ej. `Decreto Exento N° 3.580`)
-  - `decree_date`: DATE
-  - `description`: TEXT (Texto completo del visto/antecedente)
-  - `origin`: STRING (`PLANTILLA` snapshot del catálogo | `MANUAL` ingreso del usuario)
-  - `display_order`, `created_at`
-- [x] Tabla `decree_templates`: plantillas fijas del año (`decree_type`, `decree_number`, `decree_date`, `description`, `year`, `is_active`, `created_at`)
-
-### 1.2 Catálogo Maestro de Decretos Anuales Estandarizados
-- [x] Vista de administración `/decrees` (CRUD + activar/desactivar + filtros por tipo/año), exclusiva para `SUPERADMIN`.
-- [x] Servicio de precarga: `_save_contract_decrees()` copia las plantillas activas del año como snapshot (origin PLANTILLA) al crear/editar contratos; edición posterior de plantillas no altera contratos existentes.
-
-### 1.3 Integración en Formulario y Split-View (`GET /contracts/create` & `/edit`)
-- [x] Sección **"Decretos y Antecedentes Previos (VISTOS)"** como Paso 4 del stepper, con checkboxes de plantillas fijas y filas dinámicas para decretos específicos del prestador.
-- [x] Bloque VISTOS renderizado en la hoja A4 del panel derecho (vista previa en vivo) y en el PDF oficial (`preview_template.html`).
-- [x] Parser OCR `extract_decrees_vistos()` en `/api/ocr-extract` y `/contracts/upload`: detecta el bloque VISTOS, une ítems multilínea, descarta sellos/timbres del scanner y clasifica tipo/número/fecha automáticamente. Calibrado contra el contrato escaneado real de la Municipalidad de Cunco (16/16 ítems extraídos correctamente).
-
-### 1.4 Refinamiento estructural "Cunco" (página 1 VISTOS + página 2 DECRETO)
-- [x] Nuevas columnas en `contracts` (migración idempotente `migrate_cunco_fields.py`): `provider_address`, `provider_comuna`, `hours_weekly` (defecto 44), `total_amount_words`.
-- [x] OCR ampliado (sección 4b): extrae domicilio del prestador, comuna y jornada semanal ("con una jornada de N horas") del contrato escaneado; el autofill no pisa campos editados manualmente (flag `dataset.manual`).
-- [x] Agrupación VISTOS/DECRETO en `models/decree.py`: `VISTOS_TYPE_ORDER` (orden canónico, OTRO al final), `order_vistos()`, tipos excluidos `BASE_LEGAL` (inyectado fijo en plantilla) y `CONTRATO_ACTUAL` (objeto del punto 1 del DECRETO). El tipo `OTRO` se conserva en VISTOS para no perder antecedentes ya cargados.
-- [x] `preview_template.html` con jerarquía 1:1 del decreto de Cunco:
-  - Página 1: bloque VISTOS con cabecera institucional fija (Fallo Tribunal Electoral 18-11-2024 + Acta Concejo 06-12-2024) + decretos dinámicos por `decree_type` + base legal nacional fija (Resolución CGR 15.700/2012, Oficio CGR 33.701/2014, Ley 18.695/1988).
-  - Página 2 (nueva, tras salto de página): **Decreto Alcaldicio N° {decline_number}** con REF, línea "DECRETO" y puntos 1 (APRUÉBASE dinámico: contrato, prestador con domicilio/comuna, programa, cargo, monto formateado y en letras, fechas y jornada semanal), 2 (fijo: contratos forman parte del decreto) y 3 (imputación al Ítem {budget_account} del Presupuesto Municipal año {budget_year}), remate "Anótese, tómese razón y comuníquese." y bloque de firma del Alcalde.
-- [x] Paso 4: textos institucionales fijos NO son seleccionables en el catálogo; `decree_templates` reacciona al año de presupuesto (`/api/decree-templates?year=YYYY` + JS en create/edit que recarga plantillas al cambiar `start_date` y conserva las marcadas de otro año con la etiqueta "(año distinto del vigente)").
-- [x] Formulario: campos nuevos — domicilio y comuna del prestador (Paso 1, precargados desde la ficha vía `/api/provider/<id>/detail`), jornada semanal (defecto 44) y monto total en palabras auto-generado (`numToWordsEs`, editable) — integrados en create y edit, con relleno por OCR y vista previa en vivo.
-- [x] `pdf_generator.py`: helper `order_vistos`, fechas en español, `format_money_cl`, `number_to_words_es` (fallback), `budget_year` (año de `start_date`), `hours_weekly` (defecto 44), `total_amount_formatted`.
-- [x] Prueba de integración (temporal, eliminada tras ejecutar): 38 verificaciones OK — orden VISTOS, exclusión BASE_LEGAL/CONTRATO_ACTUAL, disminución del catálogo por año, preview HTML y `api/preview` con página 2 completa, PDF generado y RBAC `/decrees`.
-
-### 1.5 Réplica visual 1:1 del documento de prueba en la vista en vivo + PDF (hojas 1/2/3+)
-- [x] Reestructuración del orden según el PDF escaneado real (verificado página por página con OCR): **Hoja 1 = DECRETO (VISTOS) → Hoja 2 = DECRETO (puntos resolutivos) → Hoja 3+ = CONTRATO**.
-- [x] `create.html` y `edit.html`: panel A4 del split-view ahora muestra las 3 hojas completas (3× `paper-sheet`), mismas tablas y orden que el borrador/PDF. `updateDecretoPreview()` actualiza en tiempo real el encabezado del decreto (N°/REF/fecha, ambas hojas), punto 1 (fecha, nombre/RUT/domicilio/comuna del prestador, programa, monto formateado + palabras, vigencia desde-al, jornada semanal) y punto 3 (ítem + año de presupuesto); conectada en `updatePreview()` (debounce) y en la inicialización.
-- [x] VISTOS en Hoja 1 con ítem autogenerado "El Contrato a Prestación de Servicios de fecha … suscrito entre la {municipalidad} y don(ña) {prestador}" (ítem 13 del decreto real) + constantes JS `MUNI_NAME`/`MUNI_CITY` derivadas de la config.
-- [x] Hoja 2: "Anótese, comuníquese, regístrese y archívese.", firmas (Secretario Municipal izquierda en blanco + Alcalde derecha con nombre/RUT) y pie "DISTRIBUCIÓN: Interesado / Alcaldía / Archivo Dirección de Finanzas / Archivo Dirección de Control Interno / Oficina de Partes / Archivo de Personal". En Hoja 2 y borrador NO se repite el membrete completo (solo el encabezado del decreto), igual que el documento real → evita desbordar a una 4ª página.
-- [x] Hoja del contrato: comparecencia "En la comuna de {muni_city}", firma única del Alcalde y testimonio en tres ejemplares (el prestador no firma), datos de la municipalidad desde `g.*` (config).
-- [x] `pdf_generator.py`: `link_callback` para xhtml2pdf (resuelve `/static/logos_muni/...` → embebe el logo municipal en el PDF descargado).
-- [x] Verificación end-to-end ejecutada (scripts temporales, ya eliminados): GET `/contracts/create`(200), `/contracts/{id}/edit`(200) y `/contracts/{id}/preview`(200) con las 39 marcas de las 3 hojas presentes; `api/preview` 200; PDF descargado de 6 páginas en orden correcto (1 VISTOS / 2 DECRETO completo con firmas+distribución / 3-6 contrato), logo embebido y fechas en español; navegación real en navegador (login → create → edit) con el panel en vivo poblado desde los datos del contrato y reactividad confirmada (nº decreto, fechas e ítem presupuestario reflejados al instante), sin errores de consola.
+### A.7 Otros hitos verificados
+- [x] Autenticación RUT/Email + contraseña (Werkzeug), sesiones, RBAC por rol. Dashboard con métricas y filtro por departamento. (`app/routes/dashboard.py`)
+- [x] Buscador global omnipresente Ctrl+K en topbar → `/contracts/api/search-provider-contract`. (`templates/base.html`)
+- [x] Ingesta OCR de contratos externos (`/contracts/upload`, `/api/ocr-extract`, `/api/ocr-progress`, `/api/ocr-cancel`) con creación rápida de prestador/departamento.
+- [x] Renovación/clonación de contratos con nuevo correlativo e historial por funcionario (nunca sobrescribe el anterior).
+- [x] Bitácora de auditoría inmutable + API de traza (`audit-trail`, `get_entity_trail`).
 
 ---
 
-**NOTA GENERAL (2026-11-09):** El módulo de Pagos Mensuales (bandejas, revisión/aprobación, payments) fue **eliminado del proyecto** por decisión del usuario — no es requisito. Las referencias a pagos en fases posteriores de este plan quedan sin efecto; los permisos `approve_payment_lvl1/lvl2` fueron removidos del catálogo RBAC.
+## PARTE B — Fases de desarrollo activas (alineadas con `plan_brechas.md` §6)
+
+> Orden acordado: primero lo que se controla hoy en el piloto (permisos → antecedentes → firmas → visaciones), después la envoltura de estandarización para vender. Las FASES 1–5 se construyen sobre el código single-tenant actual y no se pierden al llegar multi-tenant.
+> **Clave:** los permisos de escritura por sección (FASE 1) son el esqueleto del circuito de visaciones (FASE 5).
+
+| Fase | Nombre | Dependencias |
+|---|---|---|
+| 1 | Permisos por sección + rol Secretario + numeración del decreto (+ higiene) | — |
+| 2 | Antecedentes del prestador + contratación express | 1 |
+| 3 | Firmas OTP unificadas + FEA complementaria + correos formales | 1 |
+| 4 | Expediente pre-contractual (Requerimiento + CDP pasivo) + estados | 1, 2 |
+| 5 | Circuito de visaciones configurable + subrogaciones + alertas | 1, 4 + descubrimiento |
+| 6 | Fundación multi-tenant + config institucional | 1–5 |
+| 7 | Motor de plantillas (ESTANDAR_CGR + CUNCO) + CONSIDERANDOS | 6 |
+| 8 | SIAPER + distribución (opción SIAPER-lite tras 3) | 1, 6 |
+| 9 | Endurecimiento comercial + validación jurídica + docs | todas |
 
 ---
 
-## FASE 2: Gestión Fina de Permisos (RBAC) y Notificaciones por Correo
+### FASE 1 — Permisos de escritura por rol/sección + Secretario + numeración
 
-### 2.1 Módulo de Gestión de Roles y Permisos Granulares
-- [x] Crear modelos `Permission` y `RolePermission` para soportar asignación fina de permisos.
-  - `app/models/permission.py`: `Permission` (permiso granular con `name`/`description`/`module`), `Role` (nombre de rol disponible; NO reemplaza al campo string `User.role`, lo complementa), `RolePermission` (asignación rol→permiso, unique por par).
-  - Migración idempotente `migrate_rbac_fields.py`: crea tablas `roles`, `permissions` y `role_permissions`; seed de 10 permisos estándar (create/edit/view/delete_contract, create/edit/delete_decree, manage_users, manage_roles, view_audit — sin permisos de pago: el módulo de Pagos fue eliminado del proyecto a solicitud del usuario) y matriz inicial rol→permiso para los 5 roles base (SUPERADMIN, ADMIN_RRHH, JEFE_DEPTO, FINANZAS_CONTROL, AUDITOR).
-- [x] Crear vista de administración exclusiva para el `SUPERADMIN` que permita:
-  - Crear y editar roles personalizados. → `/admin/roles` (listado con etiqueta BASE, crear rol, eliminar rol — roles base del sistema no eliminables, y refuse si hay usuarios asignados), `/admin/roles/create`. Los roles persisten en la tabla `roles` (`is_base=1` para los del sistema).
-  - Asignar permisos específicos (ej. `create_contract`, `edit_decree`, `approve_payment_lvl1`, etc.). → `/admin/roles/{rol}/assign` (matriz de checkboxes por permiso, guarda y reporta), `/admin/permissions` + `/admin/permissions/create` para gestionar el catálogo de permisos.
-  - Decorador `@permission_required('permiso')` en `app/auth/utils.py`: verifica que el rol del usuario en sesión tenga el permiso; `SUPERADMIN` siempre pasa (bypass). Protección de `/admin/*` con `@role_required('SUPERADMIN')` y enlace "Roles y Permisos" en el navbar solo visible para SUPERADMIN.
-  - Prueba de integración (temporal, eliminada tras ejecutar): 22 verificaciones OK — seed, RBAC de la vista, CRUD de roles/permisos, y decorador (permitir a rol con permiso, bloquear sin él, bypass SUPERADMIN).
-  - Nota: las rutas existentes (`/contracts/*`, `/payments/*`) conservan sus `@role_required`; el acople de `@permission_required` por ruta se hará junto con la planificación de la lógica de aprobación de decretos/contratos acordada con el usuario.
-- [x] UI del RBAC en lenguaje natural (para usuarios no técnicos):
-  - `assign_permissions.html`: checklist agrupado por módulo (Contratos / Decretos / Usuarios / Auditoría / General) — cada permiso muestra la descripción humana como etiqueta principal y el identificador técnico como chip secundario en monospace.
-  - `permissions.html` en formato "Acción permitida" con área del sistema; `create_permission.html` pide la acción en lenguaje natural y autogenera el identificador técnico (JS, soporta vocales tildadas).
-  - `roles.html`: chips de permisos con descripción + fuente técnica, botón a "Usuarios y Contraseñas", nota de que los cambios se aplican de inmediato.
-- [x] Gestión de usuarios y contraseñas (solo SUPERADMIN):
-  - `/admin/users` (listado + crear usuario con rol, departamento y contraseña), `/admin/users/create`, `/admin/users/{id}/password` (cambiar o generar nueva contraseña; mín. 8 caracteres si es manual; se muestra UNA sola vez con botón Copiar y opción "Generar otra"), `/admin/users/{id}/toggle` (activar/desactivar).
-  - Enlace "Usuarios" en el navbar para SUPERADMIN; generación segura con `secrets` (alfabeto sin caracteres ambíguos).
-- [x] Visibilidad de decretos de otros años en contratos (bug reportado por usuario: decreto de año 2023 no aparecía):
-  - `/contracts/api/decree-templates` devuelve además `other_years` (plantillas activas de otros años del catálogo).
-  - `create.html`/`edit.html`: grupo colapsable "Decretos de otros años del catálogo" con badge ámbar "Año N", desmarcados por defecto.
-  - `decrees/form.html`: el select "Año de Vigencia" se sincroniza automáticamente con el año de la fecha del decreto (JS) — evita decretos con año desfasado como el detectado (2023/2026).
-  - Prueba de integración (temporal, eliminada tras ejecutar): 38 verificaciones OK — usuarios/contraseñas (crear, mín. 8, generar, cambiar, login con nueva, toggle), RBAC amigable, API de otros años, plantillas estáticas.
+**Objetivo:** cada rol solo escribe sus secciones (servidor + UI); el Secretario Municipal firma con OTP y es el único que numera/fecha el decreto; cerrar huecos de firma actuales.
 
-### 2.1bis Pendiente de confirmación en navegador (usuario)
-- Usuario debe iniciar sesión como SUPERADMIN (`super@muni.cl` / `super123`) y reiniciar su Flask (`python app.py`) para ver "Roles y Permisos" y "Usuarios" en el navbar, la gestión de usuarios, el checklist amigable de permisos, y los decretos de otros años en el Paso 2 de contratos.
+#### 1.0 Higiene previa
+- [ ] `CSRFProtect` global (Flask-WTF ya instalado, solo usado en login) + tokens en formularios y fetch POST (create/edit/sign/admin/decrees/quick-add).
+- [ ] Eliminar `app/templates/contracts/pdf_template.html` (legacy Temuco hardcodeado, sin uso; el generador usa `preview_template.html`).
+- [ ] Validaciones servidor en create/edit: `start_date < end_date`; `end_date ≤ 31-12` del año de inicio; montos > 0; coherencia `total ≈ mensual × meses` (advertencia); RUT chileno válido.
+- [ ] Advertencia UI sobre `hours_weekly` (jornada fija = indicio de subordinación laboral; se conserva en perfil Cunco como práctica local parametrizable).
 
-### 2.2 Matriz y Configuración de Notificaciones por Correo (Resend)
-- [x] Servicio de envío de correos con Resend (`app/services/email_service.py`) — `send_email`, `send_otp_email`.
-- [x] Configuración: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` en `config.py`.
-- [x] Servicio OTP (`app/services/otp_service.py`) y modelo `VerificationCode` (6 dígitos, 10 min, máx. intentos).
-- [x] Añadir campo `receive_email_notifications` (BOOLEAN) en `users` (migración `migrate_phase5_notifications.py`).
-- [x] Servicio de notificaciones por correo (`app/services/notification_service.py`) integrado en `log_action`: envía a usuarios suscritos con permiso `view_audit`.
-- [x] Toggle de notificaciones en perfil de usuario y en `/admin/users`.
-- [x] Plantilla de correo HTML con evento, entidad, responsable, detalles y enlace al expediente.
-- [x] Suscripción granular por evento (`disabled_notifications` JSON) con UI en `/admin/users/<id>/notification-events`.
-- [x] Auditoría para gestión de usuarios, roles y permisos (USER_*, ROLE_*, PERMISSION_*).
-- [ ] (Opcional) Matriz de suscripción por evento en el perfil del propio usuario.
+#### 1.1 Catálogo de permisos por sección + rol Secretario
+- [ ] Migración idempotente (extender `migrate_rbac_fields.py` o nueva `migrate_section_permissions.py`): `write_provider_data`, `write_contract_terms`, `write_functions`, `write_vistos`, `write_budget`, `write_decree_number`, `sign_mayor`, `sign_secretary`, `sign_provider_assisted`, `change_status` (module `Contratos`).
+- [ ] Rol base `SECRETARIO_MUNICIPAL` en `BASE_ROLES` (`routes/admin.py`) + seed de matriz.
+- [ ] `has_permission` / `@permission_required`: el bypass de SUPERADMIN **no aplica a permisos de firma** (`sign_*`).
 
----
+**Matriz rol → sección (escritura):**
 
-## FASE 3: Módulo de Rúbrica / Firma Ágil con Metadatos de Validación
+| Sección | JEFE_DEPTO | ADMIN_RRHH | FINANZAS_CONTROL | ALCALDE | SECRETARIO_MUNICIPAL | AUDITOR | SUPERADMIN |
+|---|---|---|---|---|---|---|---|
+| Datos del prestador (personales/bancarios) | — | ✅ | — | — | — | — | ✅ |
+| Condiciones del contrato (cargo, programa, fechas, montos, modalidad) | ✅ borrador | ✅ | ✅ montos | — | — | — | ✅ |
+| Funciones / cometido específico | ✅ | ✅ | — | — | — | — | ✅ |
+| VISTOS específicos del prestador | ✅ | ✅ | — | — | — | — | ✅ |
+| Presupuesto (cuenta, subprograma, centro de costo) | — | — | ✅ | — | — | — | ✅ |
+| N° y fecha del decreto | — | — | — | — | ✅ al firmar | — | — |
+| Firma Alcalde | — | — | — | ✅ OTP | — | — | — |
+| Firma Secretario | — | — | — | — | ✅ OTP | — | — |
+| Firma prestador (asistida, OTP a su correo) | — | ✅ | — | — | — | — | — |
+| Cambios de estado | — | ✅ | — | — | — | — | ✅ |
 
-### 3.1 Interfaz de Captura de Firma Frontend
-- [x] Integrar biblioteca JavaScript de firma digital (canvas Signature Pad) en la vista de previsualización (`/contracts/<id>/preview`) y en el armador (create/edit), soportando mouse, stylus, tableta USB y pantalla táctil (Pointer Events).
-- [x] Adaptar la interfaz para capturar rúbricas mediante periféricos USB (tabletas Wacom, pantallas táctiles, mouse o stylus).
+#### 1.2 Enforcement en servidor
+- [ ] POST `/contracts/create` y `/<id>/edit`: whitelist de campos según permisos de la sesión; campo prohibido → ignorar/rechazar + flash + auditoría `WRITE_DENIED`.
+- [ ] `sign-mayor`: restringir `@role_required` a **solo ALCALDE** (hoy acepta ADMIN_RRHH, SUPERADMIN, JEFE_DEPTO, FINANZAS_CONTROL, ALCALDE).
+- [ ] `sign-provider`: operador con `sign_provider_assisted` (ADMIN_RRHH/SUPERADMIN); OTP al correo del prestador; `operator_user_id` registrado.
+- [ ] Nuevo `POST /contracts/<id>/sign-secretary`: solo SECRETARIO_MUNICIPAL; OTP + rúbrica + asignación `decline_number`/`decline_date` en una transacción → estado `EMITIDO` + auditoría `DECREE_ISSUED`.
+- [ ] `POST /contracts/<id>/otp/request`: nuevo purpose `CONTRACT_SIGN_SECRETARY`; restringir `signer_kind` según rol.
 
-### 3.2 Servicio Backend de Sellado y Metadatos
-- [x] Diseñar el endpoint `POST /contracts/<id>/sign` para procesar la firma digital interna.
-- [x] Almacenar los metadatos inmutables de la firma:
-  - RUT y Nombre de la sesión activa del firmante.
-  - Timestamp exacto con precisión de milisegundos.
-  - Dirección IP de la estación de trabajo y tipo de dispositivo.
-  - Hash SHA-256 del contenido del documento al momento de firmar.
-- [x] Estampar dinámicamente la firma vectorial + bloque de código QR/texto de validación al pie de las páginas del PDF.
+#### 1.3 Numeración del decreto
+- [ ] `decline_number`/`decline_date` salen del formulario create/edit (solo lectura si ya existen).
+- [ ] Correlativo anual sugerido (secuencia año + último número; formato configurable a futuro), editable por el Secretario.
+- [ ] Estado `EMITIDO` agregado: `BORRADOR → CREADO_PARA_FIRMA → EMITIDO → INGRESADO → EN_EJECUCION → FINALIZADO` (refinamiento completo en FASE 4).
 
----
+#### 1.4 Eliminación de firmas libres
+- [ ] Quitar `mayor_signature`/`secretary_signature` del POST create/edit y de los modales de dibujo libre.
+- [ ] Migración de datos existentes: documentos ya emitidos conservan render legacy; nuevos documentos solo vía `ContractSignature` + OTP.
 
-## FASE 4: Auditoría de Descargas e Impresiones en Bitácora (`AuditLog`)
+#### 1.5 UI
+- [ ] `can_write(section)` en contexto de create/edit/preview; secciones en solo-lectura con candado y tooltip de rol.
+- [ ] Panel "Firmar y numerar decreto" exclusivo del Secretario en detail/preview.
+- [ ] Modal de firma visible solo para el rol propio; navbar y admin de roles actualizados.
 
-### 4.1 Captura de Eventos Backend (Descarga PDF)
-- [x] Interceptar la ruta `GET /contracts/<id>/download-pdf`.
-- [x] Registrar automáticamente en `AuditLog` un evento con:
-  - `action`: `DOCUMENT_DOWNLOADED`
-  - `user_id`: ID del usuario en sesión
-  - `payload`: JSON con IP, nombre de archivo y marca de tiempo.
+#### 1.6 Auditoría y tests
+- [ ] Eventos `WRITE_DENIED`, `DECREE_ISSUED`, `SIGNATURE_SECRETARY` (integración `notification_service`).
+- [ ] Tests pytest: matriz rol×sección (permitido/denegado), firma restringida por rol, numeración exclusiva del Secretario, CSRF activo.
 
-### 4.2 Captura de Eventos Frontend (Impresión Local)
-- [x] Interceptar las llamadas al botón de impresión o `window.print()` en la interfaz visual.
-- [x] Enviar una petición silenciosa mediante `fetch` o `navigator.sendBeacon` al endpoint `POST /api/audit/print-event` antes de desplegar el cuadro de diálogo de impresión.
-- [x] Registrar en `AuditLog` la acción `DOCUMENT_PRINTED` con la misma estructura de metadatos.
-
-### 4.3 Visualización del Historial en el Expediente
-- [x] Añadir sección **"Historial de Accesos e Impresiones"** en `detail.html` mostrando descargas e impresiones registradas.
+**Criterios de aceptación:** cada rol solo escribe sus secciones (servidor rechaza el resto); solo ALCALDE firma como Alcalde; solo SECRETARIO_MUNICIPAL numera y firma el decreto; SUPERADMIN no firma; validaciones de fecha/monto activas; sin campos de firma dibujables libres.
 
 ---
 
-## FASE 5: Subrogancias, Control de Estancamiento y Estados Institucionales
+### FASE 2 — Antecedentes del prestador + contratación express
 
-### 5.1 Módulo de Subrogancias Temporales
-- [ ] Crear la tabla `temporary_subrogations` (`id`, `absent_user_id`, `subrogate_user_id`, `start_date`, `end_date`, `decree_reference`).
-- [ ] Crear interfaz en el perfil de usuario para programar delegaciones de firmas y aprobaciones durante ausencias/vacaciones.
-- [ ] Implementar vista de **Reasignación Extraordinaria por RRHH** para transferir la bandeja de un usuario ausente sin subrogante designado, registrando la justificación obligatoria en `AuditLog`.
+**Objetivo:** carpeta documental por prestador con checklist y vencimientos; el modal quick-add se mantiene para express con gate de kit mínimo antes de emitir el decreto.
 
-### 5.2 Sistema de Alertas y Escalamiento por Estancamiento
-- [ ] Programar tarea periódica (*cron job* o tarea en segundo plano) que analice contratos y pagos detenidos por más de 5 días en un mismo nivel.
-- [ ] Disparar correos de alerta de escalamiento automático al Administrador Municipal o superior jerárquico según el rol.
+#### 2.1 Modelo y catálogo
+- [ ] `ProviderDocument`: `provider_id`, `doc_type`, `file_path`, `original_filename`, `issue_date`, `expiry_date`, `verified_by_user_id`, `verified_at`, `status` (PENDIENTE/VERIFICADO/RECHAZADO/VENCIDO), `notes`, `created_at`.
+- [ ] Catálogo `doc_types` **configurable como dato**: CEDULA, CV, ANTECEDENTES_FINES_ESPECIALES, TITULO_EXPERTO, DJ_INHABILIDADES, AFP, SALUD, SITUACION_MILITAR, OTRO.
+- [ ] Requisitos por modo: **kit mínimo express** (CEDULA + DJ_INHABILIDADES + TITULO_EXPERTO) vs. carpeta completa estándar.
 
-### 5.3 Carril Legal de Representación por Control Interno
-- [ ] Añadir el estado `REPRESENTADO_POR_CONTROL` al flujo de vida del contrato.
-- [ ] Habilitar en el UI la opción para que la Dirección de Control adjunte observaciones escritas (Reparos) y la unidad técnica pueda subir el decreto o antecedentes subsanatorios.
+#### 2.2 UI Antecedentes
+- [ ] Ítem navbar "Antecedentes" junto a "Crear contrato": lista de prestadores con semáforo de carpeta (completa/incompleta/vencida) + filtros.
+- [ ] Vista de carpeta por prestador: upload por tipo, fechas emisión/vencimiento, verificación RRHH (VERIFICADO/RECHAZADO + observación), preview/descarga.
+- [ ] Checklist de completitud en la ficha del contrato.
+- [ ] Generador de **DJ de inhabilidades** prellenada (Ley 18.575) desde datos del prestador.
+- [ ] Alertas de vencimiento de certificados.
 
-### 5.4 Módulo Presupuestario Pasivo (Feature Flag)
-- [ ] Crear la variable de configuración global `BUDGET_MODULE_INTEGRATION = False` en `config.py`.
-- [ ] Asegurar que los campos `budget_account` y `cost_center` actúen como metadata de referencia legal sin ejecutar bloqueos o transacciones contables activas.
+#### 2.3 Contratación express
+- [ ] Mantener modal quick-add (RUT, nombre, **email obligatorio para OTP**, profesión).
+- [ ] Flag `carpeta_pendiente` en contrato/prestador + banner de documentos faltantes en detail.
+- [ ] **Gate:** `sign-secretary` bloqueado si el kit mínimo no está VERIFICADO; mensaje claro de qué falta.
+- [ ] Resto de documentos adjuntables después, con alertas de plazo configurable.
+- [ ] Auditoría `PROVIDER_DOC_UPLOADED/VERIFIED/REJECTED`, `EXPRESS_FOLDER_PENDING`.
+
+#### 2.4 Permisos
+- [ ] `write_provider_documents` (ADMIN_RRHH, SUPERADMIN), `verify_provider_documents` (ADMIN_RRHH); JEFE_DEPTO lectura. Matriz actualizada.
+
+**Criterios de aceptación:** carpeta por prestador operativa; express permite crear y firmar pero **no emitir decreto** sin kit mínimo verificado; alertas de vencimiento; DJ autogenerada.
 
 ---
 
-## FASE 6: Pruebas e Integración Final
+### FASE 3 — Firmas OTP unificadas + FEA complementaria + correos formales
 
-- [ ] Probar el flujo completo con el PDF escaneado de prueba de la Municipalidad de Cunco.
-- [ ] Validar que la extracción OCR diferencie correctamente los Vistos/Decretos del cuerpo del contrato.
-- [ ] Verificar que las alertas por correo se despachen únicamente a los roles suscritos.
-- [ ] Asegurar que la firma ágil quede incrustada de forma clara sin alterar el formato original del PDF.
-- [ ] Validar el registro de descargas, impresiones físicas y subrogancias en la bitácora de auditoría.
+**Objetivo:** toda firma con OTP + metadatos; orden legal forzado; ingesta FEA externa como complemento; seguridad OTP; envío formal de correos con dominio verificado.
+**Base ya implementada (Parte A.3/A.4/A.6):** Resend, OTP, `ContractSignature`, firma Alcalde/prestador, activación de decretos. Esta fase unifica, restringe y completa.
+
+#### 3.1 Unificación y orden
+- [ ] Toda firma (Alcalde, Secretario, prestador) vía `ContractSignature` + OTP + hash SHA-256 + metadatos (Secretario completado en FASE 1).
+- [ ] **Orden forzado:** prestador → Alcalde → Secretario; los endpoints validan predecesores.
+- [ ] Gates de firma configurables que se activan al existir el módulo: visaciones completas (FASE 5), CDP (FASE 4), carpeta/kit mínimo (FASE 2).
+
+#### 3.2 FEA complementaria y política por muni
+- [ ] Ruta upload/OCR existente como ingesta de documento firmado externamente (FEA): registro de hash del PDF externo + vinculación al expediente + estado `FIRMADO_EXTERNO`.
+- [ ] `signature_policy` configurable: `AGIL_INTERNA` / `FEA_EXTERNA` / `HIBRIDA` (por firmante). Single-tenant como config; por tenant en FASE 6.
+- [ ] Página pública de validación por código (QR) sin login: `/validar/<codigo>` → firmante, fecha, hash, estado.
+
+#### 3.3 Seguridad OTP *(reubica pendientes 7.5 y 7.6 del plan anterior)*
+- [ ] **Marcar email como obligatorio en el modal de prestador** (create/edit) + validación en `quick-add` (hoy `m_email` es opcional y el servidor acepta email vacío). *(7.5 parcial: el bloqueo de firma sin correo en servidor ya está hecho.)*
+- [ ] Rate limiting OTP (por IP + por entidad) en `otp/request`.
+- [ ] Auditoría OTP: `OTP_REQUESTED`, `OTP_VERIFIED`, `OTP_FAILED`, `SIGNATURE_OTP_INVALID`, `PROVIDER_EMAIL_MISSING`.
+- [ ] `SECRET_KEY` sin fallback dev en producción (fail-fast si no está definida).
+
+#### 3.4 Correos: envío formal *(reubica 0.2 y 2.2 opcional; tarea nueva de dominio)*
+- [ ] **Validar dominio remitente en Resend** (DNS SPF/DKIM) y configurar `RESEND_FROM_EMAIL` definitivo (ej. `no-reply@municipalidaddecunco.cl` o dominio del producto). Hoy: config default `onboarding@resend.dev`, service default `no-reply@municipalidaddecunco.cl` sin dominio verificado. **Es lo único que falta para el envío formal de correos.**
+- [ ] Desactivar `RESEND_TEST_TO` en producción (hoy redirige todos los correos a un destinatario de prueba).
+- [ ] Verificación por correo del nuevo email en `change-email` (enviar código/ enlace de confirmación antes de aplicar el cambio). *(ex 0.2)*
+- [ ] (Opcional) Matriz de suscripción por evento en el perfil del propio usuario. *(ex 2.2; hoy solo admin)*
+
+**Nota legal:** OTP + rúbrica + hash + bitácora = firma electrónica **simple** con evidencia robusta (Ley 19.799), no FEA (exige certificado de prestador acreditado). La FEA externa se ingiere como complemento. Validar con Jurídica/Control de Cunco antes de ofrecerlo como "cumple lo legal" (FASE 9).
+
+**Criterios de aceptación:** ninguna firma sin OTP; orden respetado; FEA externa ingresada y hasheada; validación pública funciona; rate limiting activo; correos salen desde dominio verificado (sin `RESEND_TEST_TO`).
+
+---
+
+### FASE 4 — Expediente pre-contractual (Requerimiento + CDP pasivo) + estados
+
+**Objetivo:** cubrir la etapa 1 del flujo legal y unificar el expediente como agregado trazable.
+
+#### 4.1 Requerimiento
+- [ ] Modelo `Requerimiento`: `department_id`, `solicitado_por`, `cometido`, `perfil_requerido`, `plazo`, `monto_estimado`, `justificacion`, `estado` (SOLICITADO/AUTORIZADO/RECHAZADO), `autorizado_por`, `fecha_autorizacion`, referencia a decreto de delegación.
+- [ ] UI: JEFE_DEPTO crea la solicitud; Alcalde/Administrador Municipal autoriza (delegación configurable).
+- [ ] El contrato nace vinculado a un requerimiento autorizado (o express con justificación).
+
+#### 4.2 CDP pasivo *(reubica ex FASE 5.4 — módulo presupuestario pasivo)*
+- [ ] Modelo `BudgetCertificate`: `folio`, `emitido_por_unidad`, `fecha`, `monto`, `budget_account`/`subtitulo`/`item`, `programa`, `pdf_path`, `atestacion_10pct`, `estado`, vínculo a requerimiento/contrato.
+- [ ] UI: FINANZAS_CONTROL registra el CDP + adjunta PDF emitido por DAF/SECPLA; atestación manual del tope 10%.
+- [ ] Gate: sin CDP no se avanza a visaciones/emisión (configurable).
+- [ ] Variable `BUDGET_MODULE_INTEGRATION=False` en config; `budget_account`/`cost_center` como metadata legal sin transacciones contables activas.
+
+#### 4.3 Máquina de estados completa + expediente
+- [ ] Estados: `REQUERIMIENTO → AUTORIZADO → CDP_EMITIDO → ANTECEDENTES_OK → BORRADOR → EN_VISACION → VISADO → EN_FIRMA → FIRMADO → EMITIDO → SIAPER_PENDIENTE → REGISTRADO → EN_EJECUCION → FINALIZADO`; ramas `OBSERVADO`, `REPARADO`, `TERMINADO_ANTICIPADO`.
+- [ ] Transiciones validadas en servidor + auditoría; migración desde los estados actuales.
+- [ ] Vista de **expediente unificado**: contrato + requerimiento + CDP + carpeta + visaciones + firmas + SIAPER.
+
+#### 4.4 Renovación
+- [ ] La clonación existente revalida CDP vigente y vencimientos de antecedentes; nuevo correlativo.
+
+**Criterios de aceptación:** requerimiento autorizado y CDP adjunto son prerequisitos del expediente estándar; máquina de estados completa y auditada; renovación revalida antecedentes.
+
+---
+
+### FASE 5 — Circuito de visaciones configurable + subrogaciones + alertas
+
+**Objetivo:** cubrir la etapa 4 del flujo legal. **Descubrimiento primero, código después** (la muni no ha explicado el flujo real).
+
+#### 5.0 Descubrimiento (previo al código)
+- [ ] Aplicar el **cuestionario de `plan_brechas.md` §8** a RRHH, Finanzas, Jurídica, Control y Secretaría de Cunco.
+- [ ] Validar orden real, observaciones/reparos, delegaciones, subrogancias y plazos.
+
+#### 5.1 Motor de visaciones
+- [ ] Modelo `VisacionStage`: etapas funcionales (RRHH/FINANZAS/JURIDICA/CONTROL), orden, activa, mapeo a department/usuarios del tenant. **Configurable por datos**, flujo legal como default.
+- [ ] Modelo `Visacion`: `contract_id`, `stage`, `user_id`, `accion` (VISAR/OBSERVAR/RECHAZAR), `observaciones`, `timestamp`.
+- [ ] Circuito: borrador completo → `EN_VISACION` recorre etapas activas; observación devuelve al originador; rechazo termina.
+- [ ] Cada etapa usa los permisos de sección de FASE 1 + acción de visado.
+
+#### 5.2 Carril de Control Interno *(reubica ex FASE 5.3)*
+- [ ] Estado `REPARADO` / `REPRESENTADO_POR_CONTROL`; Control adjunta reparos escritos; la unidad técnica sube decreto/antecedentes subsanatorios; re-visación.
+
+#### 5.3 Subrogaciones *(reubica ex FASE 5.1)*
+- [ ] `temporary_subrogations`: `absent_user_id`, `subrogate_user_id`, `start_date`, `end_date`, `decree_reference`.
+- [ ] UI en perfil para programar delegaciones; **reasignación extraordinaria por RRHH** con justificación obligatoria en `AuditLog`.
+- [ ] Firma del subrogante: OTP propio + metadato de subrogancia + decreto de subrogancia en VISTOS.
+
+#### 5.4 Alertas de estancamiento *(reubica ex FASE 5.2)*
+- [ ] Job periódico (cron/APScheduler) que detecta expedientes >5 días en una etapa → correo de escalamiento al superior/Administrador.
+- [ ] Semáforo "días en etapa" en Ctrl+K y dashboard (verde <2, amarillo 3–5, rojo >5).
+
+**Criterios de aceptación:** circuito configurable por muni; observaciones/reparos con subsanación; subrogaciones con decreto y OTP; alertas despachadas.
+
+---
+
+### FASE 6 — Fundación multi-tenant + config institucional
+
+**Objetivo:** una BD SQLite por municipalidad; configuración institucional en BD; onboarding de nueva muni en un comando.
+
+- [ ] Registro maestro (`master.db` o `registry.json` en volumen): slug, nombre, `db_path`, logo, activa.
+- [ ] Routing por subdominio en producción; selector de municipalidad en login para dev.
+- [ ] Engines SQLite por tenant + session routing por request; adaptación de app factory, auth, audit y uploads por carpeta de tenant.
+- [ ] Config institucional en BD por tenant (`Municipality`): nombre, RUT, logo, comuna, jurisdicción, autoridades (Alcalde/Secretario/Administrador con delegación), `signature_policy`, `document_profile`, formatos de correlativos, lista de distribución.
+- [ ] Migraciones idempotentes corren sobre cada BD de tenant; **Cunco migra a tenant #1 sin pérdida de datos**.
+- [ ] Textos fijos (Fallo Tribunal Electoral 18-11-2024, Acta Concejo 06-12-2024, etc.) salen del código → catálogo por tenant/año.
+- [ ] Script de onboarding: nueva muni (BD + seed + config + catálogo) en un comando.
+- [ ] Tests de aislamiento (tenant A no ve datos de tenant B).
+
+**Criterios de aceptación:** dos munis conviven aisladas; config institucional editable por UI; onboarding en un comando; Cunco intacto como tenant #1.
+
+---
+
+### FASE 7 — Motor de plantillas documentales
+
+**Objetivo:** perfiles ESTANDAR_CGR (default) + CUNCO (variante); cláusulas y textos como datos; CONSIDERANDOS.
+
+- [ ] Biblioteca de cláusulas estándar nacionales (`ClauseTemplate`) + edición por tenant.
+- [ ] Perfil **ESTANDAR_CGR**: contrato bilateral separado + decreto VISTOS → **CONSIDERANDOS** → RESOLUTIVA + imputación.
+- [ ] Perfil **CUNCO**: réplica actual de 3 hojas como variante (contrato integrado, testimonio en 3 ejemplares, jornada parametrizable).
+- [ ] Bloque CONSIDERANDOS: dinámicos (necesidad del servicio, CDP, calidad de experto) + fijos por tenant.
+- [ ] VISTOS: bases legales nacionales compartidas + catálogo local por tenant/año (extiende `decree_templates`).
+- [ ] Correlativos automáticos de contrato (formato configurable); N° de decreto ya lo asigna el Secretario (FASE 1).
+- [ ] Split-view y `pdf_generator` renderizan por perfil; eliminar hardcodes Cunco/Temuco restantes.
+
+**Criterios de aceptación:** una muni nueva usa el perfil estándar sin tocar código; Cunco conserva su réplica; CONSIDERANDOS presente en el decreto estándar.
+
+---
+
+### FASE 8 — SIAPER + distribución
+
+**Objetivo:** cubrir la etapa 6 del flujo legal (obligación ya citada en los VISTOS). 100% estándar nacional.
+
+- [ ] `SiaperRegistration`: `contract_id`, `fecha_emision_decreto`, `plazo_limite` (**15 días hábiles** con feriados Chile), `estado` (PENDIENTE/ENVIADO/REGISTRADO/OBSERVADO), `responsable_user_id`, `folio_registro`, `comprobante_path`.
+- [ ] El reloj arranca en `EMITIDO` (FASE 1); alertas día ~10 y vencido → escalamiento.
+- [ ] Paquete de exportación: decreto + contrato firmados (+ índice de antecedentes) en ZIP/PDF para subida manual a SIAPER (**no hay API pública de CGR**).
+- [ ] Distribución configurable por tenant (interesado, alcaldía, finanzas, control, oficina de partes, personal) con registro de entrega/recepción; habilitación hacia Finanzas/SMC.
+- [ ] KPIs: % registrados en plazo, pendientes, vencidos.
+- [ ] **Opción SIAPER-lite:** tracking + plazo sobre `decline_date` manual, adelantable tras FASE 3 como gancho comercial.
+
+**Criterios de aceptación:** plazo de 15 días hábiles calculado y alertado; paquete exportable; distribución registrada; KPI visible.
+
+---
+
+### FASE 9 — Endurecimiento comercial + validación jurídica + docs
+
+*(Reubica la ex FASE 6 "Pruebas e Integración Final".)*
+
+- [ ] Suite pytest completa: aislamiento tenant, máquina de estados, gates, matriz de permisos, OTP, plazo SIAPER, smoke OCR.
+- [ ] Probar flujo completo con el PDF escaneado de prueba de Cunco; validar que OCR diferencie VISTOS/Decreto del cuerpo del contrato.
+- [ ] Verificar que las alertas por correo se despachen solo a roles suscritos.
+- [ ] Asegurar que la firma ágil quede incrustada sin alterar el formato original del PDF.
+- [ ] Validar registro de descargas, impresiones y subrogancias en bitácora.
+- [ ] Seguridad: rate limiting global, validación de uploads (tipo/tamaño/contenido), secrets por entorno, auditoría de accesos sensibles, headers de seguridad.
+- [ ] Reescritura de `README.md`, `Contextos/Requerimientos.md` y `CONTEXTO_SIGH-MUNI` alineados al producto real (eliminar referencias al módulo de pagos eliminado y a la firma "100% externalizada").
+- [ ] Kit de onboarding por muni + datos demo para ventas.
+- [ ] **Validación jurídica** del perfil ESTANDAR_CGR y de la política de firma OTP/FEA con la Dirección Jurídica/Control de Cunco **antes de ofrecerlo a otras munis**.
+
+**Criterios de aceptación:** tests verdes; docs coherentes; perfil estándar y política de firma validados por el Control del piloto; nueva muni onboarded con kit.
+
+---
+
+## PARTE C — Mapeo de reubicación (plan anterior → este plan)
+
+| Tarea del plan anterior | Estado | Nueva ubicación |
+|---|---|---|
+| 0.2 Verificación por correo del nuevo email | Pendiente | FASE 3.4 |
+| 2.2 (Opcional) Matriz de eventos en perfil propio | Pendiente | FASE 3.4 |
+| 7.1 Rol ALCALDE + permisos | **Hecho** (verificado) | Parte A.6 |
+| 7.2 Infra Resend + OTP + config | **Hecho** (verificado) | Parte A.3 |
+| 7.5 Bloqueo firma sin correo (servidor) | **Hecho** | Parte A.6 |
+| 7.5 Email obligatorio en modal prestador | Pendiente | FASE 3.3 |
+| 7.6 Auditoría OTP + rate limiting | Pendiente | FASE 3.3 |
+| 5.1 Subrogaciones | Pendiente | FASE 5.3 |
+| 5.2 Alertas estancamiento | Pendiente | FASE 5.4 |
+| 5.3 Carril Control Interno | Pendiente | FASE 5.2 |
+| 5.4 Presupuesto pasivo / feature flag | Pendiente | FASE 4.2 |
+| FASE 6 Pruebas e integración final | Pendiente | FASE 9 |
+| Módulo de Pagos Mensuales | Eliminado 2026-11-09 | No se reactiva (SMC externo) |
+| **Validar dominio remitente Resend** | **Nueva** | FASE 3.4 |
+
+---
+
+## PARTE D — Notas técnicas y riesgos
+
+- **Parche PaddleOCR Windows:** no remover `FLAGS_enable_pir_in_executor=0` ni `FLAGS_enable_pir_api=0` en `ocr_service.py` (crashea PaddleOCR v3.0+ en Windows).
+- **SQLite:** WAL, un archivo por tenant (FASE 6), backups por volumen Railway; concurrencia limitada por tenant (asumible).
+- **Legal (firma):** OTP + rúbrica es firma electrónica simple con evidencia (Ley 19.799), no FEA. Validar con Jurídica/Control antes de vender "cumple lo legal".
+- **Legal (jornada):** `hours_weekly` fija es indicio de subordinación (riesgo de recalificación laboral). Parametrizar y advertir.
+- **SIAPER:** sin API pública de CGR → tracking + export manual; plazo 15 días hábiles es obligación legal ya citada en los VISTOS.
+- **Documentación:** fuente de verdad = `plan_brechas.md` + este plan. README/Requerimientos/Contexto deben reescribirse (FASE 9).
+- **Seguridad:** CSRF global (FASE 1), rate limiting OTP (FASE 3), `SECRET_KEY` sin fallback dev (FASE 3), validación de uploads (FASE 9).
+- **Correos:** todo el envío (Resend, OTP, notificaciones, suscripción granular, toggles) está operativo; solo falta **validar el dominio remitente** para el envío formal y desactivar `RESEND_TEST_TO` en producción (FASE 3.4).
