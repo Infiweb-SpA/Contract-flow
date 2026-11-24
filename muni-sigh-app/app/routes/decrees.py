@@ -74,8 +74,8 @@ def index():
 def request_decree_otp(template_id):
     template = DecreeTemplate.query.get_or_404(template_id)
     current_user = get_current_user()
-    if not (current_user and current_user.has_permission('sign_decree')):
-        return jsonify({'success': False, 'message': 'Sin permiso para firmar decretos.'}), 403
+    if not (current_user and current_user.role == 'ALCALDE'):
+        return jsonify({'success': False, 'message': 'Solo el Alcalde puede activar decretos.'}), 403
     alcalde = User.query.filter_by(role='ALCALDE', is_active=1).first()
     if not alcalde or not alcalde.email:
         return jsonify({'success': False, 'message': 'No hay un usuario Alcalde activo con correo configurado.'}), 400
@@ -108,8 +108,8 @@ def request_decree_otp(template_id):
 def activate_page(template_id):
     template = DecreeTemplate.query.get_or_404(template_id)
     current_user = get_current_user()
-    if not (current_user and current_user.has_permission('sign_decree')):
-        flash('No tiene permiso para activar decretos.', 'danger')
+    if not (current_user and current_user.role == 'ALCALDE'):
+        flash('Solo el Alcalde puede activar decretos.', 'danger')
         return redirect(url_for('decrees.index'))
     return render_template('decrees/activate.html', template=template)
 
@@ -119,8 +119,8 @@ def activate_page(template_id):
 def activate(template_id):
     template = DecreeTemplate.query.get_or_404(template_id)
     current_user = get_current_user()
-    if not (current_user and current_user.has_permission('sign_decree')):
-        flash('No tiene permiso para activar decretos.', 'danger')
+    if not (current_user and current_user.role == 'ALCALDE'):
+        flash('Solo el Alcalde puede activar decretos.', 'danger')
         return redirect(url_for('decrees.index'))
 
     data = request.get_json(silent=True) or {}
@@ -183,9 +183,9 @@ def create():
         try:
             current_user = get_current_user()
             if current_user and current_user.role == 'ALCALDE':
-                is_active_val = True
-            else:
                 is_active_val = bool(request.form.get('is_active'))
+            else:
+                is_active_val = False
 
             new_template = DecreeTemplate(
                 decree_type=_validate_decree_type(request.form.get('decree_type', 'OTRO')),
@@ -246,9 +246,11 @@ def edit(template_id):
         try:
             current_user = get_current_user()
             if current_user and current_user.role == 'ALCALDE':
-                is_active_val = True
-            else:
                 is_active_val = bool(request.form.get('is_active'))
+            elif 'is_active' in request.form:
+                is_active_val = bool(request.form.get('is_active'))
+            else:
+                is_active_val = bool(template.is_active)
 
             template.decree_type = _validate_decree_type(request.form.get('decree_type', 'OTRO'))
             template.decree_number = request.form.get('decree_number', '').strip() or None
@@ -293,8 +295,8 @@ def edit(template_id):
 @login_required
 def toggle(template_id):
     current_user = get_current_user()
-    if not (current_user and current_user.has_permission('edit_decree')):
-        flash('No tiene permiso para modificar decretos.', 'danger')
+    if not (current_user and current_user.role == 'ALCALDE'):
+        flash('Solo el Alcalde puede activar o desactivar decretos.', 'danger')
         return redirect(url_for('decrees.index'))
     template = DecreeTemplate.query.get_or_404(template_id)
     template.is_active = not template.is_active

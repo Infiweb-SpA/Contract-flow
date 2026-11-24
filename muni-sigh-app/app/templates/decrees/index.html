@@ -92,7 +92,7 @@
                             <p class="truncate" title="{{ t.description }}">{{ t.description }}</p>
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
-                            {% if not t.is_active and 'sign_decree' in g.user_perms %}
+                            {% if not t.is_active and session.get('user_role') == 'ALCALDE' %}
                             <a href="{{ url_for('decrees.activate_page', template_id=t.id) }}"
                                 class="text-xs font-semibold text-green-600 hover:text-green-800 hover:underline mr-3">Activar</a>
                             {% endif %}
@@ -100,7 +100,7 @@
                             <a href="{{ url_for('decrees.edit', template_id=t.id) }}"
                                 class="text-xs font-semibold text-[#1e3a8a] hover:text-[#4A2E1B] hover:underline mr-3">Editar</a>
                             {% endif %}
-                            {% if 'edit_decree' in g.user_perms %}
+                            {% if session.get('user_role') == 'ALCALDE' %}
                             <form method="POST" action="{{ url_for('decrees.toggle', template_id=t.id) }}" class="inline-block mr-3"
                                 onsubmit="return confirm('¿Desea {{ 'desactivar' if t.is_active else 'reactivar' }} esta plantilla?')">
                                 <button type="submit" class="text-xs font-semibold text-amber-600 hover:text-amber-800 hover:underline">

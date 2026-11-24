@@ -90,12 +90,14 @@
             <p class="microcopy mt-1">Texto textual tal como aparecerá referenciado en el bloque VISTOS del decreto</p>
         </div>
 
-        <!-- Activa -->
+        <!-- Activa (solo Alcalde) -->
+        {% if session.get('user_role') == 'ALCALDE' %}
         <div class="flex items-center gap-2.5">
-            <input type="checkbox" name="is_active" id="is_active" {% if not template or template.is_active %}checked{% endif %}
+            <input type="checkbox" name="is_active" id="is_active" {% if template and template.is_active %}checked{% endif %}
                 class="w-4 h-4 rounded border-slate-300 text-[#0f265c] focus:ring-[#1e3a8a]">
             <label for="is_active" class="text-sm font-medium text-slate-700">Plantilla activa (se precarga en los borradores nuevos)</label>
         </div>
+        {% endif %}
 
         <!-- Acciones -->
         <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
